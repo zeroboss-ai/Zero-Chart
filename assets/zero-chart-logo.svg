@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="zc-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e1828" />
+      <stop offset="100%" stop-color="#060b14" />
+    </linearGradient>
+    <linearGradient id="zc-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff" />
+      <stop offset="50%" stop-color="#2962ff" />
+      <stop offset="100%" stop-color="#7c4dff" />
+    </linearGradient>
+    <linearGradient id="zc-spark" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2962ff" />
+      <stop offset="50%" stop-color="#00e5ff" />
+      <stop offset="100%" stop-color="#00e676" />
+    </linearGradient>
+    <filter id="zc-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00e5ff" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Base Squircle -->
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#zc-bg)" stroke="url(#zc-glow)" stroke-width="2" />
+
+  <!-- Grid Lines -->
+  <line x1="8" y1="24" x2="40" y2="24" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+  <line x1="8" y1="34" x2="40" y2="34" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+  <line x1="24" y1="8" x2="24" y2="40" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+
+  <!-- Candlestick Bar 1 (Left Up) -->
+  <line x1="14" y1="20" x2="14" y2="36" stroke="#2962ff" stroke-width="1.5" stroke-linecap="round" />
+  <rect x="12" y="23" width="4" height="9" rx="1" fill="#2962ff" />
+
+  <!-- Candlestick Bar 2 (Middle Up) -->
+  <line x1="22" y1="14" x2="22" y2="32" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round" />
+  <rect x="20" y="17" width="4" height="11" rx="1" fill="#00e5ff" />
+
+  <!-- Candlestick Bar 3 (Right Surge Up) -->
+  <line x1="30" y1="9" x2="30" y2="28" stroke="#00e676" stroke-width="1.5" stroke-linecap="round" />
+  <rect x="28" y="12" width="4" height="12" rx="1" fill="#00e676" />
+
+  <!-- Exponential Zero Surge Trend Arc -->
+  <path d="M 11 34 Q 22 30 26 21 T 37 11" fill="none" stroke="url(#zc-spark)" stroke-width="2.6" stroke-linecap="round" filter="url(#zc-shadow)" />
+
+  <!-- Sparkle Head -->
+  <circle cx="37" cy="11" r="3.5" fill="#ffffff" filter="url(#zc-shadow)" />
+  <circle cx="37" cy="11" r="2" fill="#00e5ff" />
+</svg>

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Zero Chart — Professional Trading Terminal</title>
+  <link rel="icon" href="assets/zero-chart-logo.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#131722" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Zero Chart" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/icon-512.png" />
+  <link rel="stylesheet" href="css/zero-chart.css" />
+</head>
+<body data-theme="dark">
+  <div id="app">
+    <!-- ─── 1. SINGLE INTEGRATED TRADINGVIEW PRO TOPBAR ─── -->
+    <header class="tv-topbar" id="topbar">
+      <!-- Zero Chart Brand Logo & Name -->
+      <div class="tv-brand" id="btn-user-profile" title="Zero Chart Pro Terminal">
+        <img src="assets/zero-chart-logo.svg" alt="Zero Chart Logo" class="tv-brand-logo" />
+        <div class="tv-brand-text">
+          <span class="tv-brand-name">ZERO<span class="tv-brand-accent">CHART</span></span>
+        </div>
+      </div>
+
+      <!-- Symbol Search Button -->
+      <button class="tv-sym-btn" id="btn-open-search" title="Search symbol (Alt+S)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span class="tv-sym-title" id="header-active-sym">NIFTY 50</span>
+        <span class="tv-sym-badge" id="header-active-exch">NSE</span>
+      </button>
+
+      <div class="tv-top-sep"></div>
+
+      <!-- Timeframe Selector Pills -->
+      <div class="tv-timeframe-pills" id="timeframe-group">
+        <button class="tv-tf-btn" data-interval="1m">1m</button>
+        <button class="tv-tf-btn" data-interval="3m">3m</button>
+        <button class="tv-tf-btn active" data-interval="5m">5m</button>
+        <button class="tv-tf-btn" data-interval="15m">15m</button>
+        <button class="tv-tf-btn" data-interval="1h">1h</button>
+        <button class="tv-tf-btn" data-interval="1d">1D</button>
+        <button class="tv-tf-btn" data-interval="1w">1W</button>
+      </div>
+
+      <div class="tv-top-sep"></div>
+
+      <!-- Chart Type Dropdown -->
+      <button class="tv-top-btn" id="btn-chart-type" title="Chart Style (Candles, Bars, Line...)">
+        <span id="chart-type-icon">🕯️</span>
+        <span id="chart-type-label">Candles</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+      </button>
+
+      <!-- Indicators Dialog Trigger -->
+      <button class="tv-top-btn" id="btn-open-indicators" title="Indicators, Metrics & Strategies (/)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16M4 12h8M4 5h12"/><circle cx="17" cy="12" r="3"/><circle cx="21" cy="5" r="2"/></svg>
+        <span>Indicators</span>
+      </button>
+
+      <!-- Alert Button (Create & Manage Price Alerts) -->
+      <button class="tv-top-btn tv-top-btn--alert" id="btn-open-alert" title="Create Alert (Alt+A)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span>Alert</span>
+        <span class="tv-alert-count-badge" id="top-alert-count" style="display:none;">0</span>
+      </button>
+
+      <div class="tv-top-sep"></div>
+
+      <!-- Undo / Redo -->
+      <button class="tv-top-btn tv-top-btn--icon" id="btn-undo" title="Undo (Ctrl+Z)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6M3 13a9 9 0 102.5-6.5L3 7"/></svg>
+      </button>
+      <button class="tv-top-btn tv-top-btn--icon" id="btn-redo" title="Redo (Ctrl+Y)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6M21 13a9 9 0 11-2.5-6.5L21 7"/></svg>
+      </button>
+
+      <div class="tv-top-sep"></div>
+
+      <!-- Multi-Chart Layouts Dropdown -->
+      <div class="tv-layout-dropdown-wrapper">
+        <button class="tv-top-btn" id="btn-layout-grid" title="Select Multi-Chart Layout (1, 2, 3, 4 Charts)">
+          <span id="layout-grid-icon" style="font-size:14px;line-height:1;">▢</span>
+          <span style="font-size:11.5px;font-weight:600;" id="layout-grid-label">1 Chart</span>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+        </button>
+      </div>
+
+      <!-- Cloud Layout Name Dropdown -->
+      <button class="tv-top-btn" id="btn-layout-save" title="Save Layout">
+        <span style="font-weight:600;font-size:12px;">Zero Layout</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+      </button>
+
+      <!-- Top Right Header Area -->
+      <div class="tv-topbar-right">
+        <!-- Live Real-Time Feed Status Indicator -->
+        <div class="tv-broker-status live" id="broker-status-badge" title="Live Market Feed Active">
+          <span class="tv-live-pulse-dot"></span>
+          <span id="broker-status-text" style="letter-spacing:0.5px;font-size:11px;">LIVE</span>
+        </div>
+
+        <!-- PWA Install App Button -->
+        <button class="tv-top-btn tv-top-btn--install" id="btn-install-pwa" title="Install Zero Chart as App" style="display:none;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <span class="tv-install-label">Install App</span>
+        </button>
+
+        <!-- Light / Dark Theme Toggle Button -->
+        <button class="tv-top-btn tv-top-btn--icon" id="btn-theme-toggle" title="Toggle Light / Dark Theme">
+          <span id="theme-toggle-icon" style="font-size:14px;line-height:1;">☀️</span>
+        </button>
+
+        <!-- Fullscreen Toggle -->
+        <button class="tv-top-btn tv-top-btn--icon" id="btn-fullscreen" title="Fullscreen (F11)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+        </button>
+
+        <!-- Camera Snapshot -->
+        <button class="tv-top-btn tv-top-btn--icon" id="btn-take-screenshot" title="Take a snapshot">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ─── 2. MAIN TRADINGVIEW CHART STAGE (MULTI-PANE SUPPORT) ─── -->
+    <main class="tv-stage">
+      <div id="widget-mount" class="tv-chart-stage-grid layout-1x1">
+        <div class="tv-chart-pane-wrapper active" data-pane="0" id="chart-pane-0"></div>
+        <div class="tv-chart-pane-wrapper" data-pane="1" id="chart-pane-1" style="display:none;"></div>
+        <div class="tv-chart-pane-wrapper" data-pane="2" id="chart-pane-2" style="display:none;"></div>
+        <div class="tv-chart-pane-wrapper" data-pane="3" id="chart-pane-3" style="display:none;"></div>
+
+        <!-- Draggable Interactive Chart Layout Splitters -->
+        <div class="tv-stage-splitter tv-stage-splitter--v" id="stage-splitter-v" style="display:none;" title="Drag to adjust chart widths (Double-click to reset 50/50)"></div>
+        <div class="tv-stage-splitter tv-stage-splitter--h" id="stage-splitter-h" style="display:none;" title="Drag to adjust chart heights (Double-click to reset 50/50)"></div>
+      </div>
+    </main>
+
+    <!-- ─── 3. RIGHT WATCHLIST & TOOL PANELS ─── -->
+    <aside class="tv-right-sidebar" id="tv-right-sidebar">
+      <!-- Draggable Sidebar Resizer Handle -->
+      <div class="tv-sidebar-resizer" id="sidebar-resizer" title="Drag to resize watchlist width (Double-click to reset)"></div>
+
+      <div class="tv-right-content" id="right-panel">
+        
+        <!-- ─── WATCHLIST TAB (Horizontal Watchlist Tabs Bar + 3 Columns) ─── -->
+        <div id="panel-watchlist" class="tv-tab-pane" style="display:flex;flex-direction:column;height:100%;">
+          <!-- 1. Horizontal Watchlist Tabs Bar (One-click switching in a horizontal line) -->
+          <div class="tv-wl-horizontal-bar" id="watchlist-horizontal-tabs"></div>
+
+          <!-- 2. Active Watchlist Subheader & Controls -->
+          <div class="tv-wl-sub-header">
+            <div class="tv-wl-sub-info">
+              <span class="tv-wl-sub-title" id="wl-active-title">Indian Stocks</span>
+              <span class="tv-wl-sub-count" id="wl-active-count">24 symbols</span>
+            </div>
+            <div class="tv-wl-actions">
+              <button class="tv-wl-act-btn" id="btn-wl-add" title="Add symbol to list (+)">+</button>
+              <button class="tv-wl-act-btn" id="btn-wl-rename" title="Rename watchlist">✏️</button>
+              <button class="tv-wl-act-btn tv-wl-act-btn--danger" id="btn-wl-delete" title="Delete watchlist">🗑️</button>
+              <button class="tv-wl-act-btn tv-mob-close-drawer-btn" id="btn-mob-close-drawer" title="Close Watchlist">✕</button>
+            </div>
+          </div>
+
+          <!-- 3. Table Column Headers -->
+          <div class="tv-wl-cols">
+            <div class="tv-col-sym">Symbol</div>
+            <div class="tv-col-last">Last</div>
+            <div class="tv-col-chg">Chg</div>
+            <div class="tv-col-pct">Chg%</div>
+          </div>
+
+          <!-- 4. Watchlist Items Container (Populated dynamically) -->
+          <div class="tv-wl-body" id="watchlist-table-body"></div>
+        </div>
+
+        <!-- ─── ORDER TICKET TAB ─── -->
+        <div id="panel-trade" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
+          <div class="tv-panel-head">
+            <span>Order Ticket</span>
+            <span style="font-size:12px;color:var(--buy);font-weight:700;" id="trade-sym-title">NIFTY 50</span>
+            <button class="tv-wl-act-btn tv-mob-close-drawer-btn" id="btn-mob-close-trade" title="Close Ticket">✕</button>
+          </div>
+          <div class="tv-trade-box">
+            <div class="tv-side-buttons">
+              <button class="tv-side-btn buy active" id="trade-btn-buy">BUY / LONG</button>
+              <button class="tv-side-btn sell" id="trade-btn-sell">SELL / SHORT</button>
+            </div>
+            <div class="tv-input-group">
+              <label class="tv-input-label">Order Type</label>
+              <select class="tv-input-field" id="trade-type">
+                <option value="MARKET">Market</option>
+                <option value="LIMIT">Limit</option>
+                <option value="STOP">Stop (SL-L)</option>
+                <option value="STOP_MARKET">Stop Market (SL-M)</option>
+              </select>
+            </div>
+            <div class="tv-input-group">
+              <label class="tv-input-label">Quantity / Lots</label>
+              <input type="number" class="tv-input-field" id="trade-qty" value="1" min="1" step="1" />
+            </div>
+            <div class="tv-input-group">
+              <label class="tv-input-label">Price</label>
+              <input type="number" class="tv-input-field" id="trade-price" step="any" placeholder="Market Price" />
+            </div>
+            <button class="tv-side-btn buy active" id="trade-submit-btn" style="width:100%;margin-top:6px;">Place Buy Market</button>
+            <div style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.4;">
+              Interactive order lines appear directly on chart canvas. Drag brackets to modify.
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── ALERTS TAB ─── -->
+        <div id="panel-alerts" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
+          <div class="tv-panel-head">
+            <span>Price & Technical Alerts</span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <button class="tv-wl-act-btn" id="btn-add-alert-panel">+</button>
+              <button class="tv-wl-act-btn tv-mob-close-drawer-btn" id="btn-mob-close-alerts" title="Close Alerts">✕</button>
+            </div>
+          </div>
+          <div class="tv-panel-content" id="alerts-list">
+            <div style="padding:20px;text-align:center;color:var(--text-muted);">
+              No active alerts. Click <b>+</b> or press <b>Alt+A</b> to create a new price alert.
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── DATA WINDOW TAB ─── -->
+        <div id="panel-datawindow" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
+          <div class="tv-panel-head">
+            <span>Data Window</span>
+            <button class="tv-wl-act-btn tv-mob-close-drawer-btn" id="btn-mob-close-dw" title="Close Data Window">✕</button>
+          </div>
+          <div class="tv-panel-content" id="data-window-body">
+            <div class="tv-dw-row"><span>Date / Time</span><b id="dw-time">—</b></div>
+            <div class="tv-dw-row"><span>Open</span><b id="dw-open">—</b></div>
+            <div class="tv-dw-row"><span>High</span><b id="dw-high">—</b></div>
+            <div class="tv-dw-row"><span>Low</span><b id="dw-low">—</b></div>
+            <div class="tv-dw-row"><span>Close</span><b id="dw-close">—</b></div>
+            <div class="tv-dw-row"><span>Change</span><b id="dw-chg">—</b></div>
+            <div class="tv-dw-row"><span>Volume</span><b id="dw-vol">—</b></div>
+          </div>
+        </div>
+
+        <!-- ─── OBJECT TREE & LAYERS TAB ─── -->
+        <div id="panel-objects" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
+          <div class="tv-panel-head"><span>Object Tree & Layers</span></div>
+          <div class="tv-panel-content" style="padding:14px;color:var(--text-muted);line-height:1.5;">
+            Manage all active indicators, overlays, and drawing tools directly from the left rail or use shortcut <b>Alt+O</b>.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─── FAR RIGHT 12-ICON VERTICAL RAIL ─── -->
+      <div class="tv-vertical-rail">
+        <button class="tv-v-icon active" data-tab="watchlist" title="Watchlist and details">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="alerts" title="Alerts (Alt+A)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="news" title="News headlines">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m4 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 8h6m-6 4h6m-6 4h4"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="datawindow" title="Data window">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="hotlists" title="Hotlists & Market Movers">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="calendar" title="Economic calendar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="ideas" title="My ideas & Community">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="chat" title="Public & Private chats">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="notifications" title="Notifications">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="trade" title="Order Panel / Trading Ticket">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="objects" title="Object Tree & Layers (Alt+O)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ─── 4. SYMBOL SEARCH & ADD MODAL ─── -->
+    <div class="tv-modal-backdrop" id="search-modal">
+      <div class="tv-search-modal">
+        <div class="tv-search-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" class="tv-search-input" id="search-query" placeholder="Search Muthoot, ICICI, Nifty, Stocks, Crypto, Commodities..." autofocus />
+          <button class="tv-modal-close-btn" id="btn-close-search">✕</button>
+        </div>
+        <div class="tv-search-tabs" id="search-category-tabs">
+          <button class="tv-st-btn active" data-cat="all">All Markets</button>
+          <button class="tv-st-btn" data-cat="india">🇮🇳 Indian Equities</button>
+          <button class="tv-st-btn" data-cat="futures">📈 Indices & Futures</button>
+          <button class="tv-st-btn" data-cat="crypto">🪙 Crypto</button>
+          <button class="tv-st-btn" data-cat="commodities">🛢️ Commodities</button>
+        </div>
+        <div class="tv-search-results" id="search-results"></div>
+      </div>
+    </div>
+
+    <!-- ─── 5. CHART TYPE DROPDOWN MENU ─── -->
+    <div class="tv-dropdown-menu" id="chart-type-menu">
+      <div class="tv-menu-item active" data-type="candlestick"><span>🕯️</span><span>Candles</span></div>
+      <div class="tv-menu-item" data-type="bar"><span>📊</span><span>Bars</span></div>
+      <div class="tv-menu-item" data-type="hollow-candle"><span>🕯️</span><span>Hollow candles</span></div>
+      <div class="tv-menu-item" data-type="heikin-ashi"><span>🎌</span><span>Heikin Ashi</span></div>
+      <div class="tv-menu-item" data-type="line"><span>📈</span><span>Line</span></div>
+      <div class="tv-menu-item" data-type="area"><span>🏔️</span><span>Area</span></div>
+      <div class="tv-menu-item" data-type="baseline"><span>📉</span><span>Baseline</span></div>
+    </div>
+
+    <!-- ─── 6. MULTI-CHART LAYOUTS DROPDOWN MENU ─── -->
+    <div class="tv-dropdown-menu tv-layout-menu" id="layout-grid-menu">
+      <div class="tv-menu-header">Select Layout</div>
+      <div class="tv-layout-grid-options">
+        <button class="tv-layout-opt active" data-layout="1x1" title="1 Chart (Single)">
+          <div class="tv-layout-preview layout-1x1"><div></div></div>
+          <span>1 Chart</span>
+        </button>
+        <button class="tv-layout-opt" data-layout="1x2" title="2 Charts Side-by-Side (Horizontal)">
+          <div class="tv-layout-preview layout-1x2"><div></div><div></div></div>
+          <span>2 Charts Horizontal</span>
+        </button>
+        <button class="tv-layout-opt" data-layout="2x1" title="2 Charts Stacked (Vertical)">
+          <div class="tv-layout-preview layout-2x1"><div></div><div></div></div>
+          <span>2 Charts Vertical</span>
+        </button>
+        <button class="tv-layout-opt" data-layout="1x3" title="3 Charts (1 Left, 2 Right)">
+          <div class="tv-layout-preview layout-1x3"><div></div><div></div><div></div></div>
+          <span>3 Charts</span>
+        </button>
+        <button class="tv-layout-opt" data-layout="2x2" title="4 Charts Grid (2x2)">
+          <div class="tv-layout-preview layout-2x2"><div></div><div></div><div></div><div></div></div>
+          <span>4 Charts Grid</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── 7. ALERT CREATION & MANAGEMENT MODAL ─── -->
+    <div class="tv-modal-backdrop" id="alert-modal">
+      <div class="tv-alert-modal">
+        <div class="tv-alert-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <span id="alert-modal-title" style="font-weight:700;font-size:14px;color:var(--text);">Create Price Alert</span>
+          </div>
+          <button class="tv-modal-close-btn" id="btn-close-alert">✕</button>
+        </div>
+        <div class="tv-alert-body">
+          <input type="hidden" id="alert-edit-id" value="" />
+
+          <div class="tv-input-row" style="display:flex;gap:10px;">
+            <div class="tv-input-group" style="flex:1;">
+              <label class="tv-input-label">Symbol</label>
+              <select class="tv-input-field" id="alert-symbol"></select>
+            </div>
+            <div class="tv-input-group" style="flex:1;">
+              <label class="tv-input-label">Condition</label>
+              <select class="tv-input-field" id="alert-condition">
+                <option value="CROSSING">Crossing</option>
+                <option value="CROSSING_UP" selected>Crossing Up (Breakout)</option>
+                <option value="CROSSING_DOWN">Crossing Down (Breakdown)</option>
+                <option value="GREATER_THAN">Greater Than (Above)</option>
+                <option value="LESS_THAN">Less Than (Below)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tv-input-group">
+            <label class="tv-input-label">Trigger Target Price</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input type="number" step="any" class="tv-input-field" id="alert-price" placeholder="Target Price" style="flex:1;" />
+              <button class="tv-btn" id="btn-alert-use-current" type="button" title="Set to Current Market Price">Current LTP</button>
+            </div>
+          </div>
+
+          <div class="tv-input-row" style="display:flex;gap:10px;">
+            <div class="tv-input-group" style="flex:1;">
+              <label class="tv-input-label">Trigger Frequency</label>
+              <select class="tv-input-field" id="alert-frequency">
+                <option value="ONCE" selected>Only Once</option>
+                <option value="EVERY_TIME">Every Time (Once per bar)</option>
+              </select>
+            </div>
+            <div class="tv-input-group" style="flex:1;">
+              <label class="tv-input-label">Expiration</label>
+              <select class="tv-input-field" id="alert-expiration">
+                <option value="NEVER" selected>Never (Open until triggered)</option>
+                <option value="1D">1 Day</option>
+                <option value="7D">7 Days</option>
+                <option value="30D">30 Days</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tv-input-group">
+            <label class="tv-input-label">Alert Name</label>
+            <input type="text" class="tv-input-field" id="alert-name" placeholder="e.g. Target Resistance Breakout" />
+          </div>
+
+          <div class="tv-input-group">
+            <label class="tv-input-label">Alert Message</label>
+            <input type="text" class="tv-input-field" id="alert-message" placeholder="Message when alert is triggered" />
+          </div>
+        </div>
+
+        <div class="tv-alert-footer">
+          <button class="tv-btn" id="btn-cancel-alert" type="button">Cancel</button>
+          <button class="tv-btn tv-btn--accent" id="btn-save-alert" type="button">Save Alert</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── 9. PWA INSTALLATION MODAL / INSTRUCTIONS ─── -->
+    <div class="tv-modal-backdrop" id="pwa-modal">
+      <div class="tv-alert-modal tv-pwa-modal-dialog">
+        <div class="tv-alert-header">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <img src="assets/zero-chart-logo.svg" style="width:26px;height:26px;border-radius:6px;" alt="Logo" />
+            <div>
+              <div style="font-weight:800;font-size:14px;color:var(--text);">Install Zero Chart App</div>
+              <div style="font-size:11px;color:var(--text-muted);">Dedicated Fullscreen & Offline Terminal</div>
+            </div>
+          </div>
+          <button class="tv-modal-close-btn" id="btn-close-pwa">✕</button>
+        </div>
+        <div class="tv-alert-body" style="gap:12px;">
+          <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.5;">
+            Install <strong>Zero Chart</strong> directly on your mobile or desktop device for quick 1-tap launching, full-screen chart space, and lightning-fast trading view.
+          </p>
+
+          <div class="tv-pwa-guides">
+            <div class="tv-pwa-guide-row">
+              <span class="tv-pwa-badge">📱 iPhone / iPad</span>
+              <span style="font-size:11.5px;color:var(--text);">Tap <strong style="color:var(--accent);">Share</strong> (square with arrow) ➡️ Tap <strong style="color:var(--accent);">"Add to Home Screen"</strong>.</span>
+            </div>
+            <div class="tv-pwa-guide-row">
+              <span class="tv-pwa-badge">🤖 Android</span>
+              <span style="font-size:11.5px;color:var(--text);">Tap <strong style="color:var(--accent);">3-dots menu</strong> in Chrome ➡️ Tap <strong style="color:var(--accent);">"Install App"</strong>.</span>
+            </div>
+            <div class="tv-pwa-guide-row">
+              <span class="tv-pwa-badge">💻 Desktop PC / Mac</span>
+              <span style="font-size:11.5px;color:var(--text);">Click <strong style="color:var(--accent);">Install</strong> in URL bar or click the button below.</span>
+            </div>
+          </div>
+        </div>
+        <div class="tv-alert-footer">
+          <button class="tv-btn" id="btn-dismiss-pwa" type="button">Close</button>
+          <button class="tv-btn tv-btn--accent" id="btn-pwa-prompt-trigger" type="button">Install Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Toast Notification Container -->
+    <div class="tv-toast-container" id="alert-toast-container"></div>
+
+    <!-- ─── 8. MOBILE BOTTOM NAVIGATION BAR ─── -->
+    <nav class="tv-mobile-nav" id="mobile-nav">
+      <button class="tv-mob-nav-btn" id="mob-nav-watchlist" data-tab="watchlist">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span>Watchlist</span>
+      </button>
+      <button class="tv-mob-nav-btn active" id="mob-nav-chart" data-tab="chart">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M7 16l4-4 4 4 5-6"/></svg>
+        <span>Chart</span>
+      </button>
+      <button class="tv-mob-nav-btn" id="mob-nav-alerts" data-tab="alerts">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span>Alerts</span>
+      </button>
+      <button class="tv-mob-nav-btn" id="mob-nav-draw" data-action="draw">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586"/></svg>
+        <span>Draw</span>
+      </button>
+      <button class="tv-mob-nav-btn" id="mob-nav-search" data-action="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span>Search</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script type="module" src="js/zero-chart-app.js"></script>
+</body>
+</html>

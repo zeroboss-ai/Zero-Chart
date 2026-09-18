@@ -1,0 +1,12 @@
+{
+  "name": "zero-chart",
+  "version": "1.0.0",
+  "description": "Zero Chart — Standalone Multi-Asset TradingView Pro Terminal",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs --watch"
+  },
+  "author": "Zero Chart Team",
+  "license": "MIT"
+}
