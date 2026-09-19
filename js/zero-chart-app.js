@@ -2797,6 +2797,8 @@ class ZeroChartApp {
     const rightPanel = document.getElementById('right-panel');
     const tabPanes = document.querySelectorAll('.tv-right-content .tv-tab-pane');
 
+    document.body.classList.add('mobile-drawer-open');
+
     if (sidebar) {
       sidebar.classList.add('mobile-open');
     }
@@ -2823,6 +2825,7 @@ class ZeroChartApp {
   }
 
   closeMobileDrawer(pushState = true) {
+    document.body.classList.remove('mobile-drawer-open');
     const sidebar = document.querySelector('.tv-right-sidebar');
     if (sidebar) {
       sidebar.classList.remove('mobile-open');
@@ -3309,99 +3312,121 @@ class ZeroChartApp {
     } catch (_) {}
 
     // Wire Draggable Pointer Events (Desktop Mouse + Mobile Touch Support)
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initLeft = 0;
+    let initTop = 0;
+
+    const onPointerDown = (e) => {
+      // Ignore clicks on buttons or interactive child elements
+      if (e.target.closest('button, input, select, .tv-fav-tool-btn, .tv-fav-btn')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isDragging = true;
+
+      const rect = toolbar.getBoundingClientRect();
+      const stage = toolbar.parentElement?.getBoundingClientRect() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+
+      startX = e.clientX;
+      startY = e.clientY;
+      initLeft = rect.left - stage.left;
+      initTop = rect.top - stage.top;
+
+      toolbar.style.left = `${initLeft}px`;
+      toolbar.style.top = `${initTop}px`;
+      toolbar.style.bottom = 'auto';
+      toolbar.style.right = 'auto';
+
+      window.addEventListener('pointermove', onPointerMove, { passive: false });
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    };
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const stage = toolbar.parentElement?.getBoundingClientRect() || { width: window.innerWidth, height: window.innerHeight };
+      const tbRect = toolbar.getBoundingClientRect();
+
+      const maxLeft = Math.max(0, stage.width - tbRect.width - 5);
+      const maxTop = Math.max(0, stage.height - tbRect.height - 5);
+
+      const newLeft = Math.max(5, Math.min(maxLeft, initLeft + dx));
+      const newTop = Math.max(5, Math.min(maxTop, initTop + dy));
+
+      toolbar.style.left = `${newLeft}px`;
+      toolbar.style.top = `${newTop}px`;
+    };
+
+    const onPointerUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      const left = parseFloat(toolbar.style.left) || 0;
+      const top = parseFloat(toolbar.style.top) || 0;
+      localStorage.setItem('zerochart_fav_pos', JSON.stringify({ left, top }));
+    };
+
     if (dragHandle) {
-      let isDragging = false;
-      let startX = 0;
-      let startY = 0;
-      let initLeft = 0;
-      let initTop = 0;
-
-      dragHandle.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        isDragging = true;
-        try {
-          dragHandle.setPointerCapture(e.pointerId);
-        } catch (_) {}
-
-        const rect = toolbar.getBoundingClientRect();
-        const stage = toolbar.parentElement?.getBoundingClientRect() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-
-        startX = e.clientX;
-        startY = e.clientY;
-        initLeft = rect.left - stage.left;
-        initTop = rect.top - stage.top;
-
-        toolbar.style.left = `${initLeft}px`;
-        toolbar.style.top = `${initTop}px`;
-        toolbar.style.bottom = 'auto';
-        toolbar.style.right = 'auto';
-      });
-
-      dragHandle.addEventListener('pointermove', (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        const stage = toolbar.parentElement?.getBoundingClientRect() || { width: window.innerWidth, height: window.innerHeight };
-        const tbRect = toolbar.getBoundingClientRect();
-
-        const maxLeft = Math.max(0, stage.width - tbRect.width - 5);
-        const maxTop = Math.max(0, stage.height - tbRect.height - 5);
-
-        const newLeft = Math.max(5, Math.min(maxLeft, initLeft + dx));
-        const newTop = Math.max(5, Math.min(maxTop, initTop + dy));
-
-        toolbar.style.left = `${newLeft}px`;
-        toolbar.style.top = `${newTop}px`;
-      });
-
-      const stopDrag = (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        try {
-          dragHandle.releasePointerCapture(e.pointerId);
-        } catch (_) {}
-        const left = parseFloat(toolbar.style.left) || 0;
-        const top = parseFloat(toolbar.style.top) || 0;
-        localStorage.setItem('zerochart_fav_pos', JSON.stringify({ left, top }));
-      };
-
-      dragHandle.addEventListener('pointerup', stopDrag);
-      dragHandle.addEventListener('pointercancel', stopDrag);
+      dragHandle.addEventListener('pointerdown', onPointerDown);
     }
+    toolbar.addEventListener('pointerdown', onPointerDown);
 
     // Close button on toolbar
     if (closeBtn) {
       closeBtn.onclick = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         this.toggleFavoriteToolbar(false);
       };
+      closeBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
 
     // Continuous drawing mode toggle
     if (stayBtn) {
       stayBtn.onclick = (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        const activeDraw = this.widget?.draw;
+        const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+        const activeDraw = activePane?.widget?.draw || this.widget?.draw;
         if (activeDraw) {
-          const next = !activeDraw.stayInDrawingMode();
-          activeDraw.setStayInDrawingMode(next);
+          const current = activeDraw.stayInDrawingMode ? activeDraw.stayInDrawingMode() : false;
+          const next = !current;
+          try {
+            activeDraw.setOptions({ stayInDrawingMode: next });
+          } catch (_) {}
           stayBtn.classList.toggle('active', next);
           this.showToast(next ? '📌 Continuous Drawing Mode ON' : 'Single Drawing Mode', 1500);
         }
       };
+      stayBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
 
     // Delete selected drawings button
     if (trashBtn) {
       trashBtn.onclick = (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        const activeDraw = this.widget?.draw;
+        const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+        const activeDraw = activePane?.widget?.draw || this.widget?.draw;
         if (activeDraw) {
-          activeDraw.deleteSelected();
-          this.showToast('🗑️ Selected drawings removed', 1500);
+          try {
+            const sel = typeof activeDraw.selection === 'function' ? activeDraw.selection() : activeDraw.selected ? [activeDraw.selected()].filter(Boolean) : [];
+            if (sel && sel.length > 0) {
+              sel.forEach((id) => activeDraw.remove(id));
+              this.showToast('🗑️ Selected drawings removed', 1500);
+            } else {
+              this.showToast('Select a drawing on chart to delete', 1500);
+            }
+          } catch (_) {}
         }
       };
+      trashBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
   }
 
@@ -3449,11 +3474,15 @@ class ZeroChartApp {
         </svg>
       `;
 
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        const activeDraw = this.widget?.draw;
+      const selectTool = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+        const activeDraw = activePane?.widget?.draw || this.widget?.draw;
         if (!activeDraw) return;
-        const currentTool = activeDraw.tool();
+        const currentTool = typeof activeDraw.activeTool === 'function' ? activeDraw.activeTool() : null;
         if (currentTool === def.id) {
           activeDraw.setTool(null);
           this.syncFavoriteToolActive(null);
@@ -3463,12 +3492,17 @@ class ZeroChartApp {
         }
       };
 
+      btn.addEventListener('click', selectTool);
+      btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btn.addEventListener('touchend', selectTool, { passive: false });
+
       list.appendChild(btn);
     });
 
-    const activeDraw = this.widget?.draw;
-    if (activeDraw) {
-      this.syncFavoriteToolActive(activeDraw.tool());
+    const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+    const activeDraw = activePane?.widget?.draw || this.widget?.draw;
+    if (activeDraw && typeof activeDraw.activeTool === 'function') {
+      this.syncFavoriteToolActive(activeDraw.activeTool());
     }
   }
 

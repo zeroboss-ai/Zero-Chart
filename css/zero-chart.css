@@ -2460,9 +2460,13 @@ html, body {
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
+  body.mobile-drawer-open .tv-fav-toolbar,
+  body.mobile-drawer-open .tv-max-pane-pill,
+  body.mobile-drawer-open .tv-replay-toolbar {
+    display: none !important;
+  }
+
   .tv-fav-toolbar {
-    left: 10px;
-    bottom: 60px;
     max-width: calc(100vw - 20px);
     overflow-x: auto;
     scrollbar-width: none;
