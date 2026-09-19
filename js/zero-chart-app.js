@@ -253,8 +253,9 @@ class ZeroChartApp {
     // 6. Initialize Alerts Engine
     this.initAlertEngine();
 
-    // 7. Initialize Mobile Navigation & Drawer Handlers
+    // 7. Initialize Mobile Navigation & History Handlers (Watchlist Landing Page + Back Button)
     this.initMobileUI();
+    this.initMobileHistory();
 
     // 8. Start Real-Time Market Streams
     this.startLiveMarketStream();
@@ -1082,7 +1083,7 @@ class ZeroChartApp {
     this.renderWatchlist();
     this.closeModal('search-modal');
     if (window.innerWidth <= 768) {
-      this.closeMobileDrawer();
+      this.closeMobileDrawer(true);
     }
   }
 
@@ -2356,6 +2357,17 @@ class ZeroChartApp {
       };
     }
 
+    // Objects Tree / Active Indicators Manager
+    const objBtn = document.getElementById('btn-open-objects');
+    if (objBtn) {
+      objBtn.onclick = () => {
+        const activeWidget = this.widget;
+        if (activeWidget?.context) {
+          mountObjectsPanel(activeWidget.context, objBtn);
+        }
+      };
+    }
+
     // Undo / Redo
     const undoBtn = document.getElementById('btn-undo');
     const redoBtn = document.getElementById('btn-redo');
@@ -2493,14 +2505,14 @@ class ZeroChartApp {
 
     if (mobNavChart) {
       mobNavChart.onclick = () => {
-        this.closeMobileDrawer();
+        this.closeMobileDrawer(true);
         updateMobNav('mob-nav-chart');
       };
     }
 
     if (mobNavWatchlist) {
       mobNavWatchlist.onclick = () => {
-        this.openMobileDrawer('watchlist');
+        this.openMobileDrawer('watchlist', false);
         updateMobNav('mob-nav-watchlist');
       };
     }
@@ -2508,7 +2520,7 @@ class ZeroChartApp {
     if (topbarWlBtn) {
       topbarWlBtn.onclick = () => {
         if (window.innerWidth <= 768) {
-          this.openMobileDrawer('watchlist');
+          this.openMobileDrawer('watchlist', false);
           updateMobNav('mob-nav-watchlist');
         } else {
           this.openSidebarTab('watchlist');
@@ -2518,7 +2530,7 @@ class ZeroChartApp {
 
     if (mobNavAlerts) {
       mobNavAlerts.onclick = () => {
-        this.openMobileDrawer('alerts');
+        this.openMobileDrawer('alerts', true);
         updateMobNav('mob-nav-alerts');
       };
     }
@@ -2528,6 +2540,9 @@ class ZeroChartApp {
         if (rail) {
           const isVisible = rail.classList.toggle('mobile-visible');
           mobNavDraw.classList.toggle('active', isVisible);
+          if (isVisible && window.innerWidth <= 768) {
+            this.pushHistoryState({ view: 'draw' });
+          }
         }
       };
     }
@@ -2542,7 +2557,7 @@ class ZeroChartApp {
     mobCloseBtns.forEach((btn) => {
       btn.onclick = (e) => {
         e.stopPropagation();
-        this.closeMobileDrawer();
+        this.closeMobileDrawer(true);
       };
     });
 
@@ -2550,13 +2565,119 @@ class ZeroChartApp {
     if (sidebar) {
       sidebar.onclick = (e) => {
         if (e.target === sidebar) {
-          this.closeMobileDrawer();
+          this.closeMobileDrawer(true);
         }
       };
     }
+
+    // Default landing page on mobile devices is WATCHLIST!
+    if (window.innerWidth <= 768) {
+      this.openMobileDrawer('watchlist', false);
+      updateMobNav('mob-nav-watchlist');
+    }
   }
 
-  openMobileDrawer(tabName) {
+  initMobileHistory() {
+    const isMobile = window.innerWidth <= 768;
+    this.currentViewState = isMobile ? 'watchlist' : 'chart';
+    try {
+      history.replaceState({ view: this.currentViewState }, '');
+    } catch (_) {}
+
+    window.addEventListener('popstate', (e) => {
+      this.handlePopState(e);
+    });
+  }
+
+  pushHistoryState(stateObj) {
+    try {
+      if (history.state?.view !== stateObj.view) {
+        history.pushState(stateObj, '');
+      }
+      this.currentViewState = stateObj.view;
+    } catch (_) {}
+  }
+
+  handlePopState(event) {
+    // 1. Close open modal overlays if any
+    const searchModal = document.getElementById('search-modal');
+    const alertModal = document.getElementById('alert-modal');
+    const pwaModal = document.getElementById('pwa-modal');
+    const layoutMenu = document.getElementById('layout-grid-menu');
+    const chartTypeMenu = document.getElementById('chart-type-menu');
+    const speedMenu = document.getElementById('replay-speed-menu');
+    const widgetDialogs = document.querySelectorAll('.oac-dialog, .oac-overlay');
+
+    if (searchModal?.classList.contains('show')) {
+      this.closeModal('search-modal');
+      return;
+    }
+    if (alertModal?.classList.contains('show')) {
+      this.closeModal('alert-modal');
+      return;
+    }
+    if (pwaModal?.classList.contains('show')) {
+      this.closeModal('pwa-modal');
+      return;
+    }
+    if (layoutMenu?.classList.contains('show')) {
+      layoutMenu.classList.remove('show');
+      return;
+    }
+    if (chartTypeMenu?.classList.contains('show')) {
+      chartTypeMenu.classList.remove('show');
+      return;
+    }
+    if (speedMenu && speedMenu.style.display !== 'none') {
+      speedMenu.style.display = 'none';
+      return;
+    }
+    if (widgetDialogs && widgetDialogs.length > 0) {
+      widgetDialogs.forEach((d) => d.remove());
+      return;
+    }
+
+    // 2. If in Bar Replay, exit back to normal live chart
+    if (this.isReplayMode || this.isReplayJumpMode) {
+      this.exitReplayMode();
+      return;
+    }
+
+    // 3. If drawing rail is open on mobile, hide it
+    const rail = document.querySelector('.oac-rail');
+    if (rail?.classList.contains('mobile-visible')) {
+      rail.classList.remove('mobile-visible');
+      const mobNavDraw = document.getElementById('mob-nav-draw');
+      if (mobNavDraw) mobNavDraw.classList.remove('active');
+      return;
+    }
+
+    // 4. Mobile screen back-navigation
+    if (window.innerWidth <= 768) {
+      const sidebar = document.querySelector('.tv-right-sidebar');
+      const isDrawerOpen = sidebar?.classList.contains('mobile-open');
+      const activeBtn = document.querySelector('.tv-mob-nav-btn.active');
+      const activeTab = activeBtn?.dataset?.tab;
+
+      // If user is on Chart, Alerts, or any non-watchlist view:
+      if (!isDrawerOpen || activeTab !== 'watchlist') {
+        // Return to Watchlist landing page
+        this.openMobileDrawer('watchlist', false);
+        document.querySelectorAll('.tv-mob-nav-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.id === 'mob-nav-watchlist');
+        });
+        this.currentViewState = 'watchlist';
+        try {
+          history.replaceState({ view: 'watchlist' }, '');
+        } catch (_) {}
+        return;
+      }
+
+      // If ALREADY on Watchlist landing page, do NOT intercept, allowing browser/phone to naturally close/exit
+    }
+  }
+
+  openMobileDrawer(tabName, pushState = true) {
     const sidebar = document.querySelector('.tv-right-sidebar');
     const rightPanel = document.getElementById('right-panel');
     const tabPanes = document.querySelectorAll('.tv-right-content .tv-tab-pane');
@@ -2576,12 +2697,17 @@ class ZeroChartApp {
     if (tabName === 'watchlist') {
       this.renderHorizontalWatchlistTabs();
       this.renderWatchlist();
+      this.currentViewState = 'watchlist';
     } else if (tabName === 'alerts') {
       this.renderAlertsList();
+      this.currentViewState = 'alerts';
+      if (pushState && window.innerWidth <= 768) {
+        this.pushHistoryState({ view: 'alerts' });
+      }
     }
   }
 
-  closeMobileDrawer() {
+  closeMobileDrawer(pushState = true) {
     const sidebar = document.querySelector('.tv-right-sidebar');
     if (sidebar) {
       sidebar.classList.remove('mobile-open');
@@ -2589,6 +2715,10 @@ class ZeroChartApp {
     document.querySelectorAll('.tv-mob-nav-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.id === 'mob-nav-chart');
     });
+    this.currentViewState = 'chart';
+    if (pushState && window.innerWidth <= 768) {
+      this.pushHistoryState({ view: 'chart' });
+    }
   }
 
   // ─── MODALS & DYNAMIC SEARCH ───

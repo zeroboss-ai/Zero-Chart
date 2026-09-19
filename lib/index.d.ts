@@ -2464,6 +2464,8 @@ declare class PaneLegend implements IPrimitive {
     private _buttons;
     /** Right edge of the drawn row, in media px. */
     private _width;
+    /** Keep controls visible on touch/mobile or when clicked. */
+    private _pinned;
     constructor(opts: PaneLegendOptions);
     attached(host: PrimitiveHost): void;
     detached(): void;
