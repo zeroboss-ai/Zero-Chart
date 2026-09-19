@@ -22,22 +22,49 @@ const FAVORITE_TOOL_DEFINITIONS = [
   { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },
   { id: 'ray', name: 'Ray', icon: 'M4 20 20 4M2 18 6 22' },
   { id: 'extended-line', name: 'Extended Line', icon: 'M2 22 22 2' },
+  { id: 'arrow', name: 'Arrow', icon: 'M4 20 18 6M18 6h-6M18 6v6' },
   { id: 'horizontal-line', name: 'Horizontal Line', icon: 'M2 12h20' },
   { id: 'horizontal-ray', name: 'Horizontal Ray', icon: 'M6 12H22M4 10V14' },
   { id: 'vertical-line', name: 'Vertical Line', icon: 'M12 2v20' },
   { id: 'cross-line', name: 'Cross Line', icon: 'M2 12h20M12 2v20' },
-  { id: 'fib-retracement', name: 'Fib Retracement', icon: 'M3 4h18M3 9h18M3 14h18M3 19h18' },
+  { id: 'trend-angle', name: 'Trend Angle', icon: 'M4 20 18 8M4 20h12M8 20a8 8 0 0 0 2-5' },
+  { id: 'info-line', name: 'Info Line', icon: 'M4 20 20 4M8 8h8' },
   { id: 'parallel-channel', name: 'Parallel Channel', icon: 'M2 16 14 4M8 22 20 10' },
+  { id: 'disjoint-channel', name: 'Disjoint Channel', icon: 'M2 16 14 6M8 22 22 14' },
+  { id: 'flat-top-bottom', name: 'Flat Top/Bottom', icon: 'M3 6h18M3 20 21 12M3 6v14' },
+  { id: 'regression-channel', name: 'Regression Channel', icon: 'M3 18 19 6M5 21 21 9M3 12 17 2M10 16h4' },
+  { id: 'pitchfork', name: 'Pitchfork', icon: 'M4 21 16 9M4 9 16 21M10 15 22 3M4 9 10 3M16 21l6-6' },
+  { id: 'fib-retracement', name: 'Fib Retracement', icon: 'M3 4h18M3 9h18M3 14h18M3 19h18' },
+  { id: 'fib-extension', name: 'Fib Extension', icon: 'M3 5h18M3 12h18M3 19h18M8 5v14' },
+  { id: 'fib-circles', name: 'Fib Circles', icon: 'M12 20A5 5 0 0 1 12 10M12 20A9 9 0 0 1 12 2M10 20h4' },
+  { id: 'fib-spiral', name: 'Fib Spiral', icon: 'M12 13A3 3 0 1 1 15 10A7 7 0 1 1 8 3A9 9 0 1 1 21 12' },
   { id: 'rectangle', name: 'Rectangle', icon: 'M3 5h18v14H3z' },
+  { id: 'rotated-rectangle', name: 'Rotated Rectangle', icon: 'M2 14 10 4l12 6-8 10z' },
   { id: 'circle', name: 'Circle', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z' },
+  { id: 'ellipse', name: 'Ellipse', icon: 'M12 5c5 0 9 3 9 7s-4 7-9 7-9-3-9-7 4-7 9-7z' },
+  { id: 'triangle', name: 'Triangle', icon: 'M12 4 21 20H3z' },
+  { id: 'arc', name: 'Arc', icon: 'M3 19a12 12 0 0 1 18 0' },
+  { id: 'curve', name: 'Curve', icon: 'M3 18c4-12 14-12 18 0' },
+  { id: 'path', name: 'Path', icon: 'M2 18 8 8l4 6 4-10' },
+  { id: 'polyline', name: 'Polyline', icon: 'M2 18 8 8l4 6 4-10 4 4' },
   { id: 'brush', name: 'Brush', icon: 'M3 19c4 0 4-8 8-8s4 8 9 4' },
   { id: 'highlighter', name: 'Highlighter', icon: 'M4 16 14 6l4 4-10 10H4z' },
-  { id: 'text', name: 'Text Note', icon: 'M4 5h16M12 5v14M8 19h8' },
+  { id: 'text', name: 'Text', icon: 'M4 5h16M12 5v14M8 19h8' },
+  { id: 'note', name: 'Note', icon: 'M4 20 9 15M9 5h13v10H9zM4 20v-4' },
   { id: 'callout', name: 'Callout', icon: 'M3 4h18v11H3zM8 15l-2 5 6-5' },
-  { id: 'price-range', name: 'Price Range', icon: 'M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4' },
+  { id: 'balloon', name: 'Balloon', icon: 'M3 4h18v12H9l-4 4v-4H3z' },
+  { id: 'price-label', name: 'Price Label', icon: 'M3 12 8 7h13v10H8z' },
+  { id: 'price-note', name: 'Price Note', icon: 'M2 12h5M7 6h15v12H7zM10 12h9' },
+  { id: 'table', name: 'Table', icon: 'M3 5h18v14H3zM3 10h18M9 10v9M15 10v9' },
+  { id: 'xabcd-pattern', name: 'XABCD Pattern', icon: 'M3 19 7 4 12 16 16 8 21 20M3 19 12 16 21 20M7 4 16 8' },
+  { id: 'head-shoulders', name: 'Head & Shoulders', icon: 'M2 20 5 10 8 17 12 3 16 17 19 10 22 20M3 17h18' },
+  { id: 'elliott-impulse', name: 'Elliott Impulse', icon: 'M2 21 6 12 9 17 13 5 17 11 22 2' },
   { id: 'measure', name: 'Measure', icon: 'M4 16h16M4 12v8M20 12v8M8 4h8M12 4v6' },
+  { id: 'price-range', name: 'Price Range', icon: 'M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4' },
+  { id: 'date-range', name: 'Date Range', icon: 'M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4' },
   { id: 'long-position', name: 'Long Position', icon: 'M3 15h18v5H3zM3 5h18v5H3zM12 10v5' },
   { id: 'short-position', name: 'Short Position', icon: 'M3 5h18v5H3zM3 15h18v5H3zM12 10v5' },
+  { id: 'forecast', name: 'Forecast', icon: 'M3 18 9 10l4 4 8-10M13 4h8v8' },
 ];
 
 class ZeroChartApp {
@@ -136,6 +163,17 @@ class ZeroChartApp {
         this.activePaneIndex = savedLayout.activePaneIndex;
       }
     }
+
+    // Favorite Drawing Tools
+    let favTools = ['trend-line', 'horizontal-line', 'ray', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
+    try {
+      const saved = localStorage.getItem('zerochart_fav_tools');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) favTools = parsed;
+      }
+    } catch (_) {}
+    this.favoriteTools = favTools;
 
     this.init();
   }
@@ -654,7 +692,7 @@ class ZeroChartApp {
       theme: this.currentTheme,
       topbar: false, // Unified topbar managed by Zero Chart
       statusline: true,
-      rail: paneIndex === 0, // Drawing rail on primary pane
+      rail: paneIndex === 0 ? { favorites: this.favoriteTools } : false,
       legendOffset: { top: legTop, left: legLeft },
       persist: true,
       branding: false,
@@ -747,6 +785,23 @@ class ZeroChartApp {
     // Listen to drawing tool change to sync favorites toolbar active highlight
     pane.widget.draw?.on?.('draw:tool', (tool) => {
       this.syncFavoriteToolActive(tool);
+    });
+
+    // Listen to favorite tools changes from the drawing rail flyouts (star clicks)
+    pane.widget.chart.on('rail:favorites', (payload) => {
+      if (payload && Array.isArray(payload.favorites)) {
+        this.favoriteTools = payload.favorites;
+        localStorage.setItem('zerochart_fav_tools', JSON.stringify(this.favoriteTools));
+        this.renderFavoriteToolsList();
+        if (payload.on && this.favoriteTools.length > 0) {
+          this.toggleFavoriteToolbar(true);
+        }
+      }
+    });
+
+    // Listen to rail star toggle button click
+    pane.widget.chart.on('rail:toggle-fav-toolbar', () => {
+      this.toggleFavoriteToolbar();
     });
 
     // Listen to crosshair move for Data Window and Replay hover
@@ -3207,7 +3262,6 @@ class ZeroChartApp {
   initFavoriteToolbar() {
     const toolbar = document.getElementById('tv-fav-toolbar');
     const dragHandle = document.getElementById('fav-drag-handle');
-    const toggleBtn = document.getElementById('btn-toggle-fav-toolbar');
     const stayBtn = document.getElementById('btn-fav-stay');
     const trashBtn = document.getElementById('btn-fav-delete');
     const closeBtn = document.getElementById('btn-fav-close');
@@ -3234,7 +3288,11 @@ class ZeroChartApp {
     const savedVis = localStorage.getItem('zerochart_fav_visible');
     const isVisible = savedVis !== null ? savedVis === 'true' : defaultVisible;
     toolbar.style.display = isVisible ? 'flex' : 'none';
-    if (toggleBtn) toggleBtn.classList.toggle('active', isVisible);
+    this.panes.forEach((p) => {
+      try {
+        p.widget?.rail?.setFavToolbarActive(isVisible);
+      } catch (_) {}
+    });
 
     // Load saved position
     try {
@@ -3312,26 +3370,11 @@ class ZeroChartApp {
       dragHandle.addEventListener('pointercancel', stopDrag);
     }
 
-    // Toggle button in topbar
-    if (toggleBtn) {
-      toggleBtn.onclick = (e) => {
-        e.stopPropagation();
-        const currentlyVisible = toolbar.style.display !== 'none';
-        const nextVisible = !currentlyVisible;
-        toolbar.style.display = nextVisible ? 'flex' : 'none';
-        toggleBtn.classList.toggle('active', nextVisible);
-        localStorage.setItem('zerochart_fav_visible', String(nextVisible));
-        if (nextVisible) this.showToast('⭐ Favorite Drawing Toolbar Active', 1500);
-      };
-    }
-
     // Close button on toolbar
     if (closeBtn) {
       closeBtn.onclick = (e) => {
         e.stopPropagation();
-        toolbar.style.display = 'none';
-        if (toggleBtn) toggleBtn.classList.remove('active');
-        localStorage.setItem('zerochart_fav_visible', 'false');
+        this.toggleFavoriteToolbar(false);
       };
     }
 
@@ -3362,10 +3405,37 @@ class ZeroChartApp {
     }
   }
 
+  toggleFavoriteToolbar(forceState) {
+    const toolbar = document.getElementById('tv-fav-toolbar');
+    if (!toolbar) return;
+    const isCurrentlyVisible = toolbar.style.display !== 'none';
+    const next = forceState !== undefined ? forceState : !isCurrentlyVisible;
+    toolbar.style.display = next ? 'flex' : 'none';
+    localStorage.setItem('zerochart_fav_visible', String(next));
+    this.panes.forEach((p) => {
+      try {
+        p.widget?.rail?.setFavToolbarActive(next);
+      } catch (_) {}
+    });
+    if (next) {
+      this.showToast('⭐ Favorite Drawing Toolbar Active', 1500);
+    }
+  }
+
   renderFavoriteToolsList() {
     const list = document.getElementById('fav-tools-list');
     if (!list) return;
     list.innerHTML = '';
+
+    if (!Array.isArray(this.favoriteTools) || this.favoriteTools.length === 0) {
+      const hint = document.createElement('span');
+      hint.style.fontSize = '11px';
+      hint.style.color = '#787b86';
+      hint.style.padding = '0 6px';
+      hint.textContent = 'Star tools in drawing rail';
+      list.appendChild(hint);
+      return;
+    }
 
     this.favoriteTools.forEach((toolId) => {
       const def = FAVORITE_TOOL_DEFINITIONS.find((d) => d.id === toolId) || { id: toolId, name: toolId, icon: 'M4 20 20 4' };

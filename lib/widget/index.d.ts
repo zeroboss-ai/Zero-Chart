@@ -612,6 +612,7 @@ interface RailHandle {
     /** The double-click hold: one tool kept armed until something leaves it. */
     setDrawLock(on: boolean): void;
     drawLocked(): boolean;
+    setFavToolbarActive(on: boolean): void;
     /** Open a group's flyout beside its button. */
     openGroup(groupId: string, viaKeyboard?: boolean): void;
     closeFlyout(): void;
