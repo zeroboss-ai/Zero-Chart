@@ -83,6 +83,12 @@
         <span>Replay</span>
       </button>
 
+      <!-- Favorite Drawing Tools Toggle Button -->
+      <button class="tv-top-btn tv-top-btn--fav" id="btn-toggle-fav-toolbar" title="Toggle Favorite Drawing Tools Toolbar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Favorites</span>
+      </button>
+
       <div class="tv-top-sep"></div>
 
       <!-- Undo / Redo -->
@@ -192,6 +198,42 @@
 
         <button class="tv-replay-btn tv-replay-btn--close" id="btn-replay-exit" title="Exit Replay Mode (Esc)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Floating Movable Favorite Drawing Tools Toolbar Badge -->
+      <div class="tv-fav-toolbar" id="tv-fav-toolbar" style="display:none;">
+        <div class="tv-fav-drag-handle" id="fav-drag-handle" title="Drag to move toolbar anywhere on chart">
+          <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2.5" cy="2.5" r="1.2"/><circle cx="7.5" cy="2.5" r="1.2"/><circle cx="2.5" cy="7" r="1.2"/><circle cx="7.5" cy="7" r="1.2"/><circle cx="2.5" cy="11.5" r="1.2"/><circle cx="7.5" cy="11.5" r="1.2"/></svg>
+        </div>
+        <div class="tv-fav-tools-list" id="fav-tools-list">
+          <!-- Dynamically filled with favorite tools buttons -->
+        </div>
+        <div class="tv-fav-sep"></div>
+        <button class="tv-fav-btn tv-fav-btn--stay" id="btn-fav-stay" title="Continuous Drawing Mode (Keep tool armed)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </button>
+        <button class="tv-fav-btn tv-fav-btn--trash" id="btn-fav-delete" title="Delete Selected Drawings (Del)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+        <button class="tv-fav-btn tv-fav-btn--close" id="btn-fav-close" title="Hide Favorites Toolbar">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Floating Maximized Indicator / Pane Controls Banner -->
+      <div class="tv-max-pane-pill" id="tv-max-pane-pill" style="display:none;">
+        <span class="tv-max-pane-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <span id="tv-max-pane-title">Full Screen Pane</span>
+        </span>
+        <button class="tv-max-pane-btn" id="btn-restore-max-pane" title="Restore Split Chart Layout">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+          <span>Restore Chart</span>
+        </button>
+        <button class="tv-max-pane-btn tv-max-pane-btn--del" id="btn-del-max-indicator" title="Delete this Indicator from chart">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span>Delete Indicator</span>
         </button>
       </div>
 

@@ -18,6 +18,28 @@ import { MultiAssetFeed } from './feeds/multi-feed.js';
 import { getIntervalSeconds } from './feeds/openalgo-feed.js';
 import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js';
 
+const FAVORITE_TOOL_DEFINITIONS = [
+  { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },
+  { id: 'ray', name: 'Ray', icon: 'M4 20 20 4M2 18 6 22' },
+  { id: 'extended-line', name: 'Extended Line', icon: 'M2 22 22 2' },
+  { id: 'horizontal-line', name: 'Horizontal Line', icon: 'M2 12h20' },
+  { id: 'horizontal-ray', name: 'Horizontal Ray', icon: 'M6 12H22M4 10V14' },
+  { id: 'vertical-line', name: 'Vertical Line', icon: 'M12 2v20' },
+  { id: 'cross-line', name: 'Cross Line', icon: 'M2 12h20M12 2v20' },
+  { id: 'fib-retracement', name: 'Fib Retracement', icon: 'M3 4h18M3 9h18M3 14h18M3 19h18' },
+  { id: 'parallel-channel', name: 'Parallel Channel', icon: 'M2 16 14 4M8 22 20 10' },
+  { id: 'rectangle', name: 'Rectangle', icon: 'M3 5h18v14H3z' },
+  { id: 'circle', name: 'Circle', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z' },
+  { id: 'brush', name: 'Brush', icon: 'M3 19c4 0 4-8 8-8s4 8 9 4' },
+  { id: 'highlighter', name: 'Highlighter', icon: 'M4 16 14 6l4 4-10 10H4z' },
+  { id: 'text', name: 'Text Note', icon: 'M4 5h16M12 5v14M8 19h8' },
+  { id: 'callout', name: 'Callout', icon: 'M3 4h18v11H3zM8 15l-2 5 6-5' },
+  { id: 'price-range', name: 'Price Range', icon: 'M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4' },
+  { id: 'measure', name: 'Measure', icon: 'M4 16h16M4 12v8M20 12v8M8 4h8M12 4v6' },
+  { id: 'long-position', name: 'Long Position', icon: 'M3 15h18v5H3zM3 5h18v5H3zM12 10v5' },
+  { id: 'short-position', name: 'Short Position', icon: 'M3 5h18v5H3zM3 15h18v5H3zM12 10v5' },
+];
+
 class ZeroChartApp {
   constructor() {
     this.watchlists = this.loadWatchlists();
@@ -269,6 +291,23 @@ class ZeroChartApp {
 
     // 11. Initialize Bar Replay System
     this.initReplaySystem();
+
+    // 12. Initialize Floating Movable Favorite Drawing Tools Toolbar Badge
+    this.initFavoriteToolbar();
+
+    // 13. Initialize Maximized Pane & Indicator Full-Screen Controls
+    this.initMaximizedPaneControls();
+
+    // 14. Responsive Layout & Legend Offset Sync on Resize
+    window.addEventListener('resize', () => {
+      const legTop = window.innerWidth <= 768 ? 48 : 42;
+      const legLeft = window.innerWidth <= 768 ? 10 : 54;
+      this.panes.forEach((p) => {
+        try {
+          p.widget?.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
+        } catch (_) {}
+      });
+    });
   }
 
   // ─── MULTI-CHART LAYOUT SYSTEM ───
@@ -603,6 +642,9 @@ class ZeroChartApp {
     const container = document.getElementById(pane.containerId);
     if (!container) return;
 
+    const legTop = window.innerWidth <= 768 ? 48 : 42;
+    const legLeft = window.innerWidth <= 768 ? 10 : 54;
+
     pane.widget = createWidget(container, {
       feed: this.multiFeed,
       symbol: pane.instrument.symbol,
@@ -613,6 +655,7 @@ class ZeroChartApp {
       topbar: false, // Unified topbar managed by Zero Chart
       statusline: true,
       rail: paneIndex === 0, // Drawing rail on primary pane
+      legendOffset: { top: legTop, left: legLeft },
       persist: true,
       branding: false,
       timeNavigator: true,
@@ -670,6 +713,7 @@ class ZeroChartApp {
     });
 
     try {
+      pane.widget.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
       if (pane.widget.chart?.setAxisChromeOptions) {
         pane.widget.chart.setAxisChromeOptions({
           barCountdown: true,
@@ -688,6 +732,16 @@ class ZeroChartApp {
 
     // Track active on-chart alert price lines
     pane.alertLines = new Map();
+
+    // Listen to pane maximize / restore events for full-screen indicator controls
+    pane.widget.chart.on('paneMaximized', (ev) => {
+      this.updateMaximizedPaneUI(paneIndex, ev);
+    });
+
+    // Listen to drawing tool change to sync favorites toolbar active highlight
+    pane.widget.draw?.on?.('draw:tool', (tool) => {
+      this.syncFavoriteToolActive(tool);
+    });
 
     // Listen to crosshair move for Data Window and Replay hover
     pane.widget.chart.on('crosshair:move', (data) => {
@@ -3141,6 +3195,275 @@ class ZeroChartApp {
       if (pwaModal) pwaModal.classList.remove('show');
       this.showToast('🚀 Zero Chart Pro installed successfully!');
     });
+  }
+
+  // ─── FLOATING MOVABLE FAVORITE DRAWING TOOLS TOOLBAR (BADGE) ───
+  initFavoriteToolbar() {
+    const toolbar = document.getElementById('tv-fav-toolbar');
+    const dragHandle = document.getElementById('fav-drag-handle');
+    const toggleBtn = document.getElementById('btn-toggle-fav-toolbar');
+    const stayBtn = document.getElementById('btn-fav-stay');
+    const trashBtn = document.getElementById('btn-fav-delete');
+    const closeBtn = document.getElementById('btn-fav-close');
+
+    if (!toolbar) return;
+
+    // Load saved favorite tools
+    let favTools = ['trend-line', 'horizontal-line', 'ray', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
+    try {
+      const saved = localStorage.getItem('zerochart_fav_tools');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) favTools = parsed;
+      }
+    } catch (_) {}
+    this.favoriteTools = favTools;
+
+    // Render buttons
+    this.renderFavoriteToolsList();
+
+    // Load saved visibility (default visible on desktop, hidden by default on small mobile until toggled)
+    const isMobile = window.innerWidth <= 768;
+    const defaultVisible = !isMobile;
+    const savedVis = localStorage.getItem('zerochart_fav_visible');
+    const isVisible = savedVis !== null ? savedVis === 'true' : defaultVisible;
+    toolbar.style.display = isVisible ? 'flex' : 'none';
+    if (toggleBtn) toggleBtn.classList.toggle('active', isVisible);
+
+    // Load saved position
+    try {
+      const savedPos = localStorage.getItem('zerochart_fav_pos');
+      if (savedPos) {
+        const pos = JSON.parse(savedPos);
+        if (typeof pos.left === 'number' && typeof pos.top === 'number') {
+          toolbar.style.left = `${pos.left}px`;
+          toolbar.style.top = `${pos.top}px`;
+          toolbar.style.bottom = 'auto';
+          toolbar.style.right = 'auto';
+        }
+      }
+    } catch (_) {}
+
+    // Wire Draggable Pointer Events (Desktop Mouse + Mobile Touch Support)
+    if (dragHandle) {
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let initLeft = 0;
+      let initTop = 0;
+
+      dragHandle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isDragging = true;
+        try {
+          dragHandle.setPointerCapture(e.pointerId);
+        } catch (_) {}
+
+        const rect = toolbar.getBoundingClientRect();
+        const stage = toolbar.parentElement?.getBoundingClientRect() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+
+        startX = e.clientX;
+        startY = e.clientY;
+        initLeft = rect.left - stage.left;
+        initTop = rect.top - stage.top;
+
+        toolbar.style.left = `${initLeft}px`;
+        toolbar.style.top = `${initTop}px`;
+        toolbar.style.bottom = 'auto';
+        toolbar.style.right = 'auto';
+      });
+
+      dragHandle.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const stage = toolbar.parentElement?.getBoundingClientRect() || { width: window.innerWidth, height: window.innerHeight };
+        const tbRect = toolbar.getBoundingClientRect();
+
+        const maxLeft = Math.max(0, stage.width - tbRect.width - 5);
+        const maxTop = Math.max(0, stage.height - tbRect.height - 5);
+
+        const newLeft = Math.max(5, Math.min(maxLeft, initLeft + dx));
+        const newTop = Math.max(5, Math.min(maxTop, initTop + dy));
+
+        toolbar.style.left = `${newLeft}px`;
+        toolbar.style.top = `${newTop}px`;
+      });
+
+      const stopDrag = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        try {
+          dragHandle.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        const left = parseFloat(toolbar.style.left) || 0;
+        const top = parseFloat(toolbar.style.top) || 0;
+        localStorage.setItem('zerochart_fav_pos', JSON.stringify({ left, top }));
+      };
+
+      dragHandle.addEventListener('pointerup', stopDrag);
+      dragHandle.addEventListener('pointercancel', stopDrag);
+    }
+
+    // Toggle button in topbar
+    if (toggleBtn) {
+      toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        const currentlyVisible = toolbar.style.display !== 'none';
+        const nextVisible = !currentlyVisible;
+        toolbar.style.display = nextVisible ? 'flex' : 'none';
+        toggleBtn.classList.toggle('active', nextVisible);
+        localStorage.setItem('zerochart_fav_visible', String(nextVisible));
+        if (nextVisible) this.showToast('⭐ Favorite Drawing Toolbar Active', 1500);
+      };
+    }
+
+    // Close button on toolbar
+    if (closeBtn) {
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        toolbar.style.display = 'none';
+        if (toggleBtn) toggleBtn.classList.remove('active');
+        localStorage.setItem('zerochart_fav_visible', 'false');
+      };
+    }
+
+    // Continuous drawing mode toggle
+    if (stayBtn) {
+      stayBtn.onclick = (e) => {
+        e.stopPropagation();
+        const activeDraw = this.widget?.draw;
+        if (activeDraw) {
+          const next = !activeDraw.stayInDrawingMode();
+          activeDraw.setStayInDrawingMode(next);
+          stayBtn.classList.toggle('active', next);
+          this.showToast(next ? '📌 Continuous Drawing Mode ON' : 'Single Drawing Mode', 1500);
+        }
+      };
+    }
+
+    // Delete selected drawings button
+    if (trashBtn) {
+      trashBtn.onclick = (e) => {
+        e.stopPropagation();
+        const activeDraw = this.widget?.draw;
+        if (activeDraw) {
+          activeDraw.deleteSelected();
+          this.showToast('🗑️ Selected drawings removed', 1500);
+        }
+      };
+    }
+  }
+
+  renderFavoriteToolsList() {
+    const list = document.getElementById('fav-tools-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    this.favoriteTools.forEach((toolId) => {
+      const def = FAVORITE_TOOL_DEFINITIONS.find((d) => d.id === toolId) || { id: toolId, name: toolId, icon: 'M4 20 20 4' };
+      const btn = document.createElement('button');
+      btn.className = 'tv-fav-tool-btn';
+      btn.dataset.tool = def.id;
+      btn.title = `${def.name} Tool`;
+      btn.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="${def.icon}" />
+        </svg>
+      `;
+
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const activeDraw = this.widget?.draw;
+        if (!activeDraw) return;
+        const currentTool = activeDraw.tool();
+        if (currentTool === def.id) {
+          activeDraw.setTool(null);
+          this.syncFavoriteToolActive(null);
+        } else {
+          activeDraw.setTool(def.id);
+          this.syncFavoriteToolActive(def.id);
+        }
+      };
+
+      list.appendChild(btn);
+    });
+
+    const activeDraw = this.widget?.draw;
+    if (activeDraw) {
+      this.syncFavoriteToolActive(activeDraw.tool());
+    }
+  }
+
+  syncFavoriteToolActive(toolId) {
+    const buttons = document.querySelectorAll('#fav-tools-list .tv-fav-tool-btn');
+    buttons.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.tool === toolId);
+    });
+  }
+
+  // ─── MAXIMIZED PANE & INDICATOR FULL SCREEN CONTROLS ───
+  initMaximizedPaneControls() {
+    const pill = document.getElementById('tv-max-pane-pill');
+    const restoreBtn = document.getElementById('btn-restore-max-pane');
+    const delBtn = document.getElementById('btn-del-max-indicator');
+
+    if (restoreBtn) {
+      restoreBtn.onclick = (e) => {
+        e.stopPropagation();
+        const chart = this.widget?.chart;
+        if (chart && chart.maximizedPane() !== null) {
+          chart.maximizePane(chart.maximizedPane());
+          if (pill) pill.style.display = 'none';
+        }
+      };
+    }
+
+    if (delBtn) {
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        const chart = this.widget?.chart;
+        if (chart) {
+          const maxIdx = chart.maximizedPane();
+          if (maxIdx !== null) {
+            const indicators = chart.indicators().filter((i) => i.paneIndex === maxIdx);
+            if (indicators.length > 0) {
+              indicators.forEach((i) => chart.removeIndicator(i.id));
+              this.showToast('🗑️ Indicator deleted from chart', 2000);
+            }
+            if (chart.maximizedPane() !== null) {
+              chart.maximizePane(maxIdx);
+            }
+            if (pill) pill.style.display = 'none';
+          }
+        }
+      };
+    }
+  }
+
+  updateMaximizedPaneUI(paneIndex, ev) {
+    const pill = document.getElementById('tv-max-pane-pill');
+    const titleEl = document.getElementById('tv-max-pane-title');
+    const chart = this.widget?.chart;
+    if (!pill || !chart) return;
+
+    const maxIdx = chart.maximizedPane();
+    if (maxIdx === null) {
+      pill.style.display = 'none';
+      return;
+    }
+
+    const indicators = chart.indicators().filter((i) => i.paneIndex === maxIdx);
+    let title = 'Full Screen Pane';
+    if (indicators.length > 0) {
+      const ind = indicators[0];
+      title = `${ind.indicatorId.toUpperCase()} (Full Screen)`;
+    } else if (maxIdx === 0) {
+      title = `${this.currentInstrument.symbol} (Main Price)`;
+    }
+    if (titleEl) titleEl.textContent = title;
+    pill.style.display = 'inline-flex';
   }
 }
 

@@ -4675,6 +4675,16 @@ declare class Chart {
      *
      * Host-added legend rows are left alone: the host positions its own.
      */
+    /** Update the legend offset dynamically (for host overlays / mobile toolbars). */
+    setLegendOffset(offset: {
+        top?: number;
+        left?: number;
+    }): void;
+    /** Current legend offset for top-rendering panes. */
+    legendOffset(): {
+        top: number;
+        left: number;
+    };
     private _syncLegendOffsets;
     /** A host for the (lazy-loaded) trade layer to attach/detach its primitives on a pane. */
     tradeHost(paneIndex?: number): {
