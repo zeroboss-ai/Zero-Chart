@@ -1702,7 +1702,7 @@ class ZeroChartApp {
       <div style="flex:1;">
         <div class="tv-toast-title">${alert.name || alert.symbol + ' Alert Triggered!'}</div>
         <div class="tv-toast-msg">${alert.symbol} reached <b>${currentPrice.toLocaleString()}</b> (Target: ${alert.targetPrice.toLocaleString()})</div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${new Date().toLocaleTimeString()}</div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">${new Date().toLocaleTimeString()}</div>
       </div>
       <button style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;" title="Dismiss">✕</button>
     `;
@@ -1775,13 +1775,13 @@ class ZeroChartApp {
         <div class="tv-alert-card-head">
           <div style="display:flex;align-items:center;gap:6px;">
             <span class="tv-alert-card-sym">${alert.symbol}</span>
-            <span style="font-size:11px;color:var(--text-muted);">${condTextMap[alert.condition] || alert.condition}</span>
+            <span style="font-size:12px;color:var(--text-muted);">${condTextMap[alert.condition] || alert.condition}</span>
           </div>
           <span class="tv-alert-card-badge ${statusClass}">${alert.status}</span>
         </div>
         <div class="tv-alert-card-info">
-          <div>Target: <b style="color:var(--text);font-family:var(--mono);">${alert.targetPrice.toLocaleString()}</b> &bull; ${alert.name}</div>
-          ${alert.triggeredAt ? `<div style="font-size:10px;color:var(--buy);margin-top:2px;">Triggered at ${new Date(alert.triggeredAt).toLocaleTimeString()}</div>` : ''}
+          <div>Target: <b style="color:var(--text-bright);font-family:var(--mono);">${alert.targetPrice.toLocaleString()}</b> &bull; ${alert.name}</div>
+          ${alert.triggeredAt ? `<div style="font-size:11.5px;color:var(--buy);margin-top:2px;font-weight:600;">Triggered at ${new Date(alert.triggeredAt).toLocaleTimeString()}</div>` : ''}
         </div>
         <div class="tv-alert-card-actions">
           <button class="tv-btn-alert-act btn-alert-toggle" data-id="${alert.id}">
@@ -2998,8 +2998,8 @@ class ZeroChartApp {
         <div style="display:flex;align-items:center;gap:10px;">
           <div class="tv-symbol-circle" style="background:${inst.badgeColor || '#2962ff'};">${inst.badgeText || inst.symbol.substring(0, 2)}</div>
           <div>
-            <div style="font-weight:700;font-size:13px;color:var(--text);">${inst.displaySymbol || inst.symbol}</div>
-            <div style="font-size:11px;color:var(--text-muted);">${inst.name || inst.symbol}</div>
+            <div style="font-weight:700;font-size:14px;color:var(--text-bright);letter-spacing:-0.01em;">${inst.displaySymbol || inst.symbol}</div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:500;margin-top:1px;">${inst.name || inst.symbol}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">

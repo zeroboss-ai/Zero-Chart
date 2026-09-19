@@ -12,19 +12,20 @@
   --panel-hover: #363a45;
   --border: #2a2e39;
   --border-subtle: #222631;
-  --text: #d1d4dc;
-  --text-muted: #787b86;
-  --text-faint: #50535e;
+  --text-bright: #ffffff;
+  --text: #f0f3fa;
+  --text-muted: #9aa0b2;
+  --text-faint: #727786;
   --accent: #2962ff;
   --accent-hover: #1e53e5;
-  --accent-glow: rgba(41, 98, 255, 0.2);
-  --buy: #089981;
-  --buy-hover: #067e6a;
+  --accent-glow: rgba(41, 98, 255, 0.25);
+  --buy: #00c076;
+  --buy-hover: #00a867;
   --sell: #f23645;
   --sell-hover: #d32f2f;
   --amber: #ff9800;
-  --font: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
-  --mono: 'SF Pro Mono', 'Roboto Mono', Consolas, Monaco, monospace;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Pro Mono', 'Roboto Mono', Consolas, Monaco, monospace;
 }
 
 [data-theme="light"] {
@@ -35,12 +36,13 @@
   --panel-hover: #eef2f8;
   --border: #e0e3eb;
   --border-subtle: #edf0f7;
+  --text-bright: #000000;
   --text: #131722;
-  --text-muted: #5d606b;
-  --text-faint: #9598a1;
+  --text-muted: #4e525e;
+  --text-faint: #787b86;
   --accent: #2962ff;
   --accent-hover: #1e53e5;
-  --accent-glow: rgba(41, 98, 255, 0.12);
+  --accent-glow: rgba(41, 98, 255, 0.15);
   --buy: #089981;
   --buy-hover: #067e6a;
   --sell: #f23645;
@@ -58,9 +60,12 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 13.5px;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
 }
 
 #app {
@@ -124,11 +129,11 @@ html, body {
 }
 
 .tv-brand-name {
-  font-size: 13px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 800;
   letter-spacing: 0.6px;
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text-bright);
+  font-family: var(--font);
 }
 
 .tv-brand-accent {
@@ -143,14 +148,14 @@ html, body {
 .tv-sym-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   background: transparent;
   border: 1px solid transparent;
-  color: var(--text);
+  color: var(--text-bright);
   font-weight: 700;
-  font-size: 13px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-size: 14px;
+  padding: 4px 9px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.12s ease;
 }
@@ -161,16 +166,19 @@ html, body {
 }
 
 .tv-sym-title {
-  color: var(--text);
+  color: var(--text-bright);
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
 .tv-sym-badge {
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-muted);
-  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
 
 .tv-top-btn {
@@ -180,9 +188,9 @@ html, body {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text);
-  padding: 4px 7px;
+  padding: 4px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   height: 28px;
   transition: all 0.12s ease;
@@ -190,15 +198,17 @@ html, body {
 
 .tv-top-btn:hover {
   background: var(--panel-hover);
+  color: var(--text-bright);
 }
 
 .tv-top-btn--icon {
-  padding: 4px 6px;
+  padding: 4px 7px;
 }
 
 .tv-top-btn-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text);
+  font-weight: 500;
 }
 
 .tv-top-sep {
@@ -218,23 +228,23 @@ html, body {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 4px 6px;
+  padding: 4px 7px;
   border-radius: 4px;
   cursor: pointer;
-  height: 26px;
+  height: 28px;
   transition: all 0.12s ease;
 }
 
 .tv-tf-btn:hover {
-  color: var(--text);
+  color: var(--text-bright);
   background: var(--panel-hover);
 }
 
 .tv-tf-btn.active {
   color: var(--accent);
-  background: rgba(41, 98, 255, 0.15);
+  background: rgba(41, 98, 255, 0.18);
   font-weight: 700;
 }
 
@@ -249,10 +259,10 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   background: rgba(8, 153, 129, 0.12);
   color: var(--buy);
   border: 1px solid rgba(8, 153, 129, 0.3);
@@ -472,9 +482,9 @@ html, body {
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
-  gap: 10px !important;
-  font-size: 12px !important;
-  line-height: 1.3 !important;
+  gap: 12px !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
   height: auto !important;
   max-width: calc(100% - 135px) !important;
 }
@@ -486,23 +496,24 @@ html, body {
 .oac-widget .oac-statusline__title {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   font-weight: 700 !important;
 }
 
 .oac-widget .oac-statusline__sym {
-  color: var(--text) !important;
+  color: var(--text-bright) !important;
   font-weight: 800 !important;
-  font-size: 12.5px !important;
+  font-size: 14px !important;
+  letter-spacing: 0.2px !important;
 }
 
 .oac-widget .oac-statusline__iv {
   color: var(--accent) !important;
   font-weight: 700 !important;
-  font-size: 11px !important;
-  background: rgba(41, 98, 255, 0.14) !important;
-  padding: 1px 5px !important;
-  border-radius: 3px !important;
+  font-size: 12px !important;
+  background: rgba(41, 98, 255, 0.16) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
 }
 
 .oac-widget .oac-statusline__field {
@@ -510,18 +521,19 @@ html, body {
   align-items: center !important;
   gap: 3px !important;
   font-family: var(--mono) !important;
-  font-size: 11.5px !important;
+  font-size: 13px !important;
 }
 
 .oac-widget .oac-statusline__field > i {
   font-style: normal !important;
   color: var(--text-muted) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
 }
 
 .oac-widget .oac-statusline__field > b {
-  color: var(--text) !important;
-  font-weight: 600 !important;
+  color: var(--text-bright) !important;
+  font-weight: 700 !important;
 }
 
 .oac-widget .oac-statusline .is-up > b {
@@ -534,8 +546,9 @@ html, body {
 
 .oac-widget .oac-statusline__time {
   color: var(--text-muted) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-family: var(--mono) !important;
+  font-weight: 500 !important;
 }
 
 /* ─── 3. RIGHT SIDEBAR & WATCHLIST ─── */
@@ -609,13 +622,13 @@ html, body {
 .tv-wl-tab-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 11px;
+  gap: 6px;
+  padding: 5px 12px;
   background: var(--panel-elev);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 18px;
   color: var(--text-muted);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -624,22 +637,23 @@ html, body {
 }
 
 .tv-wl-tab-pill:hover {
-  color: var(--text);
+  color: var(--text-bright);
   background: var(--panel-hover);
   border-color: var(--border);
 }
 
 .tv-wl-tab-pill.active {
-  background: rgba(41, 98, 255, 0.14);
+  background: rgba(41, 98, 255, 0.22);
   border-color: var(--accent);
-  color: var(--accent);
+  color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 0 0 1px rgba(41, 98, 255, 0.25);
+  box-shadow: 0 0 0 1px rgba(41, 98, 255, 0.45);
 }
 
 .tv-wl-tab-pill .tv-tab-count {
-  font-size: 10px;
-  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .tv-wl-tab-add-btn {
@@ -670,7 +684,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--panel-bg);
   flex-shrink: 0;
@@ -684,12 +698,13 @@ html, body {
 
 .tv-wl-sub-title {
   font-weight: 700;
-  font-size: 12.5px;
-  color: var(--text);
+  font-size: 13.5px;
+  color: var(--text-bright);
 }
 
 .tv-wl-sub-count {
-  font-size: 10.5px;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -700,8 +715,8 @@ html, body {
 }
 
 .tv-wl-act-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -710,14 +725,14 @@ html, body {
   border-radius: 4px;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   transition: all 0.12s ease;
 }
 
 .tv-wl-act-btn:hover {
   background: var(--panel-hover);
-  color: var(--text);
+  color: var(--text-bright);
   border-color: var(--border);
 }
 
@@ -730,10 +745,11 @@ html, body {
 /* 3-Column Table Headers */
 .tv-wl-cols {
   display: grid;
-  grid-template-columns: 1fr 72px 56px 54px 18px;
-  padding: 5px 10px;
-  font-size: 11px;
-  font-weight: 600;
+  grid-template-columns: 1fr 78px 60px 58px 20px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
   background: var(--panel-bg);
@@ -755,9 +771,9 @@ html, body {
 /* Watchlist Item Row (Exact TradingView 3-Column Item) */
 .tv-wl-row {
   display: grid;
-  grid-template-columns: 1fr 72px 56px 54px 18px;
+  grid-template-columns: 1fr 78px 60px 58px 20px;
   align-items: center;
-  padding: 6px 10px;
+  padding: 7px 10px;
   cursor: pointer;
   border-bottom: 1px solid var(--border-subtle);
   transition: background 0.1s ease;
@@ -776,17 +792,17 @@ html, body {
 .tv-wl-cell-sym {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   overflow: hidden;
 }
 
 .tv-symbol-circle {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   color: #ffffff;
-  font-weight: 700;
-  font-size: 9px;
+  font-weight: 800;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -800,37 +816,38 @@ html, body {
 
 .tv-sym-name {
   font-weight: 700;
-  font-size: 12px;
-  color: var(--text);
-  line-height: 1.2;
+  font-size: 13.5px;
+  color: var(--text-bright);
+  line-height: 1.25;
 }
 
 .tv-sym-desc {
-  font-size: 10px;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-muted);
   text-overflow: ellipsis;
   overflow: hidden;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .tv-wl-cell-last {
   font-family: var(--mono);
   font-weight: 700;
-  font-size: 11.5px;
+  font-size: 13px;
   text-align: right;
-  color: var(--text);
+  color: var(--text-bright);
 }
 
 .tv-wl-cell-chg {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   text-align: right;
 }
 
 .tv-wl-cell-pct {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   text-align: right;
 }
@@ -927,13 +944,13 @@ html, body {
 }
 
 .tv-side-btn {
-  padding: 9px;
+  padding: 10px;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.75;
   transition: all 0.15s ease;
 }
 
@@ -947,24 +964,26 @@ html, body {
 .tv-input-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .tv-input-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .tv-input-field {
   background: var(--panel-elev);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
+  border-radius: 5px;
+  color: var(--text-bright);
   font-family: var(--mono);
-  font-size: 13px;
-  padding: 7px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 11px;
   outline: none;
 }
 
@@ -977,12 +996,12 @@ html, body {
   justify-content: space-between;
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .tv-dw-row b {
   font-family: var(--mono);
-  color: var(--text);
+  color: var(--text-bright);
 }
 
 /* ─── 6. MODALS & POPUPS ─── */
@@ -1028,9 +1047,10 @@ html, body {
   background: transparent;
   border: none;
   outline: none;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-bright);
+  font-family: var(--font);
 }
 
 .tv-modal-close-btn {
@@ -1038,12 +1058,12 @@ html, body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .tv-search-tabs {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--panel-bg);
@@ -1054,16 +1074,23 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 5px 12px;
   cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tv-st-btn:hover {
+  color: var(--text-bright);
+  border-color: var(--accent);
 }
 
 .tv-st-btn.active {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+  font-weight: 700;
 }
 
 .tv-search-results {
@@ -1828,7 +1855,7 @@ html, body {
     background: transparent !important;
     border: none !important;
     color: var(--text-muted) !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
     font-weight: 600 !important;
     padding: 4px 6px !important;
     border-radius: 6px !important;
@@ -1839,7 +1866,7 @@ html, body {
   }
 
   .tv-mob-nav-btn:hover {
-    color: var(--text) !important;
+    color: var(--text-bright) !important;
   }
 
   .tv-mob-nav-btn.active {
@@ -2054,15 +2081,15 @@ html, body {
   border-radius: 14px;
   border: 1px solid transparent;
   background: transparent;
-  color: #d1d4dc;
-  font-size: 12px;
-  font-weight: 500;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .tv-replay-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
 
@@ -2128,7 +2155,7 @@ html, body {
 
 .tv-replay-btn--speed {
   font-weight: 700;
-  font-size: 11.5px;
+  font-size: 12.5px;
   padding: 0 7px;
   gap: 3px;
 }
@@ -2164,8 +2191,9 @@ html, body {
   border-radius: 4px;
   background: transparent;
   border: none;
-  color: var(--text, #d1d4dc);
-  font-size: 11.5px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.1s ease;
 }
@@ -2191,11 +2219,11 @@ html, body {
 }
 
 .tv-replay-status {
-  font-size: 11.5px;
-  color: #94a3b8;
+  font-size: 12.5px;
+  color: #cbd5e1;
   padding: 0 4px;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 [data-theme="light"] .tv-replay-status {
@@ -2253,7 +2281,7 @@ html, body {
 
 .tv-fav-drag-handle {
   cursor: grab;
-  color: #787b86;
+  color: var(--text-muted);
   padding: 4px 3px;
   display: flex;
   align-items: center;
