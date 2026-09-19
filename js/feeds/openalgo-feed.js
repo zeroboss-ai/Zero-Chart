@@ -212,6 +212,22 @@ export class OpenAlgoLiveFeed {
     }
 
     const symKey = (symbol || '').toUpperCase().trim();
+    const isMcxSym =
+      symKey.includes('MCX') ||
+      symKey.startsWith('GOLD') ||
+      symKey.startsWith('SILVER') ||
+      symKey.startsWith('CRUDE') ||
+      symKey.startsWith('NATURALGAS') ||
+      symKey.startsWith('NATGAS') ||
+      symKey.startsWith('COPPER') ||
+      symKey.startsWith('ZINC') ||
+      symKey.startsWith('ALUMINIUM') ||
+      symKey.startsWith('LEAD');
+
+    if (isMcxSym) {
+      exchange = 'MCX';
+    }
+
     const cacheKey = `${symKey}_${interval}`;
 
     // Fast in-memory cache check (instant response under 2ms!)
@@ -252,8 +268,34 @@ export class OpenAlgoLiveFeed {
       TATAMOTORS: 304.05,
       TMPV: 304.05,
       SBIN: 991.7,
-      GOLD: 74200.0,
-      CRUDEOILM: 6050.0,
+      'GOLD FUT': 74500.0,
+      'GOLD': 74500.0,
+      'GOLDM FUT': 74500.0,
+      'SILVER FUT': 89500.0,
+      'SILVER': 89500.0,
+      'SILVERM FUT': 89500.0,
+      'SILVERMIC FUT': 89500.0,
+      'CRUDEOIL FUT': 5980.0,
+      'CRUDEOIL': 5980.0,
+      'CRUDEOILM FUT': 5980.0,
+      'CRUDEOILM': 5980.0,
+      'NATURALGAS FUT': 235.5,
+      'NATURALGAS': 235.5,
+      'NATGASMINI FUT': 235.5,
+      'COPPER FUT': 815.0,
+      'COPPER': 815.0,
+      'ZINC FUT': 275.0,
+      'ZINC': 275.0,
+      'ALUMINIUM FUT': 230.0,
+      'ALUMINIUM': 230.0,
+      'LEAD FUT': 180.0,
+      'LEAD': 180.0,
+      'MCXBULLDEX': 18200.0,
+      'MCXMETLDEX': 19500.0,
+      'MCXENRGDEX': 5600.0,
+      'MCXCRUDEX': 5980.0,
+      'MCXSILVDEX': 89500.0,
+      'MCXGOLDEX': 74500.0,
       AAPL: 228.4,
       NVDA: 118.8,
       TSLA: 243.2,
@@ -263,8 +305,7 @@ export class OpenAlgoLiveFeed {
 
     const basePrice = MARKET_BASE_PRICES[symKey] || 1500;
     const isFx = symKey === 'EURUSD' || symKey === 'USDINR';
-    const isMcx = symKey === 'GOLD' || symKey === 'CRUDEOILM';
-    const decimals = isFx ? 4 : isMcx ? 0 : 2;
+    const decimals = isFx ? 4 : isMcxSym ? 2 : 2;
 
     const intervalSecs = getIntervalSeconds(interval);
     const nowSec = Math.floor(Date.now() / 1000);

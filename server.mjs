@@ -147,7 +147,7 @@ let angelInstruments = [];
 const nseEquitiesMap = new Map(); // 'MUTHOOTFIN' -> scrip
 const nseTokensMap = new Map();    // token -> scrip
 const futuresMap = new Map();       // 'NIFTY' -> [futures sorted by expiry]
-const commoditiesMap = new Map();   // 'GOLD' -> [mcx scrips]
+const commoditiesMap = new Map();   // 'GOLD' -> [mcx scrips sorted by expiry]
 const indicesMap = new Map([
   ['NIFTY 50', { token: '99926000', symbol: 'NIFTY', exch_seg: 'NSE', name: 'NIFTY 50' }],
   ['NIFTY50', { token: '99926000', symbol: 'NIFTY', exch_seg: 'NSE', name: 'NIFTY 50' }],
@@ -159,7 +159,56 @@ const indicesMap = new Map([
   ['CNXIT', { token: '99926008', symbol: 'CNXIT', exch_seg: 'NSE', name: 'NIFTY IT' }],
   ['CNXAUTO', { token: '99926004', symbol: 'CNXAUTO', exch_seg: 'NSE', name: 'NIFTY AUTO' }],
   ['NIFTYMIDCAP', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
+  // MCX Indices
+  ['MCXBULLDEX', { token: '99920005', symbol: 'MCXBULLDEX', exch_seg: 'MCX', name: 'MCX BULLION INDEX' }],
+  ['MCXMETLDEX', { token: '99920004', symbol: 'MCXMETLDEX', exch_seg: 'MCX', name: 'MCX METAL INDEX' }],
+  ['MCXENRGDEX', { token: '99920015', symbol: 'MCXENERGY', exch_seg: 'MCX', name: 'MCX ENERGY INDEX' }],
+  ['MCXENERGY', { token: '99920015', symbol: 'MCXENERGY', exch_seg: 'MCX', name: 'MCX ENERGY INDEX' }],
+  ['MCXCRUDEX', { token: '99920000', symbol: 'MCXCRUDEX', exch_seg: 'MCX', name: 'MCX CRUDE INDEX' }],
+  ['MCXSILVDEX', { token: '99920002', symbol: 'MCXSILVDEX', exch_seg: 'MCX', name: 'MCX SILVER INDEX' }],
+  ['MCXGOLDEX', { token: '99920003', symbol: 'MCXGOLDEX', exch_seg: 'MCX', name: 'MCX GOLD INDEX' }],
+  ['MCXCOPRDEX', { token: '99920001', symbol: 'MCXCOPRDEX', exch_seg: 'MCX', name: 'MCX COPPER INDEX' }],
+  ['MCXCOMPDEX', { token: '99920006', symbol: 'MCXCOMPDEX', exch_seg: 'MCX', name: 'MCX COMPOSITE INDEX' }],
 ]);
+
+const COMMODITY_METAS = {
+  GOLD: { name: 'MCX Gold Futures (10g)', basePrice: 74500, badge: 'GLD', color: '#ffd700', tickSize: 1.0 },
+  GOLDM: { name: 'MCX Gold Mini Futures (100g)', basePrice: 74500, badge: 'GM', color: '#ffd700', tickSize: 1.0 },
+  GOLDPETAL: { name: 'MCX Gold Petal Futures (1g)', basePrice: 7450, badge: 'GP', color: '#ffd700', tickSize: 1.0 },
+  SILVER: { name: 'MCX Silver Futures (30kg)', basePrice: 89500, badge: 'SLV', color: '#b0bec5', tickSize: 1.0 },
+  SILVERM: { name: 'MCX Silver Mini Futures (5kg)', basePrice: 89500, badge: 'SM', color: '#b0bec5', tickSize: 1.0 },
+  SILVERMIC: { name: 'MCX Silver Micro Futures (1kg)', basePrice: 89500, badge: 'SMC', color: '#b0bec5', tickSize: 1.0 },
+  CRUDEOIL: { name: 'MCX WTI Crude Oil Futures', basePrice: 5980, badge: 'OIL', color: '#455a64', tickSize: 1.0 },
+  CRUDEOILM: { name: 'MCX Crude Oil Mini Futures', basePrice: 5980, badge: 'CLM', color: '#455a64', tickSize: 1.0 },
+  NATURALGAS: { name: 'MCX Natural Gas Futures', basePrice: 235.5, badge: 'GAS', color: '#ff7043', tickSize: 0.1 },
+  NATGASMINI: { name: 'MCX Natural Gas Mini Futures', basePrice: 235.5, badge: 'NGM', color: '#ff7043', tickSize: 0.1 },
+  COPPER: { name: 'MCX Copper Futures (2.5 MT)', basePrice: 815, badge: 'CPR', color: '#d84315', tickSize: 0.05 },
+  ZINC: { name: 'MCX Zinc Futures (5 MT)', basePrice: 275, badge: 'ZNC', color: '#78909c', tickSize: 0.05 },
+  ZINCMINI: { name: 'MCX Zinc Mini Futures', basePrice: 275, badge: 'ZNM', color: '#78909c', tickSize: 0.05 },
+  ALUMINIUM: { name: 'MCX Aluminium Futures (5 MT)', basePrice: 230, badge: 'ALU', color: '#90a4ae', tickSize: 0.05 },
+  ALUMINI: { name: 'MCX Aluminium Mini Futures', basePrice: 230, badge: 'ALM', color: '#90a4ae', tickSize: 0.05 },
+  LEAD: { name: 'MCX Lead Futures (5 MT)', basePrice: 180, badge: 'LED', color: '#546e7a', tickSize: 0.05 },
+  LEADMINI: { name: 'MCX Lead Mini Futures', basePrice: 180, badge: 'LDM', color: '#546e7a', tickSize: 0.05 },
+  NICKEL: { name: 'MCX Nickel Futures', basePrice: 1420, badge: 'NCK', color: '#607d8b', tickSize: 0.1 },
+  COTTON: { name: 'MCX Cotton Bales Futures', basePrice: 56200, badge: 'CTN', color: '#8bc34a', tickSize: 10.0 },
+  MCXBULLDEX: { name: 'MCX Bullion Index (Gold & Silver)', basePrice: 18200, badge: 'BUL', color: '#ff9800', tickSize: 1.0 },
+  MCXMETLDEX: { name: 'MCX Base Metals Index', basePrice: 19500, badge: 'MET', color: '#00bcd4', tickSize: 1.0 },
+  MCXENRGDEX: { name: 'MCX Energy Index (Crude & Gas)', basePrice: 5600, badge: 'ENR', color: '#e91e63', tickSize: 1.0 },
+  MCXCRUDEX: { name: 'MCX Crude Oil Index', basePrice: 5980, badge: 'CRU', color: '#455a64', tickSize: 1.0 },
+  MCXSILVDEX: { name: 'MCX Silver Index', basePrice: 89500, badge: 'SLV', color: '#b0bec5', tickSize: 1.0 },
+  MCXGOLDEX: { name: 'MCX Gold Index', basePrice: 74500, badge: 'GLD', color: '#ffd700', tickSize: 1.0 },
+};
+
+function parseExpiryDate(expStr) {
+  if (!expStr) return 9999999999999;
+  const match = String(expStr).match(/^(\d{2})([A-Z]{3})(\d{4})$/i);
+  if (!match) return 9999999999999;
+  const months = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+  const d = parseInt(match[1], 10);
+  const m = months[match[2].toUpperCase()] || 0;
+  const y = parseInt(match[3], 10);
+  return new Date(Date.UTC(y, m, d)).getTime();
+}
 
 const COMPANY_NAMES = {
   'MUTHOOTFIN': 'Muthoot Finance Ltd.',
@@ -262,13 +311,27 @@ function indexInstruments(instruments) {
       const baseName = item.name.toUpperCase();
       if (!futuresMap.has(baseName)) futuresMap.set(baseName, []);
       futuresMap.get(baseName).push(item);
-    } else if (item.exch_seg === 'MCX' && (item.instrumenttype === 'FUTCOM' || item.instrumenttype === 'COMDTY')) {
-      const baseName = item.name.toUpperCase();
-      if (!commoditiesMap.has(baseName)) commoditiesMap.set(baseName, []);
-      commoditiesMap.get(baseName).push(item);
+    } else if (item.exch_seg === 'MCX') {
+      if (item.instrumenttype === 'AMXIDX') {
+        indicesMap.set(item.symbol.toUpperCase(), item);
+        indicesMap.set(item.name.toUpperCase(), item);
+      } else if (item.instrumenttype === 'FUTCOM' || item.instrumenttype === 'COMDTY' || item.instrumenttype === 'FUTIDX') {
+        const baseName = item.name.toUpperCase();
+        if (!commoditiesMap.has(baseName)) commoditiesMap.set(baseName, []);
+        commoditiesMap.get(baseName).push(item);
+      }
     }
   }
-  console.log(`[AngelOne] Loaded ${angelInstruments.length} instruments. Indexed ${nseEquitiesMap.size} NSE Equities, ${futuresMap.size} Futures bases, ${commoditiesMap.size} Commodities.`);
+
+  // Sort futures and commodities by nearest active expiry
+  for (const [k, list] of futuresMap.entries()) {
+    list.sort((a, b) => parseExpiryDate(a.expiry) - parseExpiryDate(b.expiry));
+  }
+  for (const [k, list] of commoditiesMap.entries()) {
+    list.sort((a, b) => parseExpiryDate(a.expiry) - parseExpiryDate(b.expiry));
+  }
+
+  console.log(`[AngelOne] Loaded ${angelInstruments.length} instruments. Indexed ${nseEquitiesMap.size} NSE Equities, ${futuresMap.size} Futures bases, ${commoditiesMap.size} Commodities bases.`);
 }
 
 async function loadInstrumentMaster() {
@@ -316,16 +379,20 @@ function resolveAngelInstrument(symbol) {
     return nseEquitiesMap.get(ALIAS_MAP[norm]);
   }
 
-  // Check futures (e.g. "NIFTY FUT", "BANKNIFTY FUT", "RELIANCE FUT")
+  // Check MCX commodities & NFO futures
   if (norm.endsWith(' FUT') || norm.endsWith('FUT') || norm.endsWith('1!')) {
     const base = norm.replace(/\s*FUT$|\s*1!$/i, '').trim();
+    if (commoditiesMap.has(base)) {
+      const list = commoditiesMap.get(base);
+      if (list && list.length > 0) return list[0];
+    }
     const futList = futuresMap.get(base);
     if (futList && futList.length > 0) {
       return futList[0]; // Nearest active future
     }
   }
 
-  // Check MCX commodities
+  // Check direct commodity name
   if (commoditiesMap.has(norm)) {
     const list = commoditiesMap.get(norm);
     if (list && list.length > 0) return list[0];
@@ -400,16 +467,44 @@ const SYMBOL_MAP = {
   IRFC: 'IRFC.NS',
   RVNL: 'RVNL.NS',
 
-  // Commodities & Global
-  GOLD: 'GOLDBEES.NS',
-  'GOLD MCX': 'GOLDBEES.NS',
-  CRUDEOIL: 'CL=F',
-  CRUDEOILM: 'CL=F',
+  // MCX Commodities & Indices
+  'GOLD FUT': 'GC=F',
+  'GOLD': 'GC=F',
+  'GOLD MCX': 'GC=F',
+  'GOLDM FUT': 'GC=F',
+  'GOLDM': 'GC=F',
+  'SILVER FUT': 'SI=F',
+  'SILVER': 'SI=F',
+  'SILVERM FUT': 'SI=F',
+  'SILVERM': 'SI=F',
+  'SILVERMIC FUT': 'SI=F',
+  'CRUDEOIL FUT': 'CL=F',
+  'CRUDEOIL': 'CL=F',
+  'CRUDEOILM FUT': 'CL=F',
+  'CRUDEOILM': 'CL=F',
   'CRUDE OIL': 'CL=F',
+  'CRUDE OIL FUT': 'CL=F',
+  'NATURALGAS FUT': 'NG=F',
+  'NATURALGAS': 'NG=F',
+  'NATGASMINI FUT': 'NG=F',
+  'NATURAL GAS': 'NG=F',
+  'NATURAL GAS FUT': 'NG=F',
+  'COPPER FUT': 'HG=F',
+  'COPPER': 'HG=F',
+  'ZINC FUT': 'ZNC=F',
+  'ZINC': 'ZNC=F',
+  'ALUMINIUM FUT': 'ALI=F',
+  'ALUMINIUM': 'ALI=F',
+  'LEAD FUT': 'LED=F',
+  'LEAD': 'LED=F',
+  'MCXBULLDEX': '^MCXBULLDEX',
+  'MCXMETLDEX': '^MCXMETLDEX',
+  'MCXENRGDEX': '^MCXENRGDEX',
+  'MCXCRUDEX': 'CL=F',
+  'MCXSILVDEX': 'SI=F',
+  'MCXGOLDEX': 'GC=F',
   XAGUSD: 'SI=F',
-  SILVER: 'SILVERBEES.NS',
-  NATURALGAS: 'NG=F',
-  COPPER: 'HG=F',
+  PAXGUSDT: 'GC=F',
   US10Y: '^TNX',
   AAPL: 'AAPL',
   NVDA: 'NVDA',
@@ -769,43 +864,177 @@ function createServer() {
     if (reqUrl.pathname === '/api/market/search') {
       const q = (reqUrl.searchParams.get('q') || '').trim().toUpperCase();
       const cat = (reqUrl.searchParams.get('cat') || 'all').toLowerCase();
-      const results = [];
+      const cleanQ = q.replace(/\s*FUT$|\s*FUTURE$|\s*INDEX$/i, '').trim();
+      const candidates = [];
 
-      // 1. Search Indices
-      if (cat === 'all' || cat === 'india' || cat === 'indices') {
+      // 1. Search Indices (NSE, BSE, MCX)
+      if (cat === 'all' || cat === 'india' || cat === 'indices' || cat === 'commodities' || cat === 'futures') {
         for (const [name, meta] of indicesMap.entries()) {
-          if (!q || name.includes(q) || meta.name.toUpperCase().includes(q)) {
-            results.push({
-              symbol: name,
-              displaySymbol: name,
-              name: meta.name,
-              exchange: meta.exch_seg,
-              category: 'india',
-              feedType: 'openalgo',
-              basePrice: 0,
-              tickSize: 0.05,
-              precision: 2,
-              badgeText: name.substring(0, 2),
-              badgeColor: '#2962ff',
+          const isMcx = meta.exch_seg === 'MCX';
+          if (cat === 'india' && isMcx) continue;
+          if (cat === 'commodities' && !isMcx) continue;
+          const metaInfo = COMMODITY_METAS[name] || {};
+          const fullName = metaInfo.name || meta.name;
+          const upperName = fullName.toUpperCase();
+
+          let score = 0;
+          if (!q) score = isMcx ? 35 : 60;
+          else if (name === q || name === cleanQ) score = 220;
+          else if (name.startsWith(cleanQ) || name.startsWith(q)) score = 170;
+          else if (name.includes(cleanQ) || cleanQ.includes(name)) score = 120;
+          else if (upperName.includes(cleanQ)) score = 90;
+
+          if (score > 0 && !candidates.find((c) => c.item.symbol === name)) {
+            candidates.push({
+              score,
+              item: {
+                symbol: name,
+                displaySymbol: name,
+                name: fullName,
+                exchange: meta.exch_seg,
+                category: isMcx ? 'commodities' : 'india',
+                feedType: 'openalgo',
+                basePrice: metaInfo.basePrice || 0,
+                tickSize: metaInfo.tickSize || 0.05,
+                precision: 2,
+                badgeText: metaInfo.badge || name.substring(0, 3),
+                badgeColor: metaInfo.color || (isMcx ? '#ff9800' : '#2962ff'),
+              },
             });
           }
         }
       }
 
-      // 2. Search NSE Equities
-      if (cat === 'all' || cat === 'india') {
-        const qClean = q.replace(/[^A-Z0-9]/g, '');
-        const matchedEquities = [];
+      // 2. Search MCX Commodities & Futures
+      if (cat === 'all' || cat === 'commodities' || cat === 'futures') {
+        for (const [baseName, list] of commoditiesMap.entries()) {
+          const meta = COMMODITY_METAS[baseName] || {};
+          const compName = meta.name || `${baseName} Commodity`;
+          const compUpper = compName.toUpperCase();
+          const isMain = !!COMMODITY_METAS[baseName];
 
-        // Check alias first
+          let score = 0;
+          if (!q) score = isMain ? 40 : 5;
+          else if (baseName === cleanQ || baseName === q) score = isMain ? 210 : 150;
+          else if (baseName.startsWith(cleanQ)) score = isMain ? 160 : 110;
+          else if (baseName.includes(cleanQ) || cleanQ.includes(baseName)) score = isMain ? 110 : 70;
+          else if (compUpper.includes(cleanQ)) score = isMain ? 80 : 50;
+
+          if (score > 0) {
+            const nearFut = list[0];
+            const symKey = `${baseName} FUT`;
+            if (!candidates.find((c) => c.item.symbol === symKey)) {
+              const expText = nearFut?.expiry ? ` (${nearFut.expiry})` : '';
+              candidates.push({
+                score,
+                item: {
+                  symbol: symKey,
+                  displaySymbol: symKey,
+                  name: `${meta.name || baseName}${expText}`,
+                  exchange: 'MCX',
+                  category: 'commodities',
+                  feedType: 'openalgo',
+                  basePrice: meta.basePrice || 0,
+                  tickSize: +nearFut?.tick_size / 100 || meta.tickSize || 0.05,
+                  precision: 2,
+                  badgeText: meta.badge || 'MCX',
+                  badgeColor: meta.color || '#ff9800',
+                },
+              });
+            }
+          }
+        }
+
+        // Add built-in COMMODITY_METAS if not in commoditiesMap
+        for (const [sym, meta] of Object.entries(COMMODITY_METAS)) {
+          if (!sym.startsWith('MCX')) {
+            const symKey = `${sym} FUT`;
+            if (!candidates.find((c) => c.item.symbol === symKey)) {
+              let score = 0;
+              if (!q) score = 40;
+              else if (sym === cleanQ || sym === q) score = 210;
+              else if (sym.startsWith(cleanQ)) score = 160;
+              else if (sym.includes(cleanQ) || cleanQ.includes(sym)) score = 110;
+              else if (meta.name.toUpperCase().includes(cleanQ)) score = 80;
+
+              if (score > 0) {
+                candidates.push({
+                  score,
+                  item: {
+                    symbol: symKey,
+                    displaySymbol: symKey,
+                    name: meta.name,
+                    exchange: 'MCX',
+                    category: 'commodities',
+                    feedType: 'openalgo',
+                    basePrice: meta.basePrice || 0,
+                    tickSize: meta.tickSize || 0.05,
+                    precision: 2,
+                    badgeText: meta.badge || 'MCX',
+                    badgeColor: meta.color || '#ff9800',
+                  },
+                });
+              }
+            }
+          }
+        }
+
+        // Global Commodities (Spot Gold, Silver, Forex)
+        const topComm = [
+          { symbol: 'PAXGUSDT', name: 'Paxos Spot Gold (XAU/USD)', exchange: 'BINANCE', badge: 'GOLD', color: '#ffb300' },
+          { symbol: 'XAGUSD', name: 'Spot Silver (SI)', exchange: 'FOREX', badge: 'AG', color: '#90a4ae' },
+          { symbol: 'USDINR', name: 'US Dollar / Indian Rupee', exchange: 'NSE', badge: '$₹', color: '#43a047' },
+        ];
+        for (const m of topComm) {
+          let score = 0;
+          if (!q) score = 25;
+          else if (m.symbol === q || m.symbol === cleanQ) score = 190;
+          else if (m.symbol.startsWith(cleanQ)) score = 140;
+          else if (m.symbol.includes(cleanQ) || m.name.toUpperCase().includes(cleanQ)) score = 90;
+
+          if (score > 0 && !candidates.find((c) => c.item.symbol === m.symbol)) {
+            candidates.push({
+              score,
+              item: {
+                symbol: m.symbol,
+                displaySymbol: m.symbol,
+                name: m.name,
+                exchange: m.exchange,
+                category: 'commodities',
+                feedType: m.symbol === 'PAXGUSDT' ? 'binance' : 'openalgo',
+                basePrice: 0,
+                tickSize: 0.05,
+                precision: 2,
+                badgeText: m.badge,
+                badgeColor: m.color,
+              },
+            });
+          }
+        }
+      }
+
+      // 3. Search NSE Equities
+      if (cat === 'all' || cat === 'india') {
+        const qCleanEquities = q.replace(/[^A-Z0-9]/g, '');
+
         if (ALIAS_MAP[q] && nseEquitiesMap.has(ALIAS_MAP[q])) {
           const sym = ALIAS_MAP[q];
           const scrip = nseEquitiesMap.get(sym);
-          matchedEquities.push({
-            sym,
-            name: COMPANY_NAMES[sym] || scrip.name || sym,
-            score: 200,
-            scrip,
+          candidates.push({
+            score: 210,
+            item: {
+              symbol: sym,
+              displaySymbol: sym,
+              name: COMPANY_NAMES[sym] || scrip.name || sym,
+              exchange: 'NSE',
+              category: 'india',
+              feedType: 'openalgo',
+              basePrice: 0,
+              tickSize: +scrip.tick_size / 100 || 0.05,
+              precision: 2,
+              badgeText: sym.substring(0, 2),
+              badgeColor: '#e53935',
+            },
           });
         }
 
@@ -815,67 +1044,70 @@ function createServer() {
           const compClean = compUpper.replace(/[^A-Z0-9]/g, '');
 
           let score = 0;
-          if (!q) score = 10;
-          else if (sym === q) score = 100;
-          else if (sym.startsWith(q)) score = 80;
-          else if (sym.includes(q)) score = 60;
-          else if (qClean.length > 2 && compClean.includes(qClean)) score = 50;
-          else if (compUpper.includes(q)) score = 40;
+          if (!q) score = COMPANY_NAMES[sym] ? 20 : 5;
+          else if (sym === q || sym === cleanQ) score = 200;
+          else if (sym.startsWith(cleanQ)) score = 150;
+          else if (sym.includes(cleanQ)) score = 90;
+          else if (qCleanEquities.length > 2 && compClean.includes(qCleanEquities)) score = 70;
+          else if (compUpper.includes(cleanQ)) score = 50;
 
-          if (score > 0 && !matchedEquities.find(m => m.sym === sym)) {
-            matchedEquities.push({ sym, name: compName, score, scrip });
+          if (score > 0 && !candidates.find((c) => c.item.symbol === sym)) {
+            candidates.push({
+              score,
+              item: {
+                symbol: sym,
+                displaySymbol: sym,
+                name: compName,
+                exchange: 'NSE',
+                category: 'india',
+                feedType: 'openalgo',
+                basePrice: 0,
+                tickSize: +scrip.tick_size / 100 || 0.05,
+                precision: 2,
+                badgeText: sym.substring(0, 2),
+                badgeColor: '#e53935',
+              },
+            });
           }
-        }
-
-        matchedEquities.sort((a, b) => b.score - a.score);
-
-        for (const m of matchedEquities.slice(0, 50)) {
-          results.push({
-            symbol: m.sym,
-            displaySymbol: m.sym,
-            name: m.name,
-            exchange: 'NSE',
-            category: 'india',
-            feedType: 'openalgo',
-            basePrice: 0,
-            tickSize: +m.scrip.tick_size / 100 || 0.05,
-            precision: 2,
-            badgeText: m.sym.substring(0, 2),
-            badgeColor: '#e53935',
-          });
         }
       }
 
-      // 3. Search Futures
+      // 4. Search NFO Futures
       if (cat === 'all' || cat === 'futures' || cat === 'indices') {
-        const cleanQ = q.replace(/\s*FUT$|\s*FUTURE$/i, '').trim();
-        let futCount = 0;
         for (const [baseName, list] of futuresMap.entries()) {
-          if (!cleanQ || baseName === cleanQ || baseName.includes(cleanQ) || cleanQ.includes(baseName)) {
+          const compName = COMPANY_NAMES[baseName] || baseName;
+          let score = 0;
+          if (!q) score = 15;
+          else if (baseName === cleanQ || baseName === q) score = 190;
+          else if (baseName.startsWith(cleanQ)) score = 140;
+          else if (baseName.includes(cleanQ) || cleanQ.includes(baseName)) score = 80;
+
+          if (score > 0) {
             const nearFut = list[0];
-            if (nearFut) {
-              const compName = COMPANY_NAMES[baseName] || baseName;
-              results.push({
-                symbol: `${baseName} FUT`,
-                displaySymbol: `${baseName} FUT`,
-                name: `${compName} (${nearFut.expiry})`,
-                exchange: 'NFO',
-                category: 'futures',
-                feedType: 'openalgo',
-                basePrice: 0,
-                tickSize: +nearFut.tick_size / 100 || 0.05,
-                precision: 2,
-                badgeText: 'FUT',
-                badgeColor: '#ff9800',
+            const symKey = `${baseName} FUT`;
+            if (nearFut && !candidates.find((c) => c.item.symbol === symKey)) {
+              candidates.push({
+                score,
+                item: {
+                  symbol: symKey,
+                  displaySymbol: symKey,
+                  name: `${compName} (${nearFut.expiry})`,
+                  exchange: 'NFO',
+                  category: 'futures',
+                  feedType: 'openalgo',
+                  basePrice: 0,
+                  tickSize: +nearFut.tick_size / 100 || 0.05,
+                  precision: 2,
+                  badgeText: 'FUT',
+                  badgeColor: '#ff9800',
+                },
               });
-              futCount++;
-              if (futCount >= 20) break;
             }
           }
         }
       }
 
-      // 4. Search Crypto (24/7 Binance)
+      // 5. Search Crypto (24/7 Binance)
       if (cat === 'all' || cat === 'crypto') {
         const topCrypto = [
           { symbol: 'BTCUSDT', name: 'Bitcoin / Tether USD', basePrice: 91000 },
@@ -890,51 +1122,36 @@ function createServer() {
           { symbol: 'SUIUSDT', name: 'Sui / Tether USD', basePrice: 3.5 },
         ];
         for (const c of topCrypto) {
-          if (!q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)) {
-            results.push({
-              symbol: c.symbol,
-              displaySymbol: c.symbol,
-              name: c.name,
-              exchange: 'BINANCE',
-              category: 'crypto',
-              feedType: 'binance',
-              basePrice: c.basePrice,
-              tickSize: 0.01,
-              precision: 2,
-              badgeText: c.symbol.substring(0, 2),
-              badgeColor: '#f7931a',
+          let score = 0;
+          if (!q) score = 20;
+          else if (c.symbol === q || c.symbol === cleanQ) score = 190;
+          else if (c.symbol.startsWith(cleanQ)) score = 140;
+          else if (c.symbol.includes(cleanQ) || c.name.toUpperCase().includes(cleanQ)) score = 80;
+
+          if (score > 0 && !candidates.find((cand) => cand.item.symbol === c.symbol)) {
+            candidates.push({
+              score,
+              item: {
+                symbol: c.symbol,
+                displaySymbol: c.symbol,
+                name: c.name,
+                exchange: 'BINANCE',
+                category: 'crypto',
+                feedType: 'binance',
+                basePrice: c.basePrice,
+                tickSize: 0.01,
+                precision: 2,
+                badgeText: c.symbol.substring(0, 2),
+                badgeColor: '#f7931a',
+              },
             });
           }
         }
       }
 
-      // 5. Search Commodities
-      if (cat === 'all' || cat === 'commodities') {
-        const topComm = [
-          { symbol: 'PAXGUSDT', name: 'Paxos Spot Gold (XAU/USD)', exchange: 'BINANCE', badge: 'GOLD', color: '#ffb300' },
-          { symbol: 'XAGUSD', name: 'Spot Silver (SI)', exchange: 'FOREX', badge: 'AG', color: '#90a4ae' },
-          { symbol: 'CRUDEOIL', name: 'WTI Crude Oil', exchange: 'MCX', badge: 'OIL', color: '#455a64' },
-          { symbol: 'NATURALGAS', name: 'Natural Gas Henry Hub', exchange: 'MCX', badge: 'GAS', color: '#00897b' },
-          { symbol: 'USDINR', name: 'US Dollar / Indian Rupee', exchange: 'NSE', badge: '$₹', color: '#43a047' },
-        ];
-        for (const m of topComm) {
-          if (!q || m.symbol.includes(q) || m.name.toUpperCase().includes(q)) {
-            results.push({
-              symbol: m.symbol,
-              displaySymbol: m.symbol,
-              name: m.name,
-              exchange: m.exchange,
-              category: 'commodities',
-              feedType: m.symbol === 'PAXGUSDT' ? 'binance' : 'openalgo',
-              basePrice: 0,
-              tickSize: 0.05,
-              precision: 2,
-              badgeText: m.badge,
-              badgeColor: m.color,
-            });
-          }
-        }
-      }
+      // Sort all matched candidates by relevance score descending
+      candidates.sort((a, b) => b.score - a.score);
+      const results = candidates.slice(0, 60).map((c) => c.item);
 
       res.writeHead(200, {
         'Content-Type': 'application/json',

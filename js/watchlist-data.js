@@ -70,10 +70,16 @@ export const DEFAULT_WATCHLISTS = [
     id: 'wl-commodities',
     name: 'Commodities & Forex',
     symbols: [
+      'GOLD FUT',
+      'SILVER FUT',
+      'CRUDEOIL FUT',
+      'NATURALGAS FUT',
+      'COPPER FUT',
+      'ZINC FUT',
+      'ALUMINIUM FUT',
+      'MCXBULLDEX',
+      'MCXMETLDEX',
       'PAXGUSDT',
-      'XAGUSD',
-      'CRUDEOIL',
-      'NATURALGAS',
       'USDINR',
       'EURUSD',
       'US10Y',
@@ -647,7 +653,256 @@ export const MASTER_INSTRUMENTS = [
     badgeColor: '#4ca2fe',
   },
 
-  // ─── COMMODITIES & FOREX ───────────────────────────────────────────
+  // ─── MCX COMMODITIES & FUTURES (INDIA) ──────────────────────────────
+  {
+    symbol: 'GOLD FUT',
+    displaySymbol: 'GOLD FUT',
+    name: 'MCX Gold Futures (10g)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 74500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'GLD',
+    badgeColor: '#ffd700',
+  },
+  {
+    symbol: 'GOLDM FUT',
+    displaySymbol: 'GOLDM FUT',
+    name: 'MCX Gold Mini Futures (100g)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 74500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'GM',
+    badgeColor: '#ffd700',
+  },
+  {
+    symbol: 'SILVER FUT',
+    displaySymbol: 'SILVER FUT',
+    name: 'MCX Silver Futures (30kg)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 89500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'SLV',
+    badgeColor: '#b0bec5',
+  },
+  {
+    symbol: 'SILVERM FUT',
+    displaySymbol: 'SILVERM FUT',
+    name: 'MCX Silver Mini Futures (5kg)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 89500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'SM',
+    badgeColor: '#b0bec5',
+  },
+  {
+    symbol: 'SILVERMIC FUT',
+    displaySymbol: 'SILVERMIC FUT',
+    name: 'MCX Silver Micro Futures (1kg)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 89500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'SMC',
+    badgeColor: '#b0bec5',
+  },
+  {
+    symbol: 'CRUDEOIL FUT',
+    displaySymbol: 'CRUDEOIL FUT',
+    name: 'MCX WTI Crude Oil Futures (100 bbl)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 5980.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'OIL',
+    badgeColor: '#455a64',
+  },
+  {
+    symbol: 'CRUDEOILM FUT',
+    displaySymbol: 'CRUDEOILM FUT',
+    name: 'MCX Crude Oil Mini Futures (10 bbl)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 5980.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'CLM',
+    badgeColor: '#455a64',
+  },
+  {
+    symbol: 'NATURALGAS FUT',
+    displaySymbol: 'NATURALGAS FUT',
+    name: 'MCX Natural Gas Futures (1250 mmBtu)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 235.5,
+    tickSize: 0.1,
+    precision: 2,
+    badgeText: 'GAS',
+    badgeColor: '#ff7043',
+  },
+  {
+    symbol: 'NATGASMINI FUT',
+    displaySymbol: 'NATGASMINI FUT',
+    name: 'MCX Natural Gas Mini Futures',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 235.5,
+    tickSize: 0.1,
+    precision: 2,
+    badgeText: 'NGM',
+    badgeColor: '#ff7043',
+  },
+  {
+    symbol: 'COPPER FUT',
+    displaySymbol: 'COPPER FUT',
+    name: 'MCX Copper Futures (2.5 MT)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 815.0,
+    tickSize: 0.05,
+    precision: 2,
+    badgeText: 'CPR',
+    badgeColor: '#d84315',
+  },
+  {
+    symbol: 'ZINC FUT',
+    displaySymbol: 'ZINC FUT',
+    name: 'MCX Zinc Futures (5 MT)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 275.0,
+    tickSize: 0.05,
+    precision: 2,
+    badgeText: 'ZNC',
+    badgeColor: '#78909c',
+  },
+  {
+    symbol: 'ALUMINIUM FUT',
+    displaySymbol: 'ALUMINIUM FUT',
+    name: 'MCX Aluminium Futures (5 MT)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 230.0,
+    tickSize: 0.05,
+    precision: 2,
+    badgeText: 'ALU',
+    badgeColor: '#90a4ae',
+  },
+  {
+    symbol: 'LEAD FUT',
+    displaySymbol: 'LEAD FUT',
+    name: 'MCX Lead Futures (5 MT)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 180.0,
+    tickSize: 0.05,
+    precision: 2,
+    badgeText: 'LED',
+    badgeColor: '#546e7a',
+  },
+  {
+    symbol: 'MCXBULLDEX',
+    displaySymbol: 'MCXBULLDEX',
+    name: 'MCX Bullion Index (Gold & Silver)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 18200.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'BUL',
+    badgeColor: '#ff9800',
+  },
+  {
+    symbol: 'MCXMETLDEX',
+    displaySymbol: 'MCXMETLDEX',
+    name: 'MCX Base Metals Index',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 19500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'MET',
+    badgeColor: '#00bcd4',
+  },
+  {
+    symbol: 'MCXENRGDEX',
+    displaySymbol: 'MCXENRGDEX',
+    name: 'MCX Energy Index (Crude & Gas)',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 5600.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'ENR',
+    badgeColor: '#e91e63',
+  },
+  {
+    symbol: 'MCXCRUDEX',
+    displaySymbol: 'MCXCRUDEX',
+    name: 'MCX Crude Oil Index',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 5980.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'CRU',
+    badgeColor: '#455a64',
+  },
+  {
+    symbol: 'MCXSILVDEX',
+    displaySymbol: 'MCXSILVDEX',
+    name: 'MCX Silver Index',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 89500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'SLV',
+    badgeColor: '#b0bec5',
+  },
+  {
+    symbol: 'MCXGOLDEX',
+    displaySymbol: 'MCXGOLDEX',
+    name: 'MCX Gold Index',
+    exchange: 'MCX',
+    category: 'commodities',
+    feedType: 'openalgo',
+    basePrice: 74500.0,
+    tickSize: 1.0,
+    precision: 2,
+    badgeText: 'GLD',
+    badgeColor: '#ffd700',
+  },
+
+  // ─── GLOBAL COMMODITIES & FOREX ────────────────────────────────────
   {
     symbol: 'PAXGUSDT',
     displaySymbol: 'GOLD (Spot)',
@@ -743,30 +998,45 @@ export const MASTER_INSTRUMENTS = [
 
 export function findInstrument(symbol) {
   if (!symbol) return null;
-  const norm = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const raw = symbol.toUpperCase().trim();
+  const norm = raw.replace(/[^A-Z0-9]/g, '');
+
   const found = MASTER_INSTRUMENTS.find((item) => {
     const itemNorm = item.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const itemDisp = item.displaySymbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return itemNorm === norm || itemDisp === norm || item.symbol.toUpperCase() === symbol.toUpperCase();
+    return itemNorm === norm || itemDisp === norm || item.symbol.toUpperCase() === raw;
   });
 
   if (found) return found;
 
-  // Dynamic instrument creation for any unlisted searched symbol
+  // Check commodity aliases or MCX contracts
+  const isMcx =
+    raw.includes('MCX') ||
+    raw.startsWith('GOLD') ||
+    raw.startsWith('SILVER') ||
+    raw.startsWith('CRUDE') ||
+    raw.startsWith('NATURALGAS') ||
+    raw.startsWith('NATGAS') ||
+    raw.startsWith('COPPER') ||
+    raw.startsWith('ZINC') ||
+    raw.startsWith('ALUMINIUM') ||
+    raw.startsWith('LEAD');
+
   const isCrypto = norm.endsWith('USDT') || norm.endsWith('BTC') || norm.endsWith('ETH');
   const isFut = norm.includes('FUT');
-  const cleanSym = symbol.toUpperCase().replace(/\.NS$/, '');
+  const cleanSym = raw.replace(/\.NS$/, '');
+
   return {
     symbol: cleanSym,
     displaySymbol: cleanSym,
-    name: `${cleanSym} Stock`,
-    exchange: isCrypto ? 'BINANCE' : isFut ? 'NFO' : 'NSE',
-    category: isCrypto ? 'crypto' : 'india',
+    name: isMcx ? `${cleanSym} Commodity` : `${cleanSym} Stock`,
+    exchange: isMcx ? 'MCX' : isCrypto ? 'BINANCE' : isFut ? 'NFO' : 'NSE',
+    category: isMcx ? 'commodities' : isCrypto ? 'crypto' : isFut ? 'futures' : 'india',
     feedType: isCrypto ? 'binance' : 'openalgo',
-    basePrice: 1000.0,
-    tickSize: 0.05,
+    basePrice: isMcx ? 5000.0 : 1000.0,
+    tickSize: isMcx ? 0.05 : 0.05,
     precision: 2,
     badgeText: cleanSym.slice(0, 2),
-    badgeColor: '#2962ff',
+    badgeColor: isMcx ? '#ff9800' : '#2962ff',
   };
 }
