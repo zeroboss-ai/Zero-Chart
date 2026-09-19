@@ -74,14 +74,26 @@ export class BinanceFeed {
         }
         const data = await resp.json();
         if (Array.isArray(data)) {
-          return data.map((k) => ({
-            time: Math.floor(k[0] / 1000),
-            open: parseFloat(k[1]),
-            high: parseFloat(k[2]),
-            low: parseFloat(k[3]),
-            close: parseFloat(k[4]),
-            volume: parseFloat(k[5]),
-          }));
+          const map = new Map();
+          for (const k of data) {
+            const t = Math.floor(k[0] / 1000);
+            const o = parseFloat(k[1]);
+            const h = parseFloat(k[2]);
+            const l = parseFloat(k[3]);
+            const c = parseFloat(k[4]);
+            const v = parseFloat(k[5]) || 0;
+            if (t > 0 && Number.isFinite(c)) {
+              map.set(t, {
+                time: t,
+                open: o,
+                high: Math.max(h, o, c),
+                low: Math.min(l, o, c),
+                close: c,
+                volume: v,
+              });
+            }
+          }
+          return Array.from(map.values()).sort((a, b) => a.time - b.time);
         }
       } catch (err) {
         lastError = err;

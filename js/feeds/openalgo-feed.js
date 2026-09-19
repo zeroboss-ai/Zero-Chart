@@ -36,6 +36,42 @@ export function getIntervalSeconds(interval) {
   return 300;
 }
 
+export function sanitizeBars(rawBars) {
+  if (!Array.isArray(rawBars) || rawBars.length === 0) return [];
+  const map = new Map();
+  for (const b of rawBars) {
+    if (!b) continue;
+    const t = Math.floor(Number(b.time));
+    if (!Number.isFinite(t) || t <= 0) continue;
+
+    let c = Number(b.close);
+    if (!Number.isFinite(c) || c <= 0) continue;
+
+    let o = Number(b.open);
+    if (!Number.isFinite(o) || o <= 0) o = c;
+
+    let h = Number(b.high);
+    let l = Number(b.low);
+    if (!Number.isFinite(h) || h <= 0) h = Math.max(o, c);
+    if (!Number.isFinite(l) || l <= 0) l = Math.min(o, c);
+
+    h = Math.max(h, o, c, l);
+    l = Math.min(l, o, c, h);
+
+    const v = Number.isFinite(Number(b.volume)) && Number(b.volume) >= 0 ? Number(b.volume) : 0;
+
+    map.set(t, {
+      time: t,
+      open: o,
+      high: h,
+      low: l,
+      close: c,
+      volume: v,
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => a.time - b.time);
+}
+
 export class OpenAlgoLiveFeed {
   constructor({
     host = 'http://127.0.0.1:5000',
@@ -244,11 +280,13 @@ export class OpenAlgoLiveFeed {
       if (liveResp.ok) {
         const json = await liveResp.json();
         if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-          const liveBars = json.data;
-          const lastBar = liveBars[liveBars.length - 1];
-          this._lastBars.set(cacheKey, { ...lastBar });
-          this._barMemoryCache.set(cacheKey, { time: Date.now(), data: liveBars });
-          return liveBars;
+          const liveBars = sanitizeBars(json.data);
+          if (liveBars.length > 0) {
+            const lastBar = liveBars[liveBars.length - 1];
+            this._lastBars.set(cacheKey, { ...lastBar });
+            this._barMemoryCache.set(cacheKey, { time: Date.now(), data: liveBars });
+            return liveBars;
+          }
         }
       }
     } catch (_) {}
@@ -316,20 +354,32 @@ export class OpenAlgoLiveFeed {
     const finalClose = generated && generated.length > 0 ? generated[generated.length - 1].close : 100;
     const ratio = basePrice / finalClose;
 
-    const bars = generated.map((b) => ({
-      time: b.time,
-      open: +(b.open * ratio).toFixed(decimals),
-      high: +(b.high * ratio).toFixed(decimals),
-      low: +(b.low * ratio).toFixed(decimals),
-      close: +(b.close * ratio).toFixed(decimals),
-      volume: Math.round(b.volume * 15),
-    }));
+    const rawBars = generated.map((b) => {
+      const o = +(b.open * ratio).toFixed(decimals);
+      const c = +(b.close * ratio).toFixed(decimals);
+      const h = Math.max(+(b.high * ratio).toFixed(decimals), o, c);
+      const l = Math.min(+(b.low * ratio).toFixed(decimals), o, c);
+      return {
+        time: b.time,
+        open: o,
+        high: h,
+        low: l,
+        close: c,
+        volume: Math.round(b.volume * 15),
+      };
+    });
+
+    if (rawBars.length > 0) {
+      const last = rawBars[rawBars.length - 1];
+      last.close = basePrice;
+      last.high = Math.max(last.high, last.open, basePrice);
+      last.low = Math.min(last.low, last.open, basePrice);
+    }
+
+    const bars = sanitizeBars(rawBars);
 
     if (bars.length > 0) {
       const last = bars[bars.length - 1];
-      last.close = basePrice;
-      last.high = Math.max(last.high, basePrice);
-      last.low = Math.min(last.low, basePrice);
       this._lastBars.set(cacheKey, { ...last });
       this._barMemoryCache.set(cacheKey, { time: Date.now(), data: bars });
     }
@@ -398,7 +448,7 @@ export class OpenAlgoLiveFeed {
   _dispatchRealtimeTick(symbol, ltp) {
     const symKey = (symbol || '').toUpperCase().trim();
     const price = +ltp;
-    if (!price || isNaN(price)) return;
+    if (!price || isNaN(price) || price <= 0) return;
 
     for (const [subKey, onTick] of this._wsSubscriptions.entries()) {
       if (subKey.startsWith(`${symKey}_`)) {
@@ -409,16 +459,17 @@ export class OpenAlgoLiveFeed {
 
         let bar = this._lastBars.get(subKey);
         if (bar && (bar.time === bucketTime || nowSec < bar.time + intervalSecs)) {
-          bar.high = Math.max(bar.high, price);
-          bar.low = Math.min(bar.low, price);
+          bar.high = Math.max(bar.high, bar.open, price);
+          bar.low = Math.min(bar.low, bar.open, price);
           bar.close = price;
           bar.time = bucketTime;
         } else {
+          const openPrice = bar ? bar.close : price;
           bar = {
             time: bucketTime,
-            open: bar ? bar.close : price,
-            high: price,
-            low: price,
+            open: openPrice,
+            high: Math.max(openPrice, price),
+            low: Math.min(openPrice, price),
             close: price,
             volume: (bar ? bar.volume : 0) + 1,
           };

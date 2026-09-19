@@ -252,6 +252,9 @@ class ZeroChartApp {
 
     // 9. Initialize Progressive Web App (PWA)
     this.initPWA();
+
+    // 10. Global Toast Guard (Cap to Max 2 & 2s Auto Fade-Out)
+    this.initToastGuard();
   }
 
   // ─── MULTI-CHART LAYOUT SYSTEM ───
@@ -1429,8 +1432,8 @@ class ZeroChartApp {
     const container = document.getElementById('alert-toast-container');
     if (!container) return;
 
-    // Limit visible toasts to maximum 3 to prevent clutter
-    while (container.children.length >= 3) {
+    // Limit visible toasts to maximum 2 to prevent clutter
+    while (container.children.length >= 2) {
       container.firstChild.remove();
     }
 
@@ -1463,7 +1466,7 @@ class ZeroChartApp {
 
     setTimeout(() => {
       if (toast.isConnected) toast.remove();
-    }, 8000);
+    }, 2000);
   }
 
   updateAlertBadgeCount() {
@@ -2062,11 +2065,11 @@ class ZeroChartApp {
   }
 
   // ─── TOAST NOTIFICATION HELPER ───
-  showToast(message, duration = 4000) {
+  showToast(message, duration = 2000) {
     const container = document.getElementById('alert-toast-container');
     if (!container) return;
 
-    while (container.children.length >= 3) {
+    while (container.children.length >= 2) {
       container.firstChild.remove();
     }
 
@@ -2091,6 +2094,59 @@ class ZeroChartApp {
     setTimeout(() => {
       if (toast.isConnected) toast.remove();
     }, duration);
+  }
+
+  // ─── GLOBAL TOAST GUARD (MAX 2 VISIBLE & 2-SECOND AUTO DISMISS) ───
+  initToastGuard() {
+    const enforceToastLimits = () => {
+      // 1. OpenAlgo chart widget toasts (.oac-toasts)
+      const oacStacks = document.querySelectorAll('.oac-toasts');
+      for (const stack of oacStacks) {
+        while (stack.children.length > 2) {
+          stack.firstElementChild.remove();
+        }
+        for (const toast of stack.children) {
+          if (!toast.dataset.autoFadeArmed) {
+            toast.dataset.autoFadeArmed = 'true';
+            setTimeout(() => {
+              if (toast.isConnected) {
+                toast.classList.add('is-out');
+                setTimeout(() => toast.remove(), 160);
+              }
+            }, 2000);
+          }
+        }
+      }
+
+      // 2. Main alert toast container
+      const alertContainer = document.getElementById('alert-toast-container');
+      if (alertContainer) {
+        while (alertContainer.children.length > 2) {
+          alertContainer.firstElementChild.remove();
+        }
+        for (const toast of alertContainer.children) {
+          if (!toast.dataset.autoFadeArmed) {
+            toast.dataset.autoFadeArmed = 'true';
+            setTimeout(() => {
+              if (toast.isConnected) {
+                toast.remove();
+              }
+            }, 2000);
+          }
+        }
+      }
+    };
+
+    // Instant interception via MutationObserver
+    try {
+      const observer = new MutationObserver(() => {
+        enforceToastLimits();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    } catch (_) {}
+
+    // Periodic sweep fallback every 400ms
+    setInterval(enforceToastLimits, 400);
   }
 
   // ─── PER-SYMBOL DRAWINGS & INDICATOR PERSISTENCE ───

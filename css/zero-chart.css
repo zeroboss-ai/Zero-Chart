@@ -1367,47 +1367,75 @@ html, body {
   background: var(--panel-hover);
 }
 
-/* ─── TOAST NOTIFICATIONS ─── */
-.tv-toast-container {
+/* ─── TOAST NOTIFICATIONS (MAX 2 & 2s AUTO FADE-OUT) ─── */
+.tv-toast-container,
+.oac-toasts {
   position: fixed;
   bottom: 24px;
   right: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   z-index: 2000;
   pointer-events: none;
+  max-width: 360px;
+}
+
+/* Hard cap to maximum 2 visible toasts */
+.tv-toast-container .tv-alert-toast:nth-child(n+3),
+.oac-toasts .oac-toast:nth-child(n+3) {
+  display: none !important;
 }
 
 .tv-alert-toast {
   pointer-events: auto;
-  min-width: 280px;
+  min-width: 260px;
   max-width: 360px;
-  padding: 12px 16px;
-  background: var(--panel-elev);
-  border: 1px solid var(--amber);
+  padding: 10px 14px;
+  background: var(--panel-elev, #1e222d);
+  border: 1px solid var(--amber, #ff9800);
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  animation: slideInToast 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: zeroToastAutoFade 2s ease-in-out forwards;
 }
 
-@keyframes slideInToast {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+.oac-toasts .oac-toast {
+  pointer-events: auto;
+  animation: zeroToastAutoFade 2s ease-in-out forwards !important;
+}
+
+@keyframes zeroToastAutoFade {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+    pointer-events: none;
+  }
 }
 
 .tv-toast-title {
   font-weight: 700;
   font-size: 13px;
-  color: var(--amber);
+  color: var(--amber, #ff9800);
 }
 
 .tv-toast-msg {
   font-size: 12px;
-  color: var(--text);
+  color: var(--text, #d1d4dc);
   margin-top: 2px;
 }
 

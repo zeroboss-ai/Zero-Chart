@@ -562,6 +562,42 @@ function formatISTDate(d) {
 
 let angelCandleRateLimitUntil = 0;
 
+function sanitizeCandles(rawBars) {
+  if (!Array.isArray(rawBars) || rawBars.length === 0) return [];
+  const map = new Map();
+  for (const b of rawBars) {
+    if (!b) continue;
+    const t = Math.floor(Number(b.time));
+    if (!Number.isFinite(t) || t <= 0) continue;
+
+    let c = Number(b.close);
+    if (!Number.isFinite(c) || c <= 0) continue;
+
+    let o = Number(b.open);
+    if (!Number.isFinite(o) || o <= 0) o = c;
+
+    let h = Number(b.high);
+    let l = Number(b.low);
+    if (!Number.isFinite(h) || h <= 0) h = Math.max(o, c);
+    if (!Number.isFinite(l) || l <= 0) l = Math.min(o, c);
+
+    h = Math.max(h, o, c, l);
+    l = Math.min(l, o, c, h);
+
+    const v = Number.isFinite(Number(b.volume)) && Number(b.volume) >= 0 ? Number(b.volume) : 0;
+
+    map.set(t, {
+      time: t,
+      open: +o.toFixed(2),
+      high: +h.toFixed(2),
+      low: +l.toFixed(2),
+      close: +c.toFixed(2),
+      volume: v,
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => a.time - b.time);
+}
+
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 async function fetchAngelOneCandles(angelInst, interval) {
   if (Date.now() < angelCandleRateLimitUntil) {
@@ -626,7 +662,7 @@ async function fetchAngelOneCandles(angelInst, interval) {
     throw new Error(json.message || 'No historical candle data from AngelOne');
   }
 
-  const bars = [];
+  const rawBars = [];
   for (const item of json.data) {
     // item: [ "2026-09-18T13:25:00+05:30", open, high, low, close, volume ]
     const timeSec = Math.floor(new Date(item[0]).getTime() / 1000);
@@ -637,18 +673,18 @@ async function fetchAngelOneCandles(angelInst, interval) {
     const v = +item[5] || 0;
 
     if (timeSec && Number.isFinite(c)) {
-      bars.push({
+      rawBars.push({
         time: timeSec,
-        open: +o.toFixed(2),
-        high: +h.toFixed(2),
-        low: +l.toFixed(2),
-        close: +c.toFixed(2),
+        open: o,
+        high: h,
+        low: l,
+        close: c,
         volume: v,
       });
     }
   }
 
-  return bars;
+  return sanitizeCandles(rawBars);
 }
 
 // ─── 6. ANGELONE REAL-TIME LTP FETCHER ───
@@ -721,17 +757,18 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       if (angelBars && angelBars.length > 0) {
         // Also fetch latest LTP to ensure last bar has real-time tick
         const ltpData = await fetchAngelOneLtp(angelInst);
-        if (ltpData) {
+        if (ltpData && Number.isFinite(ltpData.ltp) && ltpData.ltp > 0) {
           quoteCache.set(symNorm, ltpData);
           const lastBar = angelBars[angelBars.length - 1];
           if (lastBar && Date.now() / 1000 - lastBar.time < 300) {
-            lastBar.close = ltpData.ltp;
-            lastBar.high = Math.max(lastBar.high, ltpData.ltp);
-            lastBar.low = Math.min(lastBar.low, ltpData.ltp);
+            lastBar.close = +ltpData.ltp.toFixed(2);
+            lastBar.high = Math.max(lastBar.high, lastBar.open, lastBar.close);
+            lastBar.low = Math.min(lastBar.low, lastBar.open, lastBar.close);
           }
         }
-        candleCache.set(cacheKey, { timestamp: Date.now(), data: angelBars });
-        return angelBars;
+        const cleaned = sanitizeCandles(angelBars);
+        candleCache.set(cacheKey, { timestamp: Date.now(), data: cleaned });
+        return cleaned;
       }
     } catch (angelErr) {
       // Gentle fallback
@@ -766,26 +803,27 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   const closes = quote.close || [];
   const volumes = quote.volume || [];
 
-  const bars = [];
+  const rawBars = [];
   for (let i = 0; i < timestamps.length; i++) {
     const t = timestamps[i];
-    const o = opens[i];
-    const h = highs[i];
-    const l = lows[i];
     const c = closes[i];
-    const v = volumes[i] || 0;
+    if (!t || !Number.isFinite(c)) continue;
+    const o = Number.isFinite(opens[i]) ? opens[i] : c;
+    const h = Number.isFinite(highs[i]) ? highs[i] : Math.max(o, c);
+    const l = Number.isFinite(lows[i]) ? lows[i] : Math.min(o, c);
+    const v = Number.isFinite(volumes[i]) && volumes[i] >= 0 ? volumes[i] : 0;
 
-    if (t && Number.isFinite(c)) {
-      bars.push({
-        time: t,
-        open: +(o || c).toFixed(2),
-        high: +(h || c).toFixed(2),
-        low: +(l || c).toFixed(2),
-        close: +c.toFixed(2),
-        volume: +v || 0,
-      });
-    }
+    rawBars.push({
+      time: t,
+      open: o,
+      high: Math.max(h, o, c),
+      low: Math.min(l, o, c),
+      close: c,
+      volume: v,
+    });
   }
+
+  const bars = sanitizeCandles(rawBars);
 
   if (bars.length > 0) {
     const lastBar = bars[bars.length - 1];

@@ -38,12 +38,24 @@ export class MultiAssetFeed {
       return this.binanceFeed;
     }
     if (
-      sym.includes('GOLD') ||
-      sym.includes('SILVER') ||
-      sym.includes('CRUDE') ||
-      sym.includes('OIL') ||
+      sym.endsWith('FUT') ||
+      sym.includes('MCX') ||
+      sym.startsWith('GOLD') ||
+      sym.startsWith('SILVER') ||
+      sym.startsWith('CRUDE') ||
+      sym.startsWith('NATURALGAS') ||
+      sym.startsWith('COPPER') ||
+      sym.startsWith('ZINC') ||
+      sym.startsWith('ALUMINIUM') ||
+      sym.startsWith('LEAD')
+    ) {
+      return this.openalgoFeed;
+    }
+    if (
       sym.includes('XAU') ||
-      sym.includes('XAG')
+      sym.includes('XAG') ||
+      sym.includes('PAXG') ||
+      sym === 'BRENT'
     ) {
       return this.commodityFeed;
     }

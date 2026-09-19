@@ -189,10 +189,9 @@ declare class Keymap {
 declare function openShortcutsPanel(ctx: WidgetContext): () => void;
 
 type ToastKind = 'info' | 'success' | 'error';
-/** How long each kind stays, in ms. 0 keeps it until it is dismissed. */
 declare const TOAST_MS: Readonly<Record<ToastKind, number>>;
 /** Newest at the bottom; beyond this many the oldest goes. */
-declare const TOAST_MAX = 5;
+declare const TOAST_MAX = 2;
 /** How long the leave transition runs before the node is removed. */
 declare const TOAST_LEAVE_MS = 160;
 interface ToastOptions {

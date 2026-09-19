@@ -60,23 +60,36 @@ export class CommodityFeed {
     const generated = generateBars(startTime, count, intervalSecs);
     const finalClose = (generated && generated.length > 0) ? generated[generated.length - 1].close : 100;
     const ratio = basePrice / finalClose;
-    const bars = generated.map((b) => ({
-      time: b.time,
-      open: +(b.open * ratio).toFixed(3),
-      high: +(b.high * ratio).toFixed(3),
-      low: +(b.low * ratio).toFixed(3),
-      close: +(b.close * ratio).toFixed(3),
-      volume: Math.round(b.volume * 5),
-    }));
+    const rawBars = generated.map((b) => {
+      const o = +(b.open * ratio).toFixed(3);
+      const c = +(b.close * ratio).toFixed(3);
+      const h = Math.max(+(b.high * ratio).toFixed(3), o, c);
+      const l = Math.min(+(b.low * ratio).toFixed(3), o, c);
+      return {
+        time: b.time,
+        open: o,
+        high: h,
+        low: l,
+        close: c,
+        volume: Math.round(b.volume * 5),
+      };
+    });
 
-    if (bars.length > 0) {
-      const last = bars[bars.length - 1];
+    if (rawBars.length > 0) {
+      const last = rawBars[rawBars.length - 1];
       last.close = basePrice;
-      last.high = Math.max(last.high, basePrice);
-      last.low = Math.min(last.low, basePrice);
+      last.high = Math.max(last.high, last.open, basePrice);
+      last.low = Math.min(last.low, last.open, basePrice);
     }
 
-    return bars;
+    const map = new Map();
+    for (const b of rawBars) {
+      if (!b || !Number.isFinite(b.time) || !Number.isFinite(b.close)) continue;
+      const h = Math.max(b.high, b.open, b.close);
+      const l = Math.min(b.low, b.open, b.close);
+      map.set(b.time, { ...b, high: h, low: l });
+    }
+    return Array.from(map.values()).sort((a, b) => a.time - b.time);
   }
 
   subscribeBars(reqOrSymbol, onBarOrInterval, optsOrOnTick) {
