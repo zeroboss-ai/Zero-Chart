@@ -2136,8 +2136,8 @@ class ZeroChartApp {
         barMs: 1000,
         speed: this.replaySpeed || 1,
         scheduler: (cb, ms) => {
-          const tickMs = Math.max(16, Math.min(40, Math.floor(ms / 2)));
-          const id = setInterval(cb, tickMs);
+          const tickInterval = Math.max(50, Math.min(ms, 250));
+          const id = setInterval(cb, tickInterval);
           return () => clearInterval(id);
         },
         onFrame: (state) => {
