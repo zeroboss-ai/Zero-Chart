@@ -87,6 +87,7 @@ class ZeroChartApp {
 
     // Bar Replay state
     this.replayController = null;
+    this.fullReplayBars = null;
     this.isReplayMode = false;
     this.isReplayJumpMode = false;
     this.replaySpeed = 1;
@@ -684,6 +685,9 @@ class ZeroChartApp {
     this.broker.onBook((orders, positions) => pane.tradeController.reconcile(orders, positions));
     this.broker.onLtp((sym, ltp) => pane.tradeController.onLtp(sym, ltp));
 
+    // Track active on-chart alert price lines
+    pane.alertLines = new Map();
+
     // Listen to crosshair move for Data Window and Replay hover
     pane.widget.chart.on('crosshair:move', (data) => {
       if (this.activePaneIndex === paneIndex && data) {
@@ -694,13 +698,43 @@ class ZeroChartApp {
           this.lastHoveredIndex = data.index;
           this.lastHoveredTime = data.time;
         }
+        if (this.isReplayJumpMode && data.time) {
+          const statusText = document.getElementById('replay-status-text');
+          if (statusText) {
+            const d = new Date(data.time * 1000);
+            statusText.textContent = `Cut at ${d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+          }
+        }
       }
     });
 
-    // Listen to chart click for Replay Jump cut-point selection
+    // Listen to chart click for Replay Jump cut-point selection & Alert line close button
     pane.widget.chart.on('click', (event) => {
       if (this.isReplayJumpMode) {
         this.handleReplayChartClick(paneIndex, event);
+        return;
+      }
+      if (event?.id && typeof event.id === 'string') {
+        if (event.id.startsWith('alert-') && event.id.endsWith('::close')) {
+          const alertId = event.id.replace(/^alert-/, '').replace(/::close$/, '');
+          this.removeAlertById(alertId);
+        }
+      }
+    });
+
+    // Listen to chart drag:end for on-chart alert price line adjustments
+    pane.widget.chart.on('drag:end', (event) => {
+      if (event?.id && typeof event.id === 'string' && event.id.startsWith('alert-') && typeof event.price === 'number') {
+        const alertId = event.id.replace(/^alert-/, '');
+        const alert = this.alerts.find((a) => a.id === alertId);
+        if (alert) {
+          const prec = pane.instrument.precision !== undefined ? pane.instrument.precision : 2;
+          alert.targetPrice = Number(event.price.toFixed(prec));
+          this.saveAlerts();
+          this.renderAlertsList();
+          this.syncAlertPriceLines();
+          this.showToast(`Alert "${alert.name || alert.symbol}" moved to ${alert.targetPrice.toLocaleString()}`, 2000);
+        }
       }
     });
 
@@ -734,10 +768,11 @@ class ZeroChartApp {
       window.__zeroChartWidget = pane.widget;
     }
 
-    // Auto-restore saved drawings for this symbol
+    // Auto-restore saved drawings and alert lines for this symbol
     setTimeout(() => {
       this.restoreSymbolState(paneIndex, pane.instrument.symbol);
-    }, 150);
+      this.syncAlertPriceLines(paneIndex);
+    }, 200);
 
     // Auto-save drawings & indicators on any modification
     const autoSave = () => {
@@ -786,6 +821,7 @@ class ZeroChartApp {
     });
 
     this.renderWatchlist();
+    this.syncAlertPriceLines(index);
   }
 
   updateHeaderDisplay() {
@@ -1038,6 +1074,7 @@ class ZeroChartApp {
           activeWidget.series?.applyOptions?.({ precision: prec });
         } catch (_) {}
         this.restoreSymbolState(this.activePaneIndex, inst.symbol);
+        this.syncAlertPriceLines(this.activePaneIndex);
       }, 150);
     }
 
@@ -1122,6 +1159,7 @@ class ZeroChartApp {
 
     // Direct in-place primary series update on all active panes displaying this instrument
     this.panes.forEach((p) => {
+      if (this.isReplayMode && p.id === this.activePaneIndex) return;
       if (p.instrument?.symbol === inst.symbol && p.widget?.chart) {
         try {
           const s = p.widget.chart.primarySeries?.();
@@ -1381,6 +1419,8 @@ class ZeroChartApp {
     this.closeModal('alert-modal');
     this.updateAlertBadgeCount();
     this.renderAlertsList();
+    this.syncAlertPriceLines();
+    this.showToast(`Alert set on ${symbol} at ${targetPrice.toLocaleString()}`, 2000);
   }
 
   evaluateAlerts(symbol, currentPrice, prevPrice) {
@@ -1600,6 +1640,7 @@ class ZeroChartApp {
           this.saveAlerts();
           this.updateAlertBadgeCount();
           this.renderAlertsList();
+          this.syncAlertPriceLines();
         };
       }
 
@@ -1617,14 +1658,93 @@ class ZeroChartApp {
       if (delBtn) {
         delBtn.onclick = (e) => {
           e.stopPropagation();
-          this.alerts = this.alerts.filter((a) => a.id !== alert.id);
-          this.saveAlerts();
-          this.updateAlertBadgeCount();
-          this.renderAlertsList();
+          this.removeAlertById(alert.id);
         };
       }
 
       list.appendChild(card);
+    });
+  }
+
+  removeAlertById(alertId) {
+    const alert = this.alerts.find((a) => a.id === alertId);
+    this.alerts = this.alerts.filter((a) => a.id !== alertId);
+    this.saveAlerts();
+    this.updateAlertBadgeCount();
+    this.renderAlertsList();
+    this.syncAlertPriceLines();
+    if (alert) {
+      this.showToast(`Alert "${alert.name || alert.symbol}" deleted`, 2000);
+    }
+  }
+
+  syncAlertPriceLines(targetPaneIndex = null) {
+    const paneIndices = targetPaneIndex !== null ? [targetPaneIndex] : this.panes.map((_, i) => i);
+
+    paneIndices.forEach((paneIdx) => {
+      const pane = this.panes[paneIdx];
+      if (!pane || !pane.widget || !pane.widget.chart) return;
+
+      if (!pane.alertLines) {
+        pane.alertLines = new Map();
+      }
+
+      const activeAlerts = this.alerts.filter(
+        (a) => a.status === 'ACTIVE' && a.symbol === pane.instrument.symbol
+      );
+      const activeIds = new Set(activeAlerts.map((a) => a.id));
+
+      // Remove lines for deleted or deactivated alerts
+      for (const [alertId, line] of pane.alertLines.entries()) {
+        if (!activeIds.has(alertId)) {
+          try {
+            pane.widget.chart.removePrimitive(line);
+          } catch (_) {}
+          pane.alertLines.delete(alertId);
+        }
+      }
+
+      // Add or update active alert price lines
+      const prec = pane.instrument.precision !== undefined ? pane.instrument.precision : 2;
+      activeAlerts.forEach((alert) => {
+        const formattedPrice = Number(alert.targetPrice).toLocaleString(undefined, {
+          minimumFractionDigits: prec,
+          maximumFractionDigits: prec,
+        });
+        const leftLabel = `${alert.name || alert.symbol} (${alert.condition.replace(/_/g, ' ')})`;
+
+        if (pane.alertLines.has(alert.id)) {
+          const line = pane.alertLines.get(alert.id);
+          try {
+            line.setOptions({
+              price: alert.targetPrice,
+              label: formattedPrice,
+              leftLabel: leftLabel,
+            });
+          } catch (_) {}
+        } else {
+          try {
+            const line = pane.widget.chart.addPriceLine(
+              {
+                id: `alert-${alert.id}`,
+                price: alert.targetPrice,
+                color: '#f59e0b',
+                lineStyle: 'dashed',
+                lineWidth: 1.5,
+                label: formattedPrice,
+                badge: '🔔 ALERT',
+                leftLabel: leftLabel,
+                closeButton: true,
+                cursor: 'ns-resize',
+              },
+              0
+            );
+            pane.alertLines.set(alert.id, line);
+          } catch (err) {
+            console.error('[ZeroChart] Failed to add PriceLine for alert:', alert, err);
+          }
+        }
+      });
     });
   }
 
@@ -1748,6 +1868,20 @@ class ZeroChartApp {
     const btnToggleReplay = document.getElementById('btn-toggle-replay');
     if (!replayToolbar) return;
 
+    const activePane = this.panes[this.activePaneIndex];
+    const series = activePane?.widget?.chart?.primarySeries() || activePane?.widget?.series;
+    if (series) {
+      const data = series.getData();
+      if (data && data.length > 0) {
+        this.fullReplayBars = [...data];
+      }
+    }
+
+    if (!this.fullReplayBars || this.fullReplayBars.length < 2) {
+      this.showToast('Please wait for historical candles to load before starting Replay', 3000);
+      return;
+    }
+
     replayToolbar.style.display = 'flex';
     replayToolbar.classList.add('show');
     if (btnToggleReplay) btnToggleReplay.classList.add('is-active');
@@ -1793,8 +1927,14 @@ class ZeroChartApp {
     const series = pane.widget.chart.primarySeries() || pane.widget.series;
     if (!series) return;
 
-    const bars = series.getData();
-    if (!bars || bars.length === 0) {
+    if (!this.fullReplayBars || this.fullReplayBars.length === 0) {
+      const data = series.getData();
+      if (data && data.length > 0) {
+        this.fullReplayBars = [...data];
+      }
+    }
+
+    if (!this.fullReplayBars || this.fullReplayBars.length === 0) {
       this.showToast('No candle data available for replay', 2000);
       return;
     }
@@ -1802,21 +1942,26 @@ class ZeroChartApp {
     let cutIndex = -1;
     const targetTime = clickTime || this.lastHoveredTime;
 
-    if (typeof this.lastHoveredIndex === 'number' && this.lastHoveredIndex >= 0 && this.lastHoveredIndex < bars.length) {
-      cutIndex = this.lastHoveredIndex;
-    } else if (targetTime) {
-      cutIndex = bars.findIndex((b) => b.time >= targetTime);
-      if (cutIndex === -1) cutIndex = bars.length - 1;
-      if (cutIndex > 0 && bars[cutIndex].time > targetTime) {
-        const diffPrev = Math.abs(bars[cutIndex - 1].time - targetTime);
-        const diffCurr = Math.abs(bars[cutIndex].time - targetTime);
-        if (diffPrev < diffCurr) cutIndex = cutIndex - 1;
-      }
-    } else {
-      cutIndex = Math.max(0, Math.floor(bars.length * 0.5));
+    if (targetTime) {
+      let minDiff = Infinity;
+      this.fullReplayBars.forEach((b, idx) => {
+        const diff = Math.abs(b.time - targetTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          cutIndex = idx;
+        }
+      });
     }
 
-    cutIndex = Math.max(0, Math.min(cutIndex, bars.length - 1));
+    if (cutIndex === -1 && typeof this.lastHoveredIndex === 'number' && this.lastHoveredIndex >= 0 && this.lastHoveredIndex < this.fullReplayBars.length) {
+      cutIndex = this.lastHoveredIndex;
+    }
+
+    if (cutIndex === -1) {
+      cutIndex = Math.max(0, Math.floor(this.fullReplayBars.length * 0.5));
+    }
+
+    cutIndex = Math.max(0, Math.min(cutIndex, this.fullReplayBars.length - 1));
 
     this.setReplayJumpMode(false);
     this.startReplay(paneIndex, cutIndex);
@@ -1829,6 +1974,18 @@ class ZeroChartApp {
     const series = pane.widget.chart.primarySeries() || pane.widget.series;
     if (!series) return;
 
+    if (!this.fullReplayBars || this.fullReplayBars.length === 0) {
+      const data = series.getData();
+      if (data && data.length > 0) {
+        this.fullReplayBars = [...data];
+      }
+    }
+
+    if (!this.fullReplayBars || this.fullReplayBars.length === 0) {
+      this.showToast('No candle data available for replay', 2000);
+      return;
+    }
+
     if (this.replayController) {
       try {
         this.replayController.stop();
@@ -1836,18 +1993,21 @@ class ZeroChartApp {
       this.replayController = null;
     }
 
-    const bars = series.getData();
-    if (!bars || bars.length === 0) return;
-
     this.isReplayMode = true;
+    cutIndex = Math.max(0, Math.min(cutIndex, this.fullReplayBars.length - 1));
 
     try {
       this.replayController = new ReplayController(pane.widget.chart, {
         series: series,
-        bars: bars,
+        bars: this.fullReplayBars,
         startIndex: cutIndex,
         barMs: 1000,
         speed: this.replaySpeed || 1,
+        scheduler: (cb, ms) => {
+          const tickMs = Math.max(16, Math.min(40, Math.floor(ms / 2)));
+          const id = setInterval(cb, tickMs);
+          return () => clearInterval(id);
+        },
         onFrame: (state) => {
           this.updateReplayUI(state);
         },
@@ -1855,7 +2015,7 @@ class ZeroChartApp {
 
       const state = this.replayController.state();
       this.updateReplayUI(state);
-      this.showToast(`Replay started from bar ${cutIndex + 1} of ${bars.length}`, 2000);
+      this.showToast(`Replay started from bar ${cutIndex + 1} of ${this.fullReplayBars.length}`, 2000);
     } catch (err) {
       console.error('[ZeroChart] Failed to start replay:', err);
       this.showToast('Failed to start replay: ' + err.message, 3000);
@@ -1982,6 +2142,18 @@ class ZeroChartApp {
       this.replayController = null;
     }
 
+    // Restore full bars to primary series
+    if (this.fullReplayBars && this.fullReplayBars.length > 0) {
+      const activePane = this.panes[this.activePaneIndex];
+      const series = activePane?.widget?.chart?.primarySeries() || activePane?.widget?.series;
+      if (series) {
+        try {
+          series.setData(this.fullReplayBars);
+        } catch (_) {}
+      }
+    }
+    this.fullReplayBars = null;
+
     const replayToolbar = document.getElementById('tv-replay-toolbar');
     const btnToggleReplay = document.getElementById('btn-toggle-replay');
 
@@ -1994,6 +2166,7 @@ class ZeroChartApp {
     }
 
     this.updatePlayPauseButton(false);
+    this.syncAlertPriceLines();
     this.showToast('Exited Bar Replay — Live stream restored', 2000);
   }
 
