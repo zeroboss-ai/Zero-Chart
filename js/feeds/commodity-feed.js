@@ -1,18 +1,20 @@
 /**
  * Real-Time Commodities Feed Adapter
- * Provides live feeds for Gold (XAU/USD), Silver (XAG/USD), Crude Oil (WTI/Brent), Natural Gas, and Copper.
+ * Provides authoritative live exchange data for Gold, Silver, Crude Oil, Natural Gas, and Forex.
  */
 
 import { BinanceFeed } from './binance-feed.js';
-import { generateBars } from '../../lib/openalgo-charts.mjs';
+import { sanitizeBars } from './openalgo-feed.js';
 
 export class CommodityFeed {
   constructor() {
     this._binance = new BinanceFeed();
+    this._cache = new Map();
+    this._subscribers = new Map();
   }
 
   async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 500) {
-    let symbol = 'PAXGUSDT';
+    let symbol = 'XAGUSD';
     let interval = '5m';
     let from = undefined;
     let to = undefined;
@@ -25,75 +27,55 @@ export class CommodityFeed {
       to = toArg;
       limit = limitArg || 500;
     } else if (reqOrSymbol && typeof reqOrSymbol === 'object') {
-      symbol = reqOrSymbol.symbol || 'PAXGUSDT';
+      symbol = reqOrSymbol.symbol || 'XAGUSD';
       interval = reqOrSymbol.interval || '5m';
       from = reqOrSymbol.from;
       to = reqOrSymbol.to;
       limit = reqOrSymbol.countBack || reqOrSymbol.limit || 500;
     }
 
-    const sym = (symbol || '').toUpperCase();
+    const sym = (symbol || '').toUpperCase().trim();
+    const cacheKey = `${sym}_${interval}`;
 
-    // Live Gold (XAU/USD tracks PAXGUSDT 1:1 in USD)
-    if (sym.includes('GOLD') || sym.includes('XAU') || sym.includes('PAXG')) {
-      const bars = await this._binance.getBars({ symbol: 'PAXGUSDT', interval, from, to, limit });
-      if (bars && bars.length > 0) return bars;
+    const cached = this._cache.get(cacheKey);
+    if (cached && Date.now() - cached.time < 3000 && Array.isArray(cached.data) && cached.data.length > 0) {
+      return cached.data;
     }
 
-    // Other Commodities: Generate high-fidelity historical series calibrated to real spot prices
-    const COMMODITY_BASE_PRICES = {
-      XAGUSD: 31.45,
-      SILVER: 31.45,
-      CRUDEOIL: 71.85,
-      BRENT: 74.6,
-      NATURALGAS: 2.385,
-      COPPER: 4.35,
-    };
-
-    const basePrice = COMMODITY_BASE_PRICES[sym] || 100;
-    const intervalSecs =
-      interval === '1m' ? 60 : interval === '3m' ? 180 : interval === '5m' ? 300 : interval === '15m' ? 900 : interval === '1h' ? 3600 : 86400;
-    const nowSec = Math.floor(Date.now() / 1000);
-    const count = limit || 500;
-    const startTime = from || (nowSec - count * intervalSecs);
-
-    const generated = generateBars(startTime, count, intervalSecs);
-    const finalClose = (generated && generated.length > 0) ? generated[generated.length - 1].close : 100;
-    const ratio = basePrice / finalClose;
-    const rawBars = generated.map((b) => {
-      const o = +(b.open * ratio).toFixed(3);
-      const c = +(b.close * ratio).toFixed(3);
-      const h = Math.max(+(b.high * ratio).toFixed(3), o, c);
-      const l = Math.min(+(b.low * ratio).toFixed(3), o, c);
-      return {
-        time: b.time,
-        open: o,
-        high: h,
-        low: l,
-        close: c,
-        volume: Math.round(b.volume * 5),
-      };
-    });
-
-    if (rawBars.length > 0) {
-      const last = rawBars[rawBars.length - 1];
-      last.close = basePrice;
-      last.high = Math.max(last.high, last.open, basePrice);
-      last.low = Math.min(last.low, last.open, basePrice);
+    // 1. Live Gold (XAU/USD tracks PAXGUSDT 1:1 in USD) via Binance 24/7 API
+    if (sym === 'PAXGUSDT' || sym === 'PAXG' || sym === 'XAUUSD' || sym.includes('GOLD')) {
+      try {
+        const bars = await this._binance.getBars({ symbol: 'PAXGUSDT', interval, from, to, limit });
+        if (bars && bars.length > 0) {
+          const clean = sanitizeBars(bars);
+          this._cache.set(cacheKey, { time: Date.now(), data: clean });
+          return clean;
+        }
+      } catch (_) {}
     }
 
-    const map = new Map();
-    for (const b of rawBars) {
-      if (!b || !Number.isFinite(b.time) || !Number.isFinite(b.close)) continue;
-      const h = Math.max(b.high, b.open, b.close);
-      const l = Math.min(b.low, b.open, b.close);
-      map.set(b.time, { ...b, high: h, low: l });
+    // 2. Fetch real live candles from authoritative backend history endpoint
+    try {
+      const resp = await fetch(
+        `/api/market/history?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}`
+      );
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          const clean = sanitizeBars(json.data);
+          this._cache.set(cacheKey, { time: Date.now(), data: clean });
+          return clean;
+        }
+      }
+    } catch (err) {
+      console.warn(`[CommodityFeed] Failed to fetch real history for ${sym}:`, err.message);
     }
-    return Array.from(map.values()).sort((a, b) => a.time - b.time);
+
+    return [];
   }
 
   subscribeBars(reqOrSymbol, onBarOrInterval, optsOrOnTick) {
-    let symbol = 'PAXGUSDT';
+    let symbol = 'XAGUSD';
     let interval = '5m';
     let onTick = () => {};
 
@@ -102,53 +84,48 @@ export class CommodityFeed {
       interval = typeof onBarOrInterval === 'string' ? onBarOrInterval : '5m';
       onTick = typeof optsOrOnTick === 'function' ? optsOrOnTick : (typeof onBarOrInterval === 'function' ? onBarOrInterval : () => {});
     } else if (reqOrSymbol && typeof reqOrSymbol === 'object') {
-      symbol = reqOrSymbol.symbol || 'PAXGUSDT';
+      symbol = reqOrSymbol.symbol || 'XAGUSD';
       interval = reqOrSymbol.interval || '5m';
       onTick = typeof onBarOrInterval === 'function' ? onBarOrInterval : () => {};
     }
 
-    const sym = (symbol || '').toUpperCase();
+    const sym = (symbol || '').toUpperCase().trim();
 
     // If Gold, subscribe to Binance live Paxos Gold stream
-    if (sym.includes('GOLD') || sym.includes('XAU') || sym.includes('PAXG')) {
+    if (sym === 'PAXGUSDT' || sym === 'PAXG' || sym === 'XAUUSD' || sym.includes('GOLD')) {
       return this._binance.subscribeBars('PAXGUSDT', interval, onTick);
     }
 
-    // High frequency live commodity tick generator
-    const intervalSecs =
-      interval === '1m' ? 60 : interval === '3m' ? 180 : interval === '5m' ? 300 : interval === '15m' ? 900 : interval === '1h' ? 3600 : 86400;
-    let currentBucketTime = Math.floor(Date.now() / 1000 / intervalSecs) * intervalSecs;
-    let currentBar = null;
+    if (!this._subscribers.has(sym)) {
+      this._subscribers.set(sym, new Set());
+    }
+    this._subscribers.get(sym).add(onTick);
 
-    const timer = setInterval(() => {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const bucket = Math.floor(nowSec / intervalSecs) * intervalSecs;
+    // Initial quote fetch to fire first tick immediately
+    fetch(`/api/market/quotes?symbols=${encodeURIComponent(sym)}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const q = json.quotes?.[sym];
+        if (q && q.ltp) {
+          const nowSec = Math.floor(Date.now() / 1000);
+          onTick({
+            time: q.time || nowSec,
+            open: q.open || q.ltp,
+            high: q.high || q.ltp,
+            low: q.low || q.ltp,
+            close: q.ltp,
+            volume: 10,
+          });
+        }
+      })
+      .catch(() => {});
 
-      if (!currentBar || bucket > currentBucketTime) {
-        currentBucketTime = bucket;
-        const prevClose = currentBar ? currentBar.close : 70;
-        currentBar = {
-          time: currentBucketTime,
-          open: prevClose,
-          high: prevClose,
-          low: prevClose,
-          close: prevClose,
-          volume: 10,
-        };
+    return () => {
+      const set = this._subscribers.get(sym);
+      if (set) {
+        set.delete(onTick);
+        if (set.size === 0) this._subscribers.delete(sym);
       }
-
-      const volatility = currentBar.close * 0.0004;
-      const change = (Math.random() - 0.495) * volatility;
-      const nextPrice = +(currentBar.close + change).toFixed(3);
-
-      currentBar.close = nextPrice;
-      currentBar.high = Math.max(currentBar.high, nextPrice);
-      currentBar.low = Math.min(currentBar.low, nextPrice);
-      currentBar.volume += Math.floor(Math.random() * 8 + 1);
-
-      onTick({ ...currentBar });
-    }, 700);
-
-    return () => clearInterval(timer);
+    };
   }
 }

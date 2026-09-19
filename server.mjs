@@ -392,9 +392,9 @@ function resolveAngelInstrument(symbol) {
     }
   }
 
-  // Check direct commodity name
-  if (commoditiesMap.has(norm)) {
-    const list = commoditiesMap.get(norm);
+  // Check direct commodity name only if explicitly tagged MCX
+  if (norm.includes('MCX') && commoditiesMap.has(norm.replace(/MCX/g, '').trim())) {
+    const list = commoditiesMap.get(norm.replace(/MCX/g, '').trim());
     if (list && list.length > 0) return list[0];
   }
 
