@@ -86,6 +86,24 @@ class ZeroChartApp {
     // Layout split proportions state
     this.layoutSplits = this.loadLayoutSplits();
 
+    // Restore saved layout configuration if exists
+    const savedLayout = this.loadSavedLayoutData();
+    if (savedLayout?.panes && Array.isArray(savedLayout.panes)) {
+      savedLayout.panes.forEach((sp, idx) => {
+        if (this.panes[idx]) {
+          if (sp.symbol) {
+            const inst = findInstrument(sp.symbol);
+            if (inst) this.panes[idx].instrument = inst;
+          }
+          if (sp.interval) this.panes[idx].interval = sp.interval;
+          if (sp.chartType) this.panes[idx].chartType = sp.chartType;
+        }
+      });
+      if (typeof savedLayout.activePaneIndex === 'number' && this.panes[savedLayout.activePaneIndex]) {
+        this.activePaneIndex = savedLayout.activePaneIndex;
+      }
+    }
+
     this.init();
   }
 
@@ -159,39 +177,14 @@ class ZeroChartApp {
       const saved = localStorage.getItem('zerochart_alerts');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          // Clean out legacy sample dummy alerts
+          const userAlerts = parsed.filter((a) => a && !a.id.startsWith('alert-default-'));
+          return userAlerts;
+        }
       }
     } catch (_) {}
-    return [
-      {
-        id: 'alert-default-1',
-        symbol: 'NIFTY 50',
-        condition: 'CROSSING_UP',
-        targetPrice: 24000,
-        frequency: 'ONCE',
-        expiration: 'NEVER',
-        name: 'Nifty 24,000 Breakout',
-        message: 'Nifty crossed above 24,000 psychological resistance',
-        status: 'ACTIVE',
-        createdAt: Date.now() - 3600000,
-        triggeredAt: null,
-        lastPrice: null,
-      },
-      {
-        id: 'alert-default-2',
-        symbol: 'MUTHOOTFIN',
-        condition: 'GREATER_THAN',
-        targetPrice: 1950,
-        frequency: 'EVERY_TIME',
-        expiration: 'NEVER',
-        name: 'Muthoot Finance Target',
-        message: 'Muthoot Finance is trading above 1950 target zone',
-        status: 'ACTIVE',
-        createdAt: Date.now() - 7200000,
-        triggeredAt: null,
-        lastPrice: null,
-      }
-    ];
+    return [];
   }
 
   saveAlerts() {
@@ -690,6 +683,21 @@ class ZeroChartApp {
     if (paneIndex === 0) {
       window.__zeroChartWidget = pane.widget;
     }
+
+    // Auto-restore saved drawings for this symbol
+    setTimeout(() => {
+      this.restoreSymbolState(paneIndex, pane.instrument.symbol);
+    }, 150);
+
+    // Auto-save drawings & indicators on any modification
+    const autoSave = () => {
+      this.saveSymbolState(paneIndex, pane.instrument.symbol);
+    };
+    for (const evt of ['draw:add', 'draw:remove', 'draw:update', 'draw:paste', 'draw:cut', 'indicatorAdded', 'indicatorRemoved', 'indicatorSettings']) {
+      try {
+        pane.widget.chart.on(evt, autoSave);
+      } catch (_) {}
+    }
   }
 
   setActivePane(index) {
@@ -954,6 +962,11 @@ class ZeroChartApp {
   }
 
   switchInstrument(inst) {
+    const prevSym = this.currentInstrument?.symbol;
+    if (prevSym) {
+      this.saveSymbolState(this.activePaneIndex, prevSym);
+    }
+
     this.currentInstrument = inst;
     const activeWidget = this.widget;
     if (activeWidget) {
@@ -963,6 +976,9 @@ class ZeroChartApp {
           activeWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
         }
       } catch (_) {}
+      setTimeout(() => {
+        this.restoreSymbolState(this.activePaneIndex, inst.symbol);
+      }, 150);
     }
 
     this.updateHeaderDisplay();
@@ -1257,20 +1273,26 @@ class ZeroChartApp {
   evaluateAlerts(symbol, currentPrice, prevPrice) {
     if (!currentPrice || isNaN(currentPrice)) return;
 
+    const now = Date.now();
     let modified = false;
 
     this.alerts.forEach((alert) => {
       if (alert.status !== 'ACTIVE' || alert.symbol !== symbol) return;
+
+      // Cooldown for recurring alerts (minimum 60s between triggers to prevent spam)
+      if (alert.lastTriggerTime && now - alert.lastTriggerTime < 60000) {
+        return;
+      }
 
       const target = alert.targetPrice;
       let triggered = false;
 
       switch (alert.condition) {
         case 'GREATER_THAN':
-          triggered = currentPrice >= target;
+          triggered = currentPrice >= target && (!alert.lastPrice || alert.lastPrice < target || now - (alert.lastTriggerTime || 0) > 300000);
           break;
         case 'LESS_THAN':
-          triggered = currentPrice <= target;
+          triggered = currentPrice <= target && (!alert.lastPrice || alert.lastPrice > target || now - (alert.lastTriggerTime || 0) > 300000);
           break;
         case 'CROSSING_UP':
           triggered = prevPrice < target && currentPrice >= target;
@@ -1288,12 +1310,13 @@ class ZeroChartApp {
       }
 
       if (triggered) {
-        this.triggerAlert(alert, currentPrice);
+        alert.lastTriggerTime = now;
+        alert.triggeredAt = now;
+        alert.lastPrice = currentPrice;
         if (alert.frequency === 'ONCE') {
           alert.status = 'TRIGGERED';
         }
-        alert.triggeredAt = Date.now();
-        alert.lastPrice = currentPrice;
+        this.triggerAlert(alert, currentPrice);
         modified = true;
       }
     });
@@ -1352,6 +1375,11 @@ class ZeroChartApp {
   showAlertToast(alert, currentPrice) {
     const container = document.getElementById('alert-toast-container');
     if (!container) return;
+
+    // Limit visible toasts to maximum 3 to prevent clutter
+    while (container.children.length >= 3) {
+      container.firstChild.remove();
+    }
 
     const toast = document.createElement('div');
     toast.className = 'tv-alert-toast';
@@ -1594,12 +1622,14 @@ class ZeroChartApp {
     if (undoBtn) undoBtn.onclick = () => this.widget?.draw?.undo();
     if (redoBtn) redoBtn.onclick = () => this.widget?.draw?.redo();
 
-    // Layout Save
+    // Layout Save Trigger
     const saveBtn = document.getElementById('btn-layout-save');
     if (saveBtn) {
       saveBtn.onclick = () => {
+        this.saveFullLayout();
         saveBtn.style.color = 'var(--buy)';
-        setTimeout(() => (saveBtn.style.color = ''), 1500);
+        this.showToast('💾 Zero Chart Layout & Drawings Saved Successfully!');
+        setTimeout(() => (saveBtn.style.color = ''), 2000);
       };
     }
 
@@ -1976,6 +2006,123 @@ class ZeroChartApp {
 
     badge.className = 'tv-broker-status live';
     if (textEl) textEl.textContent = 'LIVE';
+  }
+
+  // ─── TOAST NOTIFICATION HELPER ───
+  showToast(message, duration = 4000) {
+    const container = document.getElementById('alert-toast-container');
+    if (!container) return;
+
+    while (container.children.length >= 3) {
+      container.firstChild.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'tv-alert-toast';
+    toast.style.borderColor = 'var(--accent)';
+    toast.innerHTML = `
+      <div style="font-size:18px;line-height:1;">⚡</div>
+      <div style="flex:1;font-size:12.5px;font-weight:600;color:var(--text);">${message}</div>
+      <button style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;" title="Dismiss">✕</button>
+    `;
+
+    const closeBtn = toast.querySelector('button');
+    if (closeBtn) {
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        toast.remove();
+      };
+    }
+
+    container.appendChild(toast);
+    setTimeout(() => {
+      if (toast.isConnected) toast.remove();
+    }, duration);
+  }
+
+  // ─── PER-SYMBOL DRAWINGS & INDICATOR PERSISTENCE ───
+  saveSymbolState(paneIndex, symbol) {
+    const pane = this.panes[paneIndex];
+    if (!pane?.widget || !symbol) return;
+    const symKey = symbol.toUpperCase().trim();
+    try {
+      // 1. Save drawings
+      if (typeof pane.widget.draw?.toJSON === 'function') {
+        const drawings = pane.widget.draw.toJSON();
+        localStorage.setItem(`zerochart_drawings_${symKey}`, JSON.stringify(drawings));
+      } else if (typeof pane.widget.chart?.getState === 'function') {
+        const state = pane.widget.chart.getState();
+        if (state?.drawings) {
+          localStorage.setItem(`zerochart_drawings_${symKey}`, JSON.stringify(state.drawings));
+        }
+      }
+      // 2. Save chart state (indicators, settings, viewport)
+      if (typeof pane.widget.chart?.getState === 'function') {
+        const state = pane.widget.chart.getState();
+        localStorage.setItem(`zerochart_chartstate_${symKey}`, JSON.stringify(state));
+      }
+    } catch (_) {}
+  }
+
+  restoreSymbolState(paneIndex, symbol) {
+    const pane = this.panes[paneIndex];
+    if (!pane?.widget || !symbol) return;
+    const symKey = symbol.toUpperCase().trim();
+    try {
+      // 1. Restore chart state (indicators, studies, settings)
+      const savedState = localStorage.getItem(`zerochart_chartstate_${symKey}`);
+      if (savedState && typeof pane.widget.chart?.restoreState === 'function') {
+        const parsedState = JSON.parse(savedState);
+        if (parsedState) {
+          pane.widget.chart.restoreState(parsedState);
+        }
+      }
+      // 2. Restore drawings
+      const savedDrawings = localStorage.getItem(`zerochart_drawings_${symKey}`);
+      if (savedDrawings && typeof pane.widget.draw?.fromJSON === 'function') {
+        const parsedDrawings = JSON.parse(savedDrawings);
+        if (Array.isArray(parsedDrawings)) {
+          pane.widget.draw.fromJSON(parsedDrawings);
+        }
+      }
+    } catch (_) {}
+  }
+
+  saveFullLayout() {
+    try {
+      const layoutData = {
+        theme: this.currentTheme,
+        activeLayout: this.currentLayout,
+        activePaneIndex: this.activePaneIndex,
+        activeWatchlistId: this.activeWatchlistId,
+        panes: this.panes.map((p) => ({
+          id: p.id,
+          symbol: p.instrument?.symbol || 'NIFTY 50',
+          exchange: p.instrument?.exchange || 'NSE',
+          interval: p.interval,
+          chartType: p.chartType,
+        })),
+      };
+      localStorage.setItem('zerochart_full_layout', JSON.stringify(layoutData));
+      // Save state for all active pane symbols
+      this.panes.forEach((p, idx) => {
+        if (p.instrument?.symbol) {
+          this.saveSymbolState(idx, p.instrument.symbol);
+        }
+      });
+      return true;
+    } catch (err) {
+      console.warn('[ZeroChart] Failed to save full layout:', err);
+      return false;
+    }
+  }
+
+  loadSavedLayoutData() {
+    try {
+      const saved = localStorage.getItem('zerochart_full_layout');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return null;
   }
 
   // ─── PROGRESSIVE WEB APP (PWA) SYSTEM ───
