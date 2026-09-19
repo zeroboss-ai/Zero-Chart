@@ -5,8 +5,8 @@
  */
 
 const BINANCE_REST_ENDPOINTS = [
-  'https://api.binance.com',
   'https://data-api.binance.vision',
+  'https://api.binance.com',
   'https://api1.binance.com',
   'https://api2.binance.com',
   'https://api3.binance.com',
@@ -182,6 +182,116 @@ export class BinanceFeed {
     return () => {
       isSubscribed = false;
       if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+      if (ws) {
+        try {
+          ws.close();
+        } catch (_) {}
+      }
+    };
+  }
+
+  /**
+   * Fetch 24-hour ticker statistics for symbols
+   */
+  async fetch24hrTickers(symbols = []) {
+    let query = '';
+    if (symbols && symbols.length > 0) {
+      const symArray = symbols.map((s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+      query = `?symbols=${encodeURIComponent(JSON.stringify(symArray))}`;
+    }
+    for (const host of BINANCE_REST_ENDPOINTS) {
+      try {
+        const resp = await fetch(`${host}/api/v3/ticker/24hr${query}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+        });
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        const list = Array.isArray(data) ? data : [data];
+        const result = {};
+        for (const item of list) {
+          if (!item || !item.symbol) continue;
+          const last = parseFloat(item.lastPrice);
+          const open = parseFloat(item.openPrice);
+          const chg = parseFloat(item.priceChange);
+          const chgPct = parseFloat(item.priceChangePercent);
+          result[item.symbol] = {
+            symbol: item.symbol,
+            last,
+            open,
+            high: parseFloat(item.highPrice),
+            low: parseFloat(item.lowPrice),
+            chg,
+            chgPct,
+            volume: parseFloat(item.volume),
+          };
+        }
+        return result;
+      } catch (_) {
+        // try next endpoint
+      }
+    }
+    return {};
+  }
+
+  /**
+   * Subscribe to real-time 24hr miniTickers for multiple symbols in a single lightweight stream
+   */
+  subscribe24hrMiniTickers(symbols, onTicker) {
+    const symList = (symbols || []).map((s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+    if (symList.length === 0) return () => {};
+
+    const streamNames = symList.map((s) => `${s}@miniTicker`).join('/');
+    const wsUrl = `wss://stream.binance.com:9443/stream?streams=${streamNames}`;
+
+    let isSubscribed = true;
+    let ws = null;
+    let reconnectTimer = null;
+
+    const connect = () => {
+      if (!isSubscribed) return;
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = (event) => {
+          if (!isSubscribed) return;
+          try {
+            const msg = JSON.parse(event.data);
+            const d = msg.data || msg;
+            if (d && d.s) {
+              const last = parseFloat(d.c);
+              const open = parseFloat(d.o);
+              const high = parseFloat(d.h);
+              const low = parseFloat(d.l);
+              const chg = last - open;
+              const chgPct = open !== 0 ? ((last - open) / open) * 100 : 0;
+              if (typeof onTicker === 'function') {
+                onTicker({
+                  symbol: d.s,
+                  last,
+                  open,
+                  high,
+                  low,
+                  chg,
+                  chgPct,
+                });
+              }
+            }
+          } catch (_) {}
+        };
+        ws.onerror = () => {};
+        ws.onclose = () => {
+          if (isSubscribed) {
+            reconnectTimer = setTimeout(connect, 3000);
+          }
+        };
+      } catch (_) {}
+    };
+
+    connect();
+
+    return () => {
+      isSubscribed = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (ws) {
         try {
           ws.close();

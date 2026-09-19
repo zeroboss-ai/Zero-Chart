@@ -14,9 +14,9 @@ import {
 import { ReplayController } from '../lib/openalgo-charts.mjs';
 import '../lib/openalgo-charts.indicators.mjs';
 import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs';
-import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.4.0';
-import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.4.0';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js?v=2.4.0';
+import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.5.0';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.5.0';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js?v=2.5.0';
 
 const FAVORITE_TOOL_DEFINITIONS = [
   { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },
@@ -1206,12 +1206,47 @@ class ZeroChartApp {
   startLiveMarketStream() {
     // 1. Subscribe to Binance 24/7 Crypto & Paxos Gold
     const cryptoSymbols = MASTER_INSTRUMENTS.filter((i) => i.feedType === 'binance' || i.symbol === 'PAXGUSDT');
+    const cryptoSymList = cryptoSymbols.map((i) => i.symbol);
+
+    // Initial instant fetch of real-time 24h ticker data via Binance REST API
+    if (this.multiFeed?.binanceFeed?.fetch24hrTickers) {
+      this.multiFeed.binanceFeed.fetch24hrTickers(cryptoSymList).then((tickers) => {
+        if (!tickers) return;
+        for (const inst of cryptoSymbols) {
+          const t = tickers[inst.symbol];
+          if (t && Number.isFinite(t.last) && t.last > 0) {
+            const chg = +t.chg.toFixed(inst.precision);
+            const chgPct = +t.chgPct.toFixed(2);
+            this.updateLivePrice(inst, t.last, chg, chgPct, t.open);
+          }
+        }
+      }).catch(() => {});
+    }
+
+    // Real-time 24h miniTicker stream for all crypto symbols (1-second tick updates with accurate 24h open)
+    if (this.multiFeed?.binanceFeed?.subscribe24hrMiniTickers) {
+      this.multiFeed.binanceFeed.subscribe24hrMiniTickers(cryptoSymList, (ticker) => {
+        const inst = findInstrument(ticker.symbol);
+        if (inst && Number.isFinite(ticker.last) && ticker.last > 0) {
+          const chg = +ticker.chg.toFixed(inst.precision);
+          const chgPct = +ticker.chgPct.toFixed(2);
+          this.updateLivePrice(inst, ticker.last, chg, chgPct, ticker.open);
+        }
+      });
+    }
+
+    // Also keep sub-second 1m kline subscription for candle bar ticks
     cryptoSymbols.forEach((inst) => {
       this.multiFeed.binanceFeed.subscribeBars(inst.symbol, '1m', (bar) => {
-        const prev = this.livePrices.get(inst.symbol)?.prevClose || inst.basePrice;
-        const chg = +(bar.close - prev).toFixed(inst.precision);
-        const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
-        this.updateLivePrice(inst, bar.close, chg, chgPct);
+        const current = this.livePrices.get(inst.symbol);
+        const prev = current?.prevClose;
+        if (prev && Number.isFinite(prev) && prev > 0) {
+          const chg = +(bar.close - prev).toFixed(inst.precision);
+          const chgPct = +((chg / prev) * 100).toFixed(2);
+          this.updateLivePrice(inst, bar.close, chg, chgPct, prev);
+        } else {
+          this.updateLivePrice(inst, bar.close, current?.chg || 0, current?.chgPct || 0);
+        }
       });
     });
 
@@ -1236,10 +1271,14 @@ class ZeroChartApp {
             for (const [sym, q] of Object.entries(json.quotes)) {
               const inst = findInstrument(sym);
               if (inst && q.ltp) {
-                const prev = q.prevClose || inst.basePrice;
-                const chg = +(q.ltp - prev).toFixed(inst.precision);
-                const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
-                this.updateLivePrice(inst, q.ltp, chg, chgPct);
+                const prev = q.prevClose || this.livePrices.get(inst.symbol)?.prevClose || (inst.feedType === 'binance' ? null : inst.basePrice);
+                let chg = q.chg;
+                let chgPct = q.chgPct;
+                if (chg === undefined && prev) {
+                  chg = +(q.ltp - prev).toFixed(inst.precision);
+                  chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
+                }
+                this.updateLivePrice(inst, q.ltp, chg || 0, chgPct || 0, prev || undefined);
               }
             }
           }
@@ -1254,16 +1293,20 @@ class ZeroChartApp {
     setInterval(pollQuotes, 400);
   }
 
-  updateLivePrice(inst, newPrice, chg, chgPct) {
+  updateLivePrice(inst, newPrice, chg, chgPct, explicitPrevClose) {
     const cleanId = inst.symbol.replace(/[^A-Za-z0-9]/g, '_');
     const prevData = this.livePrices.get(inst.symbol);
     const prevPrice = prevData?.last || inst.basePrice;
+
+    const prevClose = (explicitPrevClose !== undefined && Number.isFinite(explicitPrevClose) && explicitPrevClose > 0)
+      ? explicitPrevClose
+      : (prevData?.prevClose || (newPrice - (chg || 0)));
 
     this.livePrices.set(inst.symbol, {
       last: newPrice,
       chg: chg || 0,
       chgPct: chgPct || 0,
-      prevClose: newPrice - (chg || 0),
+      prevClose: prevClose,
     });
 
     this.broker.onLtp(inst.symbol, newPrice);

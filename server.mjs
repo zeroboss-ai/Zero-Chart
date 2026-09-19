@@ -562,7 +562,7 @@ function formatISTDate(d) {
 
 let angelCandleRateLimitUntil = 0;
 
-function sanitizeCandles(rawBars) {
+function sanitizeCandles(rawBars, precision = null) {
   if (!Array.isArray(rawBars) || rawBars.length === 0) return [];
   const map = new Map();
   for (const b of rawBars) {
@@ -588,14 +588,145 @@ function sanitizeCandles(rawBars) {
 
     map.set(t, {
       time: t,
-      open: +o.toFixed(2),
-      high: +h.toFixed(2),
-      low: +l.toFixed(2),
-      close: +c.toFixed(2),
+      open: precision !== null ? +o.toFixed(precision) : (o < 1 ? +o.toFixed(4) : +o.toFixed(2)),
+      high: precision !== null ? +h.toFixed(precision) : (h < 1 ? +h.toFixed(4) : +h.toFixed(2)),
+      low: precision !== null ? +l.toFixed(precision) : (l < 1 ? +l.toFixed(4) : +l.toFixed(2)),
+      close: precision !== null ? +c.toFixed(precision) : (c < 1 ? +c.toFixed(4) : +c.toFixed(2)),
       volume: v,
     });
   }
   return Array.from(map.values()).sort((a, b) => a.time - b.time);
+}
+
+// ─── BINANCE 24/7 CRYPTO CANDLE & QUOTE HELPERS ───
+const CRYPTO_SYMBOLS_SET = new Set([
+  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT',
+  'DOGEUSDT', 'ADAUSDT', 'LINKUSDT', 'AVAXUSDT', 'SUIUSDT', 'PAXGUSDT'
+]);
+
+function isCryptoSymbol(sym) {
+  const s = (sym || '').toUpperCase().trim();
+  return CRYPTO_SYMBOLS_SET.has(s) || s.endsWith('USDT');
+}
+
+function mapIntervalToBinance(interval) {
+  const norm = (interval || '5m').toLowerCase().trim();
+  if (norm === '1d' || norm === 'd') return '1d';
+  if (norm === '1w' || norm === 'w') return '1w';
+  if (norm === '1m' || (norm === 'm' && interval === 'M')) return '1M';
+  if (['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M'].includes(norm)) {
+    return norm;
+  }
+  return '5m';
+}
+
+async function fetchBinanceCandles(symbol, interval) {
+  const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const bInt = mapIntervalToBinance(interval);
+  const endpoints = [
+    'https://data-api.binance.vision',
+    'https://api.binance.com',
+    'https://api1.binance.com',
+  ];
+  for (const host of endpoints) {
+    try {
+      const resp = await fetch(`${host}/api/v3/klines?symbol=${sym}&interval=${bInt}&limit=500`, {
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (Array.isArray(data)) {
+        const bars = [];
+        for (const k of data) {
+          const t = Math.floor(k[0] / 1000);
+          const o = parseFloat(k[1]);
+          const h = parseFloat(k[2]);
+          const l = parseFloat(k[3]);
+          const c = parseFloat(k[4]);
+          const v = parseFloat(k[5]) || 0;
+          if (t > 0 && Number.isFinite(c)) {
+            bars.push({
+              time: t,
+              open: o,
+              high: Math.max(h, o, c),
+              low: Math.min(l, o, c),
+              close: c,
+              volume: v,
+            });
+          }
+        }
+        const isFourDecimals = ['XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'SUIUSDT'].includes(sym) || (bars[0] && bars[0].close < 2);
+        return sanitizeCandles(bars, isFourDecimals ? 4 : 2);
+      }
+    } catch (_) {}
+  }
+  return [];
+}
+
+let lastBinanceFetchTime = 0;
+let binanceFetchPromise = null;
+
+async function refreshBinanceQuotes(symbols = []) {
+  const now = Date.now();
+  if (now - lastBinanceFetchTime < 1500) {
+    return;
+  }
+  if (binanceFetchPromise) {
+    return binanceFetchPromise;
+  }
+
+  binanceFetchPromise = (async () => {
+    try {
+      const symArray = symbols.length > 0
+        ? symbols.filter(isCryptoSymbol).map((s) => s.toUpperCase().trim())
+        : Array.from(CRYPTO_SYMBOLS_SET);
+      if (symArray.length === 0) return;
+
+      const endpoints = [
+        'https://data-api.binance.vision',
+        'https://api.binance.com',
+        'https://api1.binance.com',
+      ];
+      for (const host of endpoints) {
+        try {
+          const url = `${host}/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symArray))}`;
+          const resp = await fetch(url, {
+            headers: { Accept: 'application/json' },
+            signal: AbortSignal.timeout(2500),
+          });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          if (Array.isArray(data)) {
+            for (const item of data) {
+              if (!item || !item.symbol) continue;
+              const last = parseFloat(item.lastPrice);
+              const open = parseFloat(item.openPrice);
+              const chg = parseFloat(item.priceChange);
+              const chgPct = parseFloat(item.priceChangePercent);
+              quoteCache.set(item.symbol, {
+                ltp: last,
+                open: open,
+                high: parseFloat(item.highPrice),
+                low: parseFloat(item.lowPrice),
+                close: last,
+                prevClose: open,
+                chg: chg,
+                chgPct: chgPct,
+                time: Math.floor(now / 1000),
+              });
+            }
+            lastBinanceFetchTime = Date.now();
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    finally {
+      binanceFetchPromise = null;
+    }
+  })();
+
+  return binanceFetchPromise;
 }
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
@@ -747,6 +878,17 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   const cached = candleCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < 1500) {
     return cached.data;
+  }
+
+  // Handle Binance Crypto directly
+  if (isCryptoSymbol(symNorm)) {
+    try {
+      const binanceBars = await fetchBinanceCandles(symNorm, interval);
+      if (binanceBars && binanceBars.length > 0) {
+        candleCache.set(cacheKey, { timestamp: Date.now(), data: binanceBars });
+        return binanceBars;
+      }
+    } catch (_) {}
   }
 
   // Try AngelOne SmartAPI first if authenticated
@@ -1235,18 +1377,27 @@ function createServer() {
       const symbols = symbolsParam ? symbolsParam.split(',') : Array.from(nseEquitiesMap.keys()).slice(0, 30);
       const quotes = {};
 
+      const cryptoInRequest = symbols.filter(isCryptoSymbol);
+      if (cryptoInRequest.length > 0) {
+        await refreshBinanceQuotes(cryptoInRequest);
+      }
+
       for (const sym of symbols) {
         const s = sym.trim().toUpperCase();
         let cached = quoteCache.get(s);
         if (!cached) {
-          const angelInst = resolveAngelInstrument(s);
-          if (angelInst && angelSession.isAuthenticated) {
-            // Asynchronously fetch live LTP from AngelOne
-            fetchAngelOneLtp(angelInst).then((ltpData) => {
-              if (ltpData) quoteCache.set(s, ltpData);
-            }).catch(() => {});
+          if (isCryptoSymbol(s)) {
+            refreshBinanceQuotes([s]).catch(() => {});
           } else {
-            fetchLiveExchangeHistory(s, '5m').catch(() => {});
+            const angelInst = resolveAngelInstrument(s);
+            if (angelInst && angelSession.isAuthenticated) {
+              // Asynchronously fetch live LTP from AngelOne
+              fetchAngelOneLtp(angelInst).then((ltpData) => {
+                if (ltpData) quoteCache.set(s, ltpData);
+              }).catch(() => {});
+            } else {
+              fetchLiveExchangeHistory(s, '5m').catch(() => {});
+            }
           }
         } else {
           quotes[s] = cached;
