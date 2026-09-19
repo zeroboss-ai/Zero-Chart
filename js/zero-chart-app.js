@@ -165,12 +165,18 @@ class ZeroChartApp {
     }
 
     // Favorite Drawing Tools
-    let favTools = ['trend-line', 'horizontal-line', 'ray', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
+    let favTools = ['trend-line', 'horizontal-line', 'ray', 'price-range', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
     try {
       const saved = localStorage.getItem('zerochart_fav_tools');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) favTools = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          favTools = parsed;
+          if (!favTools.includes('price-range')) {
+            favTools.splice(3, 0, 'price-range');
+            localStorage.setItem('zerochart_fav_tools', JSON.stringify(favTools));
+          }
+        }
       }
     } catch (_) {}
     this.favoriteTools = favTools;
@@ -1499,6 +1505,20 @@ class ZeroChartApp {
       };
     }
 
+    // Alert Sound preview test button & change listener
+    const testSoundBtn = document.getElementById('btn-test-alert-sound');
+    const soundSelect = document.getElementById('alert-sound');
+    if (testSoundBtn && soundSelect) {
+      testSoundBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.playAlertSound(soundSelect.value);
+      };
+      soundSelect.onchange = () => {
+        this.playAlertSound(soundSelect.value);
+      };
+    }
+
     if (alertModal) {
       alertModal.onclick = (e) => {
         if (e.target === alertModal) this.closeModal('alert-modal');
@@ -1528,6 +1548,7 @@ class ZeroChartApp {
     const expSelect = document.getElementById('alert-expiration');
     const nameInput = document.getElementById('alert-name');
     const msgInput = document.getElementById('alert-message');
+    const soundSelect = document.getElementById('alert-sound');
 
     if (!modal || !symSelect) return;
 
@@ -1558,6 +1579,7 @@ class ZeroChartApp {
       if (expSelect) expSelect.value = existingAlert.expiration || 'NEVER';
       if (nameInput) nameInput.value = existingAlert.name || '';
       if (msgInput) msgInput.value = existingAlert.message || '';
+      if (soundSelect) soundSelect.value = existingAlert.sound || 'handbell';
     } else {
       if (titleEl) titleEl.textContent = 'Create Price Alert';
       if (idInput) idInput.value = '';
@@ -1584,6 +1606,7 @@ class ZeroChartApp {
       if (expSelect) expSelect.value = 'NEVER';
       if (nameInput) nameInput.value = `${activeSym} @ ${targetPrice}`;
       if (msgInput) msgInput.value = `${activeSym} crossed ${targetPrice}`;
+      if (soundSelect) soundSelect.value = localStorage.getItem('zerochart_alert_sound') || 'handbell';
     }
 
     modal.classList.add('show');
@@ -1599,6 +1622,7 @@ class ZeroChartApp {
     const expSelect = document.getElementById('alert-expiration');
     const nameInput = document.getElementById('alert-name');
     const msgInput = document.getElementById('alert-message');
+    const soundSelect = document.getElementById('alert-sound');
 
     const targetPrice = parseFloat(priceInput?.value);
     if (!targetPrice || targetPrice <= 0 || isNaN(targetPrice)) {
@@ -1613,6 +1637,8 @@ class ZeroChartApp {
     const expiration = expSelect.value;
     const name = nameInput.value.trim() || `${symbol} Alert`;
     const message = msgInput.value.trim() || `${symbol} reached target of ${targetPrice}`;
+    const sound = soundSelect ? soundSelect.value : 'handbell';
+    localStorage.setItem('zerochart_alert_sound', sound);
 
     const editId = idInput.value;
     if (editId) {
@@ -1625,6 +1651,7 @@ class ZeroChartApp {
         existing.expiration = expiration;
         existing.name = name;
         existing.message = message;
+        existing.sound = sound;
         existing.status = 'ACTIVE';
       }
     } else {
@@ -1637,6 +1664,7 @@ class ZeroChartApp {
         expiration,
         name,
         message,
+        sound,
         status: 'ACTIVE',
         createdAt: Date.now(),
         triggeredAt: null,
@@ -1712,11 +1740,25 @@ class ZeroChartApp {
   }
 
   triggerAlert(alert, currentPrice) {
-    this.playAlertChime();
+    this.playAlertSound(alert.sound || 'handbell');
     this.showAlertToast(alert, currentPrice);
   }
 
-  playAlertChime() {
+  getSoundLabel(soundId) {
+    const map = {
+      handbell: 'Hand bell',
+      fault: 'Fault',
+      chime: 'Chime',
+      beep: 'Beep',
+      siren: 'Siren',
+      ping: 'Ping',
+      laser: 'Laser',
+      arcade: 'Arcade',
+    };
+    return map[soundId] || 'Hand bell';
+  }
+
+  playAlertSound(soundName = 'handbell') {
     try {
       if (!this.audioContext) {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -1727,32 +1769,165 @@ class ZeroChartApp {
       }
       const now = ctx.currentTime;
 
-      // Note 1: E5
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(659.25, now);
-      osc1.frequency.exponentialRampToValueAtTime(880, now + 0.12);
-      gain1.gain.setValueAtTime(0.3, now);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-      osc1.start(now);
-      osc1.stop(now + 0.35);
+      switch (soundName) {
+        case 'handbell': {
+          // Hand bell: Authentic rich harmonic metallic ring with long natural resonance
+          const freqs = [1046.5, 2093.0, 2793.8, 3135.9]; // C6 fundamental, harmonics
+          const gains = [0.4, 0.22, 0.12, 0.08];
+          const decays = [1.4, 0.9, 0.6, 0.4];
+          freqs.forEach((f, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(f, now);
+            gain.gain.setValueAtTime(gains[idx], now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + decays[idx]);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + decays[idx]);
+          });
+          break;
+        }
 
-      // Note 2: A5 / C#6 chord
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(880, now + 0.1);
-      osc2.frequency.exponentialRampToValueAtTime(1108.73, now + 0.35);
-      gain2.gain.setValueAtTime(0.3, now + 0.1);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.1);
-      osc2.stop(now + 0.6);
+        case 'fault': {
+          // Fault: Urgent descending double warning buzz (sawtooth pulse)
+          [0, 0.16].forEach((offset) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(196, now + offset); // G3
+            osc.frequency.linearRampToValueAtTime(146.8, now + offset + 0.12); // D3 drop
+            gain.gain.setValueAtTime(0.3, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.14);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + offset);
+            osc.stop(now + offset + 0.15);
+          });
+          break;
+        }
+
+        case 'chime': {
+          // Classic TradingView crystal chord chime
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(659.25, now);
+          osc1.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+          gain1.gain.setValueAtTime(0.3, now);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.35);
+
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(880, now + 0.1);
+          osc2.frequency.exponentialRampToValueAtTime(1108.73, now + 0.35);
+          gain2.gain.setValueAtTime(0.3, now + 0.1);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now + 0.1);
+          osc2.stop(now + 0.6);
+          break;
+        }
+
+        case 'beep': {
+          // Crisp triple digital watch beep
+          [0, 0.08, 0.16].forEach((offset) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1250, now + offset);
+            gain.gain.setValueAtTime(0.25, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.05);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + offset);
+            osc.stop(now + offset + 0.05);
+          });
+          break;
+        }
+
+        case 'siren': {
+          // Pitch sweep siren
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.linearRampToValueAtTime(880, now + 0.25);
+          osc.frequency.linearRampToValueAtTime(440, now + 0.5);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.55);
+          break;
+        }
+
+        case 'ping': {
+          // High crystal sonar ping
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1760, now);
+          gain.gain.setValueAtTime(0.35, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.9);
+          break;
+        }
+
+        case 'laser': {
+          // Sci-fi laser zap dive
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(1600, now);
+          osc.frequency.exponentialRampToValueAtTime(180, now + 0.18);
+          gain.gain.setValueAtTime(0.28, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.2);
+          break;
+        }
+
+        case 'arcade': {
+          // Ascending 3-tone retro coin arpeggio
+          [587.33, 880, 1174.66].forEach((f, idx) => {
+            const offset = idx * 0.07;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(f, now + offset);
+            gain.gain.setValueAtTime(0.18, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + offset);
+            osc.stop(now + offset + 0.1);
+          });
+          break;
+        }
+
+        default:
+          this.playAlertSound('handbell');
+          break;
+      }
     } catch (_) {}
+  }
+
+  playAlertChime() {
+    this.playAlertSound('chime');
   }
 
   showAlertToast(alert, currentPrice) {
@@ -1850,6 +2025,10 @@ class ZeroChartApp {
         </div>
         <div class="tv-alert-card-info">
           <div>Target: <b style="color:var(--text-bright);font-family:var(--mono);">${alert.targetPrice.toLocaleString()}</b> &bull; ${alert.name}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:6px;">
+            <span>Sound: <b style="color:var(--text);">${this.getSoundLabel(alert.sound || 'handbell')}</b></span>
+            <button class="tv-btn-alert-sound-test" data-sound="${alert.sound || 'handbell'}" style="background:transparent;border:none;cursor:pointer;font-size:11px;padding:0;color:var(--accent);" title="Play this sound">▶ Test</button>
+          </div>
           ${alert.triggeredAt ? `<div style="font-size:11.5px;color:var(--buy);margin-top:2px;font-weight:600;">Triggered at ${new Date(alert.triggeredAt).toLocaleTimeString()}</div>` : ''}
         </div>
         <div class="tv-alert-card-actions">
@@ -1871,6 +2050,16 @@ class ZeroChartApp {
           this.updateAlertBadgeCount();
           this.renderAlertsList();
           this.syncAlertPriceLines();
+        };
+      }
+
+      // Test Sound
+      const soundTestBtn = card.querySelector('.tv-btn-alert-sound-test');
+      if (soundTestBtn) {
+        soundTestBtn.onclick = (e) => {
+          e.stopPropagation();
+          const snd = soundTestBtn.dataset.sound || alert.sound || 'handbell';
+          this.playAlertSound(snd);
         };
       }
 
@@ -3417,12 +3606,18 @@ class ZeroChartApp {
     if (!toolbar) return;
 
     // Load saved favorite tools
-    let favTools = ['trend-line', 'horizontal-line', 'ray', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
+    let favTools = this.favoriteTools || ['trend-line', 'horizontal-line', 'ray', 'price-range', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
     try {
       const saved = localStorage.getItem('zerochart_fav_tools');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) favTools = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          favTools = parsed;
+          if (!favTools.includes('price-range')) {
+            favTools.splice(3, 0, 'price-range');
+            localStorage.setItem('zerochart_fav_tools', JSON.stringify(favTools));
+          }
+        }
       }
     } catch (_) {}
     this.favoriteTools = favTools;

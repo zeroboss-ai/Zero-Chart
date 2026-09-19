@@ -523,6 +523,25 @@
             <label class="tv-input-label">Alert Message</label>
             <input type="text" class="tv-input-field" id="alert-message" placeholder="Message when alert is triggered" />
           </div>
+
+          <div class="tv-input-group">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <label class="tv-input-label" style="margin-bottom:0;">Alert Sound</label>
+              <button class="tv-btn" id="btn-test-alert-sound" type="button" style="padding:2px 8px;font-size:11px;height:22px;display:inline-flex;align-items:center;gap:4px;" title="Test chosen alert sound">
+                <span>▶</span> Test Sound
+              </button>
+            </div>
+            <select class="tv-input-field" id="alert-sound">
+              <option value="handbell" selected>🔔 Hand bell (Clear metallic bell chime)</option>
+              <option value="fault">⚠️ Fault (Urgent double buzz warning)</option>
+              <option value="chime">🎵 Chime (TradingView crystal chord)</option>
+              <option value="beep">⚡ Beep (Digital triple watch tick)</option>
+              <option value="siren">🚨 Siren (Pitch sweep siren)</option>
+              <option value="ping">💧 Ping (Subtle sonar ping)</option>
+              <option value="laser">🔫 Laser (Sci-fi zap drop)</option>
+              <option value="arcade">👾 Arcade (Retro coin arpeggio)</option>
+            </select>
+          </div>
         </div>
 
         <div class="tv-alert-footer">
