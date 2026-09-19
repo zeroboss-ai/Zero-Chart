@@ -737,6 +737,12 @@ class ZeroChartApp {
     pane.widget.chart.on('paneMaximized', (ev) => {
       this.updateMaximizedPaneUI(paneIndex, ev);
     });
+    pane.widget.chart.on('paneRemoved', (ev) => {
+      this.updateMaximizedPaneUI(paneIndex, ev);
+    });
+    pane.widget.chart.on('indicatorRemoved', (ev) => {
+      this.updateMaximizedPaneUI(paneIndex, ev);
+    });
 
     // Listen to drawing tool change to sync favorites toolbar active highlight
     pane.widget.draw?.on?.('draw:tool', (tool) => {
@@ -3409,58 +3415,89 @@ class ZeroChartApp {
     const restoreBtn = document.getElementById('btn-restore-max-pane');
     const delBtn = document.getElementById('btn-del-max-indicator');
 
-    if (restoreBtn) {
-      restoreBtn.onclick = (e) => {
+    const handleRestore = (e) => {
+      if (e) {
+        e.preventDefault();
         e.stopPropagation();
-        const chart = this.widget?.chart;
-        if (chart && chart.maximizedPane() !== null) {
-          chart.maximizePane(chart.maximizedPane());
-          if (pill) pill.style.display = 'none';
+      }
+      const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+      const chart = activePane?.widget?.chart || this.widget?.chart;
+      if (chart) {
+        const maxIdx = chart.maximizedPane();
+        if (maxIdx !== null && maxIdx !== undefined) {
+          chart.maximizePane(maxIdx);
         }
-      };
+      }
+      if (pill) pill.style.display = 'none';
+    };
+
+    const handleDelete = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+      const chart = activePane?.widget?.chart || this.widget?.chart;
+      if (chart) {
+        const maxIdx = chart.maximizedPane();
+        if (maxIdx !== null && maxIdx !== undefined) {
+          const indicators = (chart.indicators?.() || []).filter((i) => i.paneIndex === maxIdx);
+          if (indicators.length > 0) {
+            indicators.forEach((i) => {
+              try {
+                if (typeof i.remove === 'function') {
+                  i.remove();
+                } else if (i.id) {
+                  chart.removeIndicator(i.id);
+                }
+              } catch (_) {
+                if (i.id) chart.removeIndicator(i.id);
+              }
+            });
+            this.showToast('🗑️ Indicator deleted from chart', 2000);
+          }
+          if (chart.maximizedPane() !== null && chart.maximizedPane() !== undefined) {
+            chart.maximizePane(maxIdx);
+          }
+        }
+      }
+      if (pill) pill.style.display = 'none';
+    };
+
+    if (restoreBtn) {
+      restoreBtn.addEventListener('click', handleRestore);
+      restoreBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+      restoreBtn.addEventListener('touchend', (e) => handleRestore(e), { passive: false });
     }
 
     if (delBtn) {
-      delBtn.onclick = (e) => {
-        e.stopPropagation();
-        const chart = this.widget?.chart;
-        if (chart) {
-          const maxIdx = chart.maximizedPane();
-          if (maxIdx !== null) {
-            const indicators = chart.indicators().filter((i) => i.paneIndex === maxIdx);
-            if (indicators.length > 0) {
-              indicators.forEach((i) => chart.removeIndicator(i.id));
-              this.showToast('🗑️ Indicator deleted from chart', 2000);
-            }
-            if (chart.maximizedPane() !== null) {
-              chart.maximizePane(maxIdx);
-            }
-            if (pill) pill.style.display = 'none';
-          }
-        }
-      };
+      delBtn.addEventListener('click', handleDelete);
+      delBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+      delBtn.addEventListener('touchend', (e) => handleDelete(e), { passive: false });
     }
   }
 
   updateMaximizedPaneUI(paneIndex, ev) {
     const pill = document.getElementById('tv-max-pane-pill');
     const titleEl = document.getElementById('tv-max-pane-title');
-    const chart = this.widget?.chart;
+    const activePane = this.panes?.[this.activePaneIndex] || this.panes?.[0];
+    const chart = activePane?.widget?.chart || this.widget?.chart;
     if (!pill || !chart) return;
 
     const maxIdx = chart.maximizedPane();
-    if (maxIdx === null) {
+    if (maxIdx === null || maxIdx === undefined) {
       pill.style.display = 'none';
       return;
     }
 
-    const indicators = chart.indicators().filter((i) => i.paneIndex === maxIdx);
+    const indicators = (chart.indicators?.() || []).filter((i) => i.paneIndex === maxIdx);
     let title = 'Full Screen Pane';
     if (indicators.length > 0) {
       const ind = indicators[0];
-      title = `${ind.indicatorId.toUpperCase()} (Full Screen)`;
+      const indName = ind.options?.name || ind.indicatorId?.toUpperCase() || 'Indicator';
+      title = `${indName} (Full Screen)`;
     } else if (maxIdx === 0) {
-      title = `${this.currentInstrument.symbol} (Main Price)`;
+      title = `${this.currentInstrument?.symbol || 'Price'} (Main Price)`;
     }
     if (titleEl) titleEl.textContent = title;
     pill.style.display = 'inline-flex';

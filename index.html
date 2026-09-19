@@ -148,7 +148,18 @@
     </header>
 
     <!-- ─── 2. MAIN TRADINGVIEW CHART STAGE (MULTI-PANE SUPPORT) ─── -->
-    <main class="tv-stage">
+    <main class="tv-stage" id="tv-stage">
+      <div id="widget-mount" class="tv-chart-stage-grid layout-1x1">
+        <div class="tv-chart-pane-wrapper active" data-pane="0" id="chart-pane-0"></div>
+        <div class="tv-chart-pane-wrapper" data-pane="1" id="chart-pane-1" style="display:none;"></div>
+        <div class="tv-chart-pane-wrapper" data-pane="2" id="chart-pane-2" style="display:none;"></div>
+        <div class="tv-chart-pane-wrapper" data-pane="3" id="chart-pane-3" style="display:none;"></div>
+
+        <!-- Draggable Interactive Chart Layout Splitters -->
+        <div class="tv-stage-splitter tv-stage-splitter--v" id="stage-splitter-v" style="display:none;" title="Drag to adjust chart widths (Double-click to reset 50/50)"></div>
+        <div class="tv-stage-splitter tv-stage-splitter--h" id="stage-splitter-h" style="display:none;" title="Drag to adjust chart heights (Double-click to reset 50/50)"></div>
+      </div>
+
       <!-- Floating TradingView-Style Bar Replay Control Toolbar -->
       <div class="tv-replay-toolbar" id="tv-replay-toolbar" style="display:none;">
         <div class="tv-replay-drag-handle" id="replay-drag-handle" title="Drag to reposition">⋮⋮</div>
@@ -235,17 +246,6 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           <span>Delete Indicator</span>
         </button>
-      </div>
-
-      <div id="widget-mount" class="tv-chart-stage-grid layout-1x1">
-        <div class="tv-chart-pane-wrapper active" data-pane="0" id="chart-pane-0"></div>
-        <div class="tv-chart-pane-wrapper" data-pane="1" id="chart-pane-1" style="display:none;"></div>
-        <div class="tv-chart-pane-wrapper" data-pane="2" id="chart-pane-2" style="display:none;"></div>
-        <div class="tv-chart-pane-wrapper" data-pane="3" id="chart-pane-3" style="display:none;"></div>
-
-        <!-- Draggable Interactive Chart Layout Splitters -->
-        <div class="tv-stage-splitter tv-stage-splitter--v" id="stage-splitter-v" style="display:none;" title="Drag to adjust chart widths (Double-click to reset 50/50)"></div>
-        <div class="tv-stage-splitter tv-stage-splitter--h" id="stage-splitter-h" style="display:none;" title="Drag to adjust chart heights (Double-click to reset 50/50)"></div>
       </div>
     </main>
 
