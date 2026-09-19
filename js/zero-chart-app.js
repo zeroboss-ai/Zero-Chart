@@ -11,6 +11,7 @@ import {
   mountObjectsPanel,
   openShortcutsPanel,
 } from '../lib/openalgo-charts.widget.mjs';
+import { ReplayController } from '../lib/openalgo-charts.mjs';
 import '../lib/openalgo-charts.indicators.mjs';
 import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs';
 import { MultiAssetFeed } from './feeds/multi-feed.js';
@@ -83,6 +84,14 @@ class ZeroChartApp {
     // Alerts state
     this.alerts = this.loadAlerts();
     this.audioContext = null;
+
+    // Bar Replay state
+    this.replayController = null;
+    this.isReplayMode = false;
+    this.isReplayJumpMode = false;
+    this.replaySpeed = 1;
+    this.lastHoveredIndex = null;
+    this.lastHoveredTime = null;
 
     // Layout split proportions state
     this.layoutSplits = this.loadLayoutSplits();
@@ -255,6 +264,9 @@ class ZeroChartApp {
 
     // 10. Global Toast Guard (Cap to Max 2 & 2s Auto Fade-Out)
     this.initToastGuard();
+
+    // 11. Initialize Bar Replay System
+    this.initReplaySystem();
   }
 
   // ─── MULTI-CHART LAYOUT SYSTEM ───
@@ -646,6 +658,13 @@ class ZeroChartApp {
           console.log('[ZeroChart] Sandbox order placed:', res);
         }
       },
+      onAlert: (req) => {
+        console.log('[ZeroChart] Alert requested from context menu:', req);
+        this.openAlertModal(null, {
+          symbol: req?.symbol || pane.instrument.symbol,
+          targetPrice: req?.price,
+        });
+      },
     });
 
     try {
@@ -665,10 +684,23 @@ class ZeroChartApp {
     this.broker.onBook((orders, positions) => pane.tradeController.reconcile(orders, positions));
     this.broker.onLtp((sym, ltp) => pane.tradeController.onLtp(sym, ltp));
 
-    // Listen to crosshair move for Data Window
+    // Listen to crosshair move for Data Window and Replay hover
     pane.widget.chart.on('crosshair:move', (data) => {
-      if (this.activePaneIndex === paneIndex && data && data.bar) {
-        this.updateDataWindow(data.bar, data.time);
+      if (this.activePaneIndex === paneIndex && data) {
+        if (data.bar) {
+          this.updateDataWindow(data.bar, data.time);
+        }
+        if (typeof data.index === 'number') {
+          this.lastHoveredIndex = data.index;
+          this.lastHoveredTime = data.time;
+        }
+      }
+    });
+
+    // Listen to chart click for Replay Jump cut-point selection
+    pane.widget.chart.on('click', (event) => {
+      if (this.isReplayJumpMode) {
+        this.handleReplayChartClick(paneIndex, event);
       }
     });
 
@@ -689,6 +721,12 @@ class ZeroChartApp {
     container.addEventListener('pointerdown', () => {
       if (this.activePaneIndex !== paneIndex) {
         this.setActivePane(paneIndex);
+      }
+    });
+
+    container.addEventListener('click', (e) => {
+      if (this.isReplayJumpMode) {
+        this.handleReplayCutSelection(paneIndex);
       }
     });
 
@@ -974,6 +1012,9 @@ class ZeroChartApp {
   }
 
   switchInstrument(inst) {
+    if (this.isReplayMode) {
+      this.exitReplayMode();
+    }
     const prevSym = this.currentInstrument?.symbol;
     if (prevSym) {
       this.saveSymbolState(this.activePaneIndex, prevSym);
@@ -1208,7 +1249,7 @@ class ZeroChartApp {
     this.renderAlertsList();
   }
 
-  openAlertModal(existingAlert = null) {
+  openAlertModal(existingAlert = null, prefill = null) {
     const modal = document.getElementById('alert-modal');
     const titleEl = document.getElementById('alert-modal-title');
     const idInput = document.getElementById('alert-edit-id');
@@ -1227,6 +1268,10 @@ class ZeroChartApp {
     const uniqueSymbols = Array.from(
       new Set([...this.getActiveWatchlist().symbols, ...MASTER_INSTRUMENTS.map((i) => i.symbol)])
     );
+
+    if (prefill?.symbol && !uniqueSymbols.includes(prefill.symbol)) {
+      uniqueSymbols.unshift(prefill.symbol);
+    }
 
     uniqueSymbols.forEach((sym) => {
       const opt = document.createElement('option');
@@ -1248,17 +1293,29 @@ class ZeroChartApp {
     } else {
       if (titleEl) titleEl.textContent = 'Create Price Alert';
       if (idInput) idInput.value = '';
-      const activeSym = this.currentInstrument?.symbol || 'NIFTY 50';
+      const activeSym = prefill?.symbol || this.panes[this.activePaneIndex]?.instrument?.symbol || this.currentInstrument?.symbol || 'NIFTY 50';
       symSelect.value = activeSym;
-      if (condSelect) condSelect.value = 'CROSSING_UP';
+
       const q = this.livePrices.get(activeSym);
       const inst = findInstrument(activeSym);
       const currentPrice = q?.last || inst?.basePrice || 100;
-      if (priceInput) priceInput.value = currentPrice;
+      const prec = inst?.precision !== undefined ? inst.precision : 2;
+
+      let targetPrice = prefill?.targetPrice != null ? Number(Number(prefill.targetPrice).toFixed(prec)) : currentPrice;
+      if (priceInput) priceInput.value = targetPrice;
+
+      if (prefill?.condition) {
+        if (condSelect) condSelect.value = prefill.condition;
+      } else if (targetPrice >= currentPrice) {
+        if (condSelect) condSelect.value = 'CROSSING_UP';
+      } else {
+        if (condSelect) condSelect.value = 'CROSSING_DOWN';
+      }
+
       if (freqSelect) freqSelect.value = 'ONCE';
       if (expSelect) expSelect.value = 'NEVER';
-      if (nameInput) nameInput.value = `${activeSym} Alert`;
-      if (msgInput) msgInput.value = `${activeSym} price reached target`;
+      if (nameInput) nameInput.value = `${activeSym} @ ${targetPrice}`;
+      if (msgInput) msgInput.value = `${activeSym} crossed ${targetPrice}`;
     }
 
     modal.classList.add('show');
@@ -1569,6 +1626,433 @@ class ZeroChartApp {
 
       list.appendChild(card);
     });
+  }
+
+  // ─── BAR REPLAY SYSTEM (TRADINGVIEW PARITY) ───
+  initReplaySystem() {
+    const btnToggleReplay = document.getElementById('btn-toggle-replay');
+    const replayToolbar = document.getElementById('tv-replay-toolbar');
+    const btnReplayJump = document.getElementById('btn-replay-jump');
+    const btnReplayStepBack = document.getElementById('btn-replay-step-back');
+    const btnReplayPlay = document.getElementById('btn-replay-play');
+    const btnReplayStepForward = document.getElementById('btn-replay-step-forward');
+    const btnReplaySpeed = document.getElementById('btn-replay-speed');
+    const speedMenu = document.getElementById('replay-speed-menu');
+    const btnReplayExit = document.getElementById('btn-replay-exit');
+    const dragHandle = document.getElementById('replay-drag-handle');
+
+    // 1. Toggle Replay Toolbar from Topbar
+    if (btnToggleReplay) {
+      btnToggleReplay.onclick = () => {
+        if (!this.isReplayMode && (!replayToolbar || replayToolbar.style.display === 'none')) {
+          this.enterReplayToolbar();
+        } else {
+          this.exitReplayMode();
+        }
+      };
+    }
+
+    // 2. Jump to Bar Tool
+    if (btnReplayJump) {
+      btnReplayJump.onclick = () => {
+        this.setReplayJumpMode(!this.isReplayJumpMode);
+      };
+    }
+
+    // 3. Step Back 1 Bar
+    if (btnReplayStepBack) {
+      btnReplayStepBack.onclick = () => {
+        this.replayStepBack();
+      };
+    }
+
+    // 4. Play / Pause
+    if (btnReplayPlay) {
+      btnReplayPlay.onclick = () => {
+        this.toggleReplayPlayPause();
+      };
+    }
+
+    // 5. Step Forward 1 Bar
+    if (btnReplayStepForward) {
+      btnReplayStepForward.onclick = () => {
+        this.replayStepForward();
+      };
+    }
+
+    // 6. Speed Multiplier Dropdown
+    if (btnReplaySpeed && speedMenu) {
+      btnReplaySpeed.onclick = (e) => {
+        e.stopPropagation();
+        speedMenu.style.display = speedMenu.style.display === 'none' ? 'flex' : 'none';
+      };
+
+      speedMenu.querySelectorAll('.tv-speed-opt').forEach((opt) => {
+        opt.onclick = (e) => {
+          e.stopPropagation();
+          const speed = parseFloat(opt.getAttribute('data-speed')) || 1;
+          this.setReplaySpeed(speed);
+          speedMenu.style.display = 'none';
+        };
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!btnReplaySpeed.contains(e.target) && !speedMenu.contains(e.target)) {
+          speedMenu.style.display = 'none';
+        }
+      });
+    }
+
+    // 7. Exit Replay
+    if (btnReplayExit) {
+      btnReplayExit.onclick = () => {
+        this.exitReplayMode();
+      };
+    }
+
+    // 8. Draggable Floating Toolbar
+    this.initReplayDraggableToolbar(dragHandle, replayToolbar);
+
+    // 9. Hotkeys for Bar Replay (Space: Play/Pause, Right: Forward, Left: Back, Esc: Exit/Cancel)
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+      if (document.querySelector('.tv-modal-backdrop.show')) return;
+
+      const tb = document.getElementById('tv-replay-toolbar');
+      const isReplayVisible = tb && tb.style.display !== 'none';
+
+      if (isReplayVisible) {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          this.toggleReplayPlayPause();
+        } else if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          this.replayStepForward();
+        } else if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          this.replayStepBack();
+        } else if (e.code === 'Escape') {
+          e.preventDefault();
+          if (this.isReplayJumpMode) {
+            this.setReplayJumpMode(false);
+          } else {
+            this.exitReplayMode();
+          }
+        }
+      }
+    });
+  }
+
+  enterReplayToolbar() {
+    const replayToolbar = document.getElementById('tv-replay-toolbar');
+    const btnToggleReplay = document.getElementById('btn-toggle-replay');
+    if (!replayToolbar) return;
+
+    replayToolbar.style.display = 'flex';
+    replayToolbar.classList.add('show');
+    if (btnToggleReplay) btnToggleReplay.classList.add('is-active');
+
+    // Auto-activate Jump to Bar cut-point tool
+    this.setReplayJumpMode(true);
+    this.showToast('Bar Replay: Click any candle on the chart to cut historical data', 3000);
+  }
+
+  setReplayJumpMode(active) {
+    this.isReplayJumpMode = active;
+    const btnReplayJump = document.getElementById('btn-replay-jump');
+    const stage = document.querySelector('.tv-stage');
+    const statusText = document.getElementById('replay-status-text');
+
+    if (btnReplayJump) {
+      btnReplayJump.classList.toggle('is-active', active);
+    }
+    if (stage) {
+      stage.classList.toggle('is-replay-jump', active);
+    }
+    if (statusText) {
+      if (active) {
+        statusText.textContent = 'Click a bar to cut';
+      } else if (this.replayController) {
+        const state = this.replayController.state();
+        statusText.textContent = `Bar ${state.index + 1} / ${state.total}`;
+      }
+    }
+  }
+
+  handleReplayChartClick(paneIndex, event) {
+    if (!this.isReplayJumpMode) return;
+    this.handleReplayCutSelection(paneIndex, event?.time);
+  }
+
+  handleReplayCutSelection(paneIndex, clickTime = null) {
+    if (!this.isReplayJumpMode) return;
+
+    const pane = this.panes[paneIndex];
+    if (!pane || !pane.widget || !pane.widget.chart) return;
+
+    const series = pane.widget.chart.primarySeries() || pane.widget.series;
+    if (!series) return;
+
+    const bars = series.getData();
+    if (!bars || bars.length === 0) {
+      this.showToast('No candle data available for replay', 2000);
+      return;
+    }
+
+    let cutIndex = -1;
+    const targetTime = clickTime || this.lastHoveredTime;
+
+    if (typeof this.lastHoveredIndex === 'number' && this.lastHoveredIndex >= 0 && this.lastHoveredIndex < bars.length) {
+      cutIndex = this.lastHoveredIndex;
+    } else if (targetTime) {
+      cutIndex = bars.findIndex((b) => b.time >= targetTime);
+      if (cutIndex === -1) cutIndex = bars.length - 1;
+      if (cutIndex > 0 && bars[cutIndex].time > targetTime) {
+        const diffPrev = Math.abs(bars[cutIndex - 1].time - targetTime);
+        const diffCurr = Math.abs(bars[cutIndex].time - targetTime);
+        if (diffPrev < diffCurr) cutIndex = cutIndex - 1;
+      }
+    } else {
+      cutIndex = Math.max(0, Math.floor(bars.length * 0.5));
+    }
+
+    cutIndex = Math.max(0, Math.min(cutIndex, bars.length - 1));
+
+    this.setReplayJumpMode(false);
+    this.startReplay(paneIndex, cutIndex);
+  }
+
+  startReplay(paneIndex, cutIndex) {
+    const pane = this.panes[paneIndex];
+    if (!pane || !pane.widget || !pane.widget.chart) return;
+
+    const series = pane.widget.chart.primarySeries() || pane.widget.series;
+    if (!series) return;
+
+    if (this.replayController) {
+      try {
+        this.replayController.stop();
+      } catch (_) {}
+      this.replayController = null;
+    }
+
+    const bars = series.getData();
+    if (!bars || bars.length === 0) return;
+
+    this.isReplayMode = true;
+
+    try {
+      this.replayController = new ReplayController(pane.widget.chart, {
+        series: series,
+        bars: bars,
+        startIndex: cutIndex,
+        barMs: 1000,
+        speed: this.replaySpeed || 1,
+        onFrame: (state) => {
+          this.updateReplayUI(state);
+        },
+      });
+
+      const state = this.replayController.state();
+      this.updateReplayUI(state);
+      this.showToast(`Replay started from bar ${cutIndex + 1} of ${bars.length}`, 2000);
+    } catch (err) {
+      console.error('[ZeroChart] Failed to start replay:', err);
+      this.showToast('Failed to start replay: ' + err.message, 3000);
+    }
+  }
+
+  toggleReplayPlayPause() {
+    if (!this.replayController) {
+      this.handleReplayCutSelection(this.activePaneIndex);
+      if (!this.replayController) return;
+    }
+
+    const state = this.replayController.state();
+    if (state.playing) {
+      this.replayController.pause();
+      this.updatePlayPauseButton(false);
+      const statusText = document.getElementById('replay-status-text');
+      if (statusText) statusText.textContent = `Paused (${state.index + 1}/${state.total})`;
+    } else {
+      if (state.index >= state.total - 1) {
+        this.replayController.seek(0);
+      }
+      this.replayController.play({ speed: this.replaySpeed });
+      this.updatePlayPauseButton(true);
+      const statusText = document.getElementById('replay-status-text');
+      if (statusText) statusText.textContent = `Playing ${this.replaySpeed}x...`;
+    }
+  }
+
+  replayStepForward() {
+    if (!this.replayController) {
+      this.handleReplayCutSelection(this.activePaneIndex);
+      return;
+    }
+    if (this.replayController.state().playing) {
+      this.replayController.pause();
+      this.updatePlayPauseButton(false);
+    }
+    this.replayController.step(1);
+    const state = this.replayController.state();
+    this.updateReplayUI(state);
+  }
+
+  replayStepBack() {
+    if (!this.replayController) {
+      this.handleReplayCutSelection(this.activePaneIndex);
+      return;
+    }
+    if (this.replayController.state().playing) {
+      this.replayController.pause();
+      this.updatePlayPauseButton(false);
+    }
+    this.replayController.stepBack(1);
+    const state = this.replayController.state();
+    this.updateReplayUI(state);
+  }
+
+  setReplaySpeed(speed) {
+    this.replaySpeed = speed;
+    const speedLabel = document.getElementById('replay-speed-label');
+    const speedMenu = document.getElementById('replay-speed-menu');
+
+    if (speedLabel) speedLabel.textContent = `${speed}x`;
+
+    if (speedMenu) {
+      speedMenu.querySelectorAll('.tv-speed-opt').forEach((btn) => {
+        const btnSpeed = parseFloat(btn.getAttribute('data-speed'));
+        btn.classList.toggle('active', btnSpeed === speed);
+      });
+    }
+
+    if (this.replayController) {
+      const state = this.replayController.state();
+      if (state.playing) {
+        this.replayController.play({ speed });
+        const statusText = document.getElementById('replay-status-text');
+        if (statusText) statusText.textContent = `Playing ${speed}x...`;
+      }
+    }
+  }
+
+  updateReplayUI(state) {
+    const statusText = document.getElementById('replay-status-text');
+    if (statusText) {
+      if (state.playing) {
+        statusText.textContent = `Playing ${this.replaySpeed}x (${state.index + 1}/${state.total})`;
+      } else if (state.index >= state.total - 1) {
+        statusText.textContent = `Finished (${state.total}/${state.total})`;
+        this.updatePlayPauseButton(false);
+      } else {
+        statusText.textContent = `Bar ${state.index + 1} / ${state.total}`;
+      }
+    }
+
+    this.updatePlayPauseButton(state.playing);
+
+    if (state.bar) {
+      this.updateDataWindow(state.bar, state.bar.time);
+    }
+  }
+
+  updatePlayPauseButton(isPlaying) {
+    const btnPlay = document.getElementById('btn-replay-play');
+    if (!btnPlay) return;
+
+    const iconPlay = btnPlay.querySelector('.icon-play');
+    const iconPause = btnPlay.querySelector('.icon-pause');
+
+    if (iconPlay && iconPause) {
+      iconPlay.style.display = isPlaying ? 'none' : 'block';
+      iconPause.style.display = isPlaying ? 'block' : 'none';
+    }
+    btnPlay.classList.toggle('is-playing', isPlaying);
+  }
+
+  exitReplayMode() {
+    this.setReplayJumpMode(false);
+    this.isReplayMode = false;
+
+    if (this.replayController) {
+      try {
+        this.replayController.stop();
+      } catch (_) {}
+      this.replayController = null;
+    }
+
+    const replayToolbar = document.getElementById('tv-replay-toolbar');
+    const btnToggleReplay = document.getElementById('btn-toggle-replay');
+
+    if (replayToolbar) {
+      replayToolbar.style.display = 'none';
+      replayToolbar.classList.remove('show');
+    }
+    if (btnToggleReplay) {
+      btnToggleReplay.classList.remove('is-active');
+    }
+
+    this.updatePlayPauseButton(false);
+    this.showToast('Exited Bar Replay — Live stream restored', 2000);
+  }
+
+  initReplayDraggableToolbar(handle, toolbar) {
+    if (!handle || !toolbar) return;
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    handle.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = toolbar.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      toolbar.style.left = `${initialLeft}px`;
+      toolbar.style.top = `${initialTop}px`;
+      toolbar.style.transform = 'none';
+      toolbar.style.bottom = 'auto';
+
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      const maxLeft = window.innerWidth - toolbar.offsetWidth - 10;
+      const maxTop = window.innerHeight - toolbar.offsetHeight - 10;
+
+      newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+      newTop = Math.max(45, Math.min(newTop, maxTop));
+
+      toolbar.style.left = `${newLeft}px`;
+      toolbar.style.top = `${newTop}px`;
+    });
+
+    const stopDrag = (e) => {
+      if (isDragging) {
+        isDragging = false;
+        try {
+          handle.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+      }
+    };
+
+    handle.addEventListener('pointerup', stopDrag);
+    handle.addEventListener('pointercancel', stopDrag);
   }
 
   // ─── DATA WINDOW UPDATES ───

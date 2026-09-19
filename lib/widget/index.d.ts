@@ -847,6 +847,12 @@ type MenuEntry = MenuItem | {
 interface ContextMenuHooks {
     /** Order entry. Without it no trade rows are drawn: the engine places no orders itself. */
     onOrder?(order: OrderRequest): void;
+    /** Alert creation hook. Triggered when user picks 'Add alert on SYMBOL at PRICE...' */
+    onAlert?(alert: {
+        symbol: string;
+        price: number;
+        paneIndex: number;
+    }): void;
     /** Extra rows a host appends, built per event. */
     items?(e: ContextMenuEvent): MenuEntry[];
 }
@@ -1086,6 +1092,12 @@ interface WidgetOptions extends Omit<ChartOptions, 'theme'> {
     now?: () => number;
     /** Order entry from the right-click menu. Without it the menu draws no trade rows. */
     onOrder?: (order: OrderRequest) => void;
+    /** Alert creation from the right-click menu. */
+    onAlert?: (alert: {
+        symbol: string;
+        price: number;
+        paneIndex: number;
+    }) => void;
     /** Host CSP nonce for the widget and dialog stylesheet, assigned before insertion. */
     styleNonce?: string;
 }

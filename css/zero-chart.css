@@ -1948,3 +1948,199 @@ html, body {
   gap: 4px;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ─── 13. TRADINGVIEW-STYLE BAR REPLAY FLOATING CONTROLS ───
+   ═══════════════════════════════════════════════════════════════ */
+
+.tv-top-btn--replay {
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+
+.tv-top-btn--replay:hover {
+  color: #2962ff;
+  background: rgba(41, 98, 255, 0.12);
+}
+
+.tv-top-btn--replay.is-active {
+  color: #fff !important;
+  background: #2962ff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 12px rgba(41, 98, 255, 0.4);
+}
+
+/* Floating Replay Transport Bar */
+.tv-replay-toolbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(19, 23, 34, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(41, 98, 255, 0.35);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  animation: replayBarSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+@keyframes replayBarSlideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.tv-replay-drag-handle {
+  cursor: grab;
+  color: var(--text-muted, #787b86);
+  font-size: 13px;
+  padding: 2px 4px;
+  letter-spacing: -1px;
+}
+
+.tv-replay-drag-handle:active {
+  cursor: grabbing;
+}
+
+.tv-replay-sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
+}
+
+.tv-replay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 8px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text, #d1d4dc);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tv-replay-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.tv-replay-btn.is-active {
+  background: rgba(41, 98, 255, 0.2);
+  color: #2962ff;
+  border-color: rgba(41, 98, 255, 0.4);
+}
+
+.tv-replay-btn--play {
+  background: #2962ff;
+  color: #fff;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(41, 98, 255, 0.35);
+}
+
+.tv-replay-btn--play:hover {
+  background: #1e53e5;
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.tv-replay-btn--close {
+  color: #f7525f;
+}
+
+.tv-replay-btn--close:hover {
+  background: rgba(247, 82, 95, 0.15);
+  color: #ff3b4b;
+}
+
+/* Speed Multiplier Popup */
+.tv-replay-speed-wrapper {
+  position: relative;
+}
+
+.tv-replay-btn--speed {
+  font-weight: 700;
+  font-size: 11.5px;
+  padding: 0 7px;
+  gap: 3px;
+}
+
+.tv-replay-speed-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-elev, #1e222d);
+  border: 1px solid var(--border, #2a2e39);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 130px;
+  z-index: 1600;
+}
+
+.tv-speed-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text, #d1d4dc);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.tv-speed-opt:hover {
+  background: var(--panel-hover, #2a2e39);
+  color: #fff;
+}
+
+.tv-speed-opt.active {
+  color: #2962ff;
+  font-weight: 700;
+  background: rgba(41, 98, 255, 0.12);
+}
+
+.tv-replay-status {
+  font-size: 11px;
+  color: var(--text-muted, #787b86);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* Cut Point Cursor on Stage */
+.tv-stage.is-replay-jump {
+  cursor: crosshair !important;
+}
+
+.tv-stage.is-replay-jump * {
+  cursor: crosshair !important;
+}
+

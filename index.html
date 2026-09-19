@@ -71,6 +71,12 @@
         <span class="tv-alert-count-badge" id="top-alert-count" style="display:none;">0</span>
       </button>
 
+      <!-- Bar Replay Button -->
+      <button class="tv-top-btn tv-top-btn--replay" id="btn-toggle-replay" title="Bar Replay (Practice & Backtest on Historical Bars)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 19l-9-7 9-7v14zM22 19l-9-7 9-7v14z"/></svg>
+        <span>Replay</span>
+      </button>
+
       <div class="tv-top-sep"></div>
 
       <!-- Undo / Redo -->
@@ -131,6 +137,58 @@
 
     <!-- ─── 2. MAIN TRADINGVIEW CHART STAGE (MULTI-PANE SUPPORT) ─── -->
     <main class="tv-stage">
+      <!-- Floating TradingView-Style Bar Replay Control Toolbar -->
+      <div class="tv-replay-toolbar" id="tv-replay-toolbar" style="display:none;">
+        <div class="tv-replay-drag-handle" id="replay-drag-handle" title="Drag to reposition">⋮⋮</div>
+        
+        <button class="tv-replay-btn is-active" id="btn-replay-jump" title="Jump to Bar (Click any candle to cut chart)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12"/></svg>
+          <span style="font-weight:600;">Jump</span>
+        </button>
+
+        <div class="tv-replay-sep"></div>
+
+        <button class="tv-replay-btn" id="btn-replay-step-back" title="Step Back 1 Bar (Left Arrow)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20L9 12l10-8v16zM5 19V5"/></svg>
+        </button>
+
+        <button class="tv-replay-btn tv-replay-btn--play" id="btn-replay-play" title="Play / Pause Replay (Space)">
+          <svg class="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+
+        <button class="tv-replay-btn" id="btn-replay-step-forward" title="Step Forward 1 Bar (Right Arrow)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4l10 8-10 8V4zM19 5v14"/></svg>
+        </button>
+
+        <div class="tv-replay-sep"></div>
+
+        <!-- Replay Speed Multiplier Selector -->
+        <div class="tv-replay-speed-wrapper">
+          <button class="tv-replay-btn tv-replay-btn--speed" id="btn-replay-speed" title="Replay Speed">
+            <span id="replay-speed-label">1x</span>
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+          </button>
+          <div class="tv-replay-speed-menu" id="replay-speed-menu" style="display:none;">
+            <button class="tv-speed-opt" data-speed="0.2">0.2x (Slow)</button>
+            <button class="tv-speed-opt" data-speed="0.5">0.5x</button>
+            <button class="tv-speed-opt active" data-speed="1">1x (1s / bar)</button>
+            <button class="tv-speed-opt" data-speed="2">2x</button>
+            <button class="tv-speed-opt" data-speed="3">3x</button>
+            <button class="tv-speed-opt" data-speed="5">5x (Fast)</button>
+            <button class="tv-speed-opt" data-speed="10">10x (Turbo)</button>
+          </div>
+        </div>
+
+        <div class="tv-replay-sep"></div>
+
+        <span class="tv-replay-status" id="replay-status-text">Click a bar to cut</span>
+
+        <button class="tv-replay-btn tv-replay-btn--close" id="btn-replay-exit" title="Exit Replay Mode (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
       <div id="widget-mount" class="tv-chart-stage-grid layout-1x1">
         <div class="tv-chart-pane-wrapper active" data-pane="0" id="chart-pane-0"></div>
         <div class="tv-chart-pane-wrapper" data-pane="1" id="chart-pane-1" style="display:none;"></div>
