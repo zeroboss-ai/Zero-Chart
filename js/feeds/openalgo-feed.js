@@ -326,7 +326,7 @@ export class OpenAlgoLiveFeed {
       );
     }
 
-    // Lightweight poller for real-time candles & quotes
+    // High-frequency tick listener and poller for real-time candles & quotes
     let isFetching = false;
     const poller = async () => {
       if (isFetching) return;
@@ -337,30 +337,7 @@ export class OpenAlgoLiveFeed {
           const json = await resp.json();
           const q = json.quotes?.[symKey];
           if (q && q.ltp) {
-            const ltp = +q.ltp;
-            const nowSec = Math.floor(Date.now() / 1000);
-            const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
-
-            let bar = this._lastBars.get(subKey);
-            if (bar && (bar.time === bucketTime || nowSec < bar.time + intervalSecs)) {
-              // Update candle in-place
-              bar.high = Math.max(bar.high, ltp);
-              bar.low = Math.min(bar.low, ltp);
-              bar.close = ltp;
-              bar.time = bucketTime;
-            } else {
-              // Start next aligned candle
-              bar = {
-                time: bucketTime,
-                open: bar ? bar.close : ltp,
-                high: ltp,
-                low: ltp,
-                close: ltp,
-                volume: 1,
-              };
-              this._lastBars.set(subKey, bar);
-            }
-            onTick({ ...bar });
+            this._dispatchRealtimeTick(symKey, q.ltp);
           }
         }
       } catch (_) {}
@@ -369,12 +346,48 @@ export class OpenAlgoLiveFeed {
       }
     };
 
-    const timer = setInterval(poller, 1500);
+    const timer = setInterval(poller, 400);
 
     return () => {
       clearInterval(timer);
       this._wsSubscriptions.delete(subKey);
     };
+  }
+
+  _dispatchRealtimeTick(symbol, ltp) {
+    const symKey = (symbol || '').toUpperCase().trim();
+    const price = +ltp;
+    if (!price || isNaN(price)) return;
+
+    for (const [subKey, onTick] of this._wsSubscriptions.entries()) {
+      if (subKey.startsWith(`${symKey}_`)) {
+        const interval = subKey.substring(symKey.length + 1);
+        const intervalSecs = getIntervalSeconds(interval);
+        const nowSec = Math.floor(Date.now() / 1000);
+        const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
+
+        let bar = this._lastBars.get(subKey);
+        if (bar && (bar.time === bucketTime || nowSec < bar.time + intervalSecs)) {
+          bar.high = Math.max(bar.high, price);
+          bar.low = Math.min(bar.low, price);
+          bar.close = price;
+          bar.time = bucketTime;
+        } else {
+          bar = {
+            time: bucketTime,
+            open: bar ? bar.close : price,
+            high: price,
+            low: price,
+            close: price,
+            volume: (bar ? bar.volume : 0) + 1,
+          };
+          this._lastBars.set(subKey, bar);
+        }
+        if (typeof onTick === 'function') {
+          onTick({ ...bar });
+        }
+      }
+    }
   }
 }
 

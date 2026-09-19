@@ -14,6 +14,7 @@ import {
 import '../lib/openalgo-charts.indicators.mjs';
 import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs';
 import { MultiAssetFeed } from './feeds/multi-feed.js';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js';
 import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js';
 
 class ZeroChartApp {
@@ -147,6 +148,11 @@ class ZeroChartApp {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const cleaned = parsed.filter(w => w && w.name && w.name.toUpperCase() !== 'ALL' && w.id !== 'wl-all');
+          // Clean legacy polluted non-index symbols from Indices & Futures tab
+          const indicesTab = cleaned.find(w => w.id === 'wl-indices');
+          if (indicesTab && Array.isArray(indicesTab.symbols)) {
+            indicesTab.symbols = indicesTab.symbols.filter(s => !['MUTHOOTFIN', 'ICICIBANK', 'RELIANCE', 'TCS'].includes(s));
+          }
           if (cleaned.length > 0) return cleaned;
         }
       }
@@ -646,6 +652,9 @@ class ZeroChartApp {
           sessionClock: true,
         });
       }
+      const prec = pane.instrument.precision !== undefined ? pane.instrument.precision : 2;
+      pane.widget.chart?.primarySeries()?.applyOptions({ precision: prec });
+      pane.widget.series?.applyOptions?.({ precision: prec });
     } catch (_) {}
 
     // Wire on-chart trading controller
@@ -971,12 +980,19 @@ class ZeroChartApp {
     const activeWidget = this.widget;
     if (activeWidget) {
       activeWidget.setSymbol(inst.symbol, inst.exchange);
+      const prec = inst.precision !== undefined ? inst.precision : 2;
       try {
         if (activeWidget.chart?.setAxisChromeOptions) {
           activeWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
         }
+        activeWidget.chart?.primarySeries()?.applyOptions({ precision: prec });
+        activeWidget.series?.applyOptions?.({ precision: prec });
       } catch (_) {}
       setTimeout(() => {
+        try {
+          activeWidget.chart?.primarySeries()?.applyOptions({ precision: prec });
+          activeWidget.series?.applyOptions?.({ precision: prec });
+        } catch (_) {}
         this.restoreSymbolState(this.activePaneIndex, inst.symbol);
       }, 150);
     }
@@ -1008,8 +1024,8 @@ class ZeroChartApp {
       if (isPolling) return;
       isPolling = true;
       try {
-        const activeSymbols = this.getActiveWatchlist().symbols;
-        // Include active pane symbols
+        const activeSymbols = [...(this.getActiveWatchlist()?.symbols || [])];
+        // Include active pane symbols without mutating active watchlist
         this.panes.forEach(p => {
           if (p.instrument?.symbol && !activeSymbols.includes(p.instrument.symbol)) {
             activeSymbols.push(p.instrument.symbol);
@@ -1038,7 +1054,7 @@ class ZeroChartApp {
     };
 
     pollQuotes();
-    setInterval(pollQuotes, 1200);
+    setInterval(pollQuotes, 400);
   }
 
   updateLivePrice(inst, newPrice, chg, chgPct) {
@@ -1059,6 +1075,43 @@ class ZeroChartApp {
     if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
       this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
     }
+
+    // Direct in-place primary series update on all active panes displaying this instrument
+    this.panes.forEach((p) => {
+      if (p.instrument?.symbol === inst.symbol && p.widget?.chart) {
+        try {
+          const s = p.widget.chart.primarySeries?.();
+          if (s && typeof s.getData === 'function' && typeof s.update === 'function') {
+            const data = s.getData();
+            if (data && data.length > 0) {
+              const last = data[data.length - 1];
+              const nowSec = Math.floor(Date.now() / 1000);
+              const intervalSecs = getIntervalSeconds(p.interval || '5m');
+              const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
+              if (last.time === bucketTime || nowSec < last.time + intervalSecs) {
+                s.update({
+                  time: last.time,
+                  open: last.open,
+                  high: Math.max(last.high, newPrice),
+                  low: Math.min(last.low, newPrice),
+                  close: newPrice,
+                  volume: (last.volume || 0) + 1,
+                });
+              } else {
+                s.update({
+                  time: bucketTime,
+                  open: last.close,
+                  high: newPrice,
+                  low: newPrice,
+                  close: newPrice,
+                  volume: 1,
+                });
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    });
 
     // Update watchlist row cells
     const lastEl = document.getElementById(`wl-last-${cleanId}`);
