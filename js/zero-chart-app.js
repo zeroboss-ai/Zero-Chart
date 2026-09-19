@@ -1152,9 +1152,11 @@ class ZeroChartApp {
 
     this.broker.onLtp(inst.symbol, newPrice);
 
-    // Dispatch live tick directly to chart widget feed for in-place candle updates
-    if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
-      this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
+    // Dispatch live tick directly to chart widget feed for in-place candle updates (skip if active pane is in replay mode for this instrument)
+    if (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol) {
+      if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
+        this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
+      }
     }
 
     // Direct in-place primary series update on all active panes displaying this instrument
@@ -1986,15 +1988,29 @@ class ZeroChartApp {
       return;
     }
 
-    if (this.replayController) {
-      try {
-        this.replayController.stop();
-      } catch (_) {}
-      this.replayController = null;
-    }
-
     this.isReplayMode = true;
     cutIndex = Math.max(0, Math.min(cutIndex, this.fullReplayBars.length - 1));
+
+    // CRITICAL: Pause widget dataController so incoming polling ticks and REST refreshes
+    // do not overwrite the replay historical candle slice!
+    if (pane.widget.dataController) {
+      try {
+        pane.widget.dataController.setPaused(true);
+      } catch (_) {}
+    }
+
+    if (this.replayController) {
+      try {
+        this.replayController.seek(cutIndex);
+        const state = this.replayController.state();
+        this.updateReplayUI(state);
+        this.showToast(`Replay jump to bar ${cutIndex + 1} of ${this.fullReplayBars.length}`, 2000);
+        return;
+      } catch (_) {
+        try { this.replayController.stop(); } catch (_) {}
+        this.replayController = null;
+      }
+    }
 
     try {
       this.replayController = new ReplayController(pane.widget.chart, {
@@ -2135,6 +2151,8 @@ class ZeroChartApp {
     this.setReplayJumpMode(false);
     this.isReplayMode = false;
 
+    const activePane = this.panes[this.activePaneIndex];
+
     if (this.replayController) {
       try {
         this.replayController.stop();
@@ -2142,9 +2160,15 @@ class ZeroChartApp {
       this.replayController = null;
     }
 
+    // Unpause data controller so live stream updates resume cleanly
+    if (activePane?.widget?.dataController) {
+      try {
+        activePane.widget.dataController.setPaused(false);
+      } catch (_) {}
+    }
+
     // Restore full bars to primary series
     if (this.fullReplayBars && this.fullReplayBars.length > 0) {
-      const activePane = this.panes[this.activePaneIndex];
       const series = activePane?.widget?.chart?.primarySeries() || activePane?.widget?.series;
       if (series) {
         try {
@@ -2262,6 +2286,9 @@ class ZeroChartApp {
     const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
     tfBtns.forEach((btn) => {
       btn.onclick = () => {
+        if (this.isReplayMode) {
+          this.exitReplayMode();
+        }
         tfBtns.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         const interval = btn.dataset.interval;
