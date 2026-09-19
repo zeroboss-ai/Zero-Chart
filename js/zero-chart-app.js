@@ -289,6 +289,37 @@ class ZeroChartApp {
     } catch (_) {}
   }
 
+  getChartTheme(themeName = this.currentTheme) {
+    const isDark = themeName === 'dark';
+    return {
+      background: isDark ? '#131722' : '#ffffff',
+      grid: isDark ? '#1e222d' : '#f0f3fa',
+      axisText: isDark ? '#d1d4dc' : '#131722', // High-contrast crisp axis prices & time labels
+      axisFontSize: 12,
+      axisLine: isDark ? '#2a3046' : '#d4dae3',
+      paneSeparator: isDark ? '#2a2e39' : '#e0e3eb',
+      crosshair: isDark ? '#6a7182' : '#787b86',
+      upColor: isDark ? '#00c076' : '#089981', // Vivid green candles
+      downColor: '#f23645', // Vivid red candles
+      wickUpColor: isDark ? '#00c076' : '#089981',
+      wickDownColor: '#f23645',
+      lineColor: '#2962ff',
+      areaTopColor: 'rgba(41, 98, 255, 0.35)',
+      areaBottomColor: 'rgba(41, 98, 255, 0.00)',
+      baselineTopLine: isDark ? '#00c076' : '#089981',
+      baselineTopFill: isDark ? 'rgba(0, 192, 118, 0.18)' : 'rgba(8, 153, 129, 0.18)',
+      baselineBottomLine: '#f23645',
+      baselineBottomFill: 'rgba(242, 54, 69, 0.18)',
+      lastPriceUp: isDark ? '#00c076' : '#089981',
+      lastPriceDown: '#f23645',
+      lastPriceText: '#ffffff',
+      buy: isDark ? '#00c076' : '#089981',
+      sell: '#f23645',
+      profit: isDark ? '#00c076' : '#089981',
+      loss: '#f23645',
+    };
+  }
+
   async init() {
     document.body.setAttribute('data-theme', this.currentTheme);
     this.updateThemeButton();
@@ -682,6 +713,7 @@ class ZeroChartApp {
 
     const legTop = window.innerWidth <= 768 ? 48 : 42;
     const legLeft = window.innerWidth <= 768 ? 10 : 54;
+    const chartTheme = this.getChartTheme(this.currentTheme);
 
     pane.widget = createWidget(container, {
       feed: this.multiFeed,
@@ -689,7 +721,7 @@ class ZeroChartApp {
       exchange: pane.instrument.exchange,
       interval: pane.interval,
       chartType: pane.chartType,
-      theme: this.currentTheme,
+      theme: chartTheme,
       topbar: false, // Unified topbar managed by Zero Chart
       statusline: true,
       rail: paneIndex === 0 ? { favorites: this.favoriteTools } : false,
@@ -759,8 +791,20 @@ class ZeroChartApp {
         });
       }
       const prec = pane.instrument.precision !== undefined ? pane.instrument.precision : 2;
-      pane.widget.chart?.primarySeries()?.applyOptions({ precision: prec });
+      pane.widget.chart?.primarySeries()?.applyOptions({
+        precision: prec,
+        upColor: chartTheme.upColor,
+        downColor: chartTheme.downColor,
+        wickUpColor: chartTheme.wickUpColor,
+        wickDownColor: chartTheme.wickDownColor,
+        borderUpColor: chartTheme.upColor,
+        borderDownColor: chartTheme.downColor,
+      });
       pane.widget.series?.applyOptions?.({ precision: prec });
+      pane.widget.chart?.setPriceScaleOptions?.({
+        textColor: chartTheme.axisText,
+        fontSize: 12,
+      });
     } catch (_) {}
 
     // Wire on-chart trading controller
@@ -1177,17 +1221,42 @@ class ZeroChartApp {
     if (activeWidget) {
       activeWidget.setSymbol(inst.symbol, inst.exchange);
       const prec = inst.precision !== undefined ? inst.precision : 2;
+      const chartTheme = this.getChartTheme(this.currentTheme);
       try {
         if (activeWidget.chart?.setAxisChromeOptions) {
           activeWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
         }
-        activeWidget.chart?.primarySeries()?.applyOptions({ precision: prec });
+        activeWidget.chart?.primarySeries()?.applyOptions({
+          precision: prec,
+          upColor: chartTheme.upColor,
+          downColor: chartTheme.downColor,
+          wickUpColor: chartTheme.wickUpColor,
+          wickDownColor: chartTheme.wickDownColor,
+          borderUpColor: chartTheme.upColor,
+          borderDownColor: chartTheme.downColor,
+        });
         activeWidget.series?.applyOptions?.({ precision: prec });
+        activeWidget.chart?.setPriceScaleOptions?.({
+          textColor: chartTheme.axisText,
+          fontSize: 12,
+        });
       } catch (_) {}
       setTimeout(() => {
         try {
-          activeWidget.chart?.primarySeries()?.applyOptions({ precision: prec });
+          activeWidget.chart?.primarySeries()?.applyOptions({
+            precision: prec,
+            upColor: chartTheme.upColor,
+            downColor: chartTheme.downColor,
+            wickUpColor: chartTheme.wickUpColor,
+            wickDownColor: chartTheme.wickDownColor,
+            borderUpColor: chartTheme.upColor,
+            borderDownColor: chartTheme.downColor,
+          });
           activeWidget.series?.applyOptions?.({ precision: prec });
+          activeWidget.chart?.setPriceScaleOptions?.({
+            textColor: chartTheme.axisText,
+            fontSize: 12,
+          });
         } catch (_) {}
         this.restoreSymbolState(this.activePaneIndex, inst.symbol);
         this.syncAlertPriceLines(this.activePaneIndex);
@@ -2487,10 +2556,26 @@ class ZeroChartApp {
           const activeWidget = this.widget;
           if (activeWidget) {
             activeWidget.setChartType(type);
+            const chartTheme = this.getChartTheme(this.currentTheme);
+            const prec = this.panes[this.activePaneIndex]?.instrument?.precision !== undefined
+              ? this.panes[this.activePaneIndex].instrument.precision : 2;
             try {
               if (activeWidget.chart?.setAxisChromeOptions) {
                 activeWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
               }
+              activeWidget.chart?.primarySeries()?.applyOptions({
+                precision: prec,
+                upColor: chartTheme.upColor,
+                downColor: chartTheme.downColor,
+                wickUpColor: chartTheme.wickUpColor,
+                wickDownColor: chartTheme.wickDownColor,
+                borderUpColor: chartTheme.upColor,
+                borderDownColor: chartTheme.downColor,
+              });
+              activeWidget.chart?.setPriceScaleOptions?.({
+                textColor: chartTheme.axisText,
+                fontSize: 12,
+              });
             } catch (_) {}
           }
           chartTypeMenu.classList.remove('show');
@@ -2575,14 +2660,31 @@ class ZeroChartApp {
     this.currentTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
     document.body.setAttribute('data-theme', this.currentTheme);
     localStorage.setItem('zerochart_theme', this.currentTheme);
+    const chartTheme = this.getChartTheme(this.currentTheme);
     this.panes.forEach((p) => {
       try {
         if (p.widget?.setTheme) {
-          p.widget.setTheme(this.currentTheme);
+          p.widget.setTheme(chartTheme);
         }
+        const prec = p.instrument?.precision !== undefined ? p.instrument.precision : 2;
+        p.widget?.chart?.primarySeries()?.applyOptions({
+          precision: prec,
+          upColor: chartTheme.upColor,
+          downColor: chartTheme.downColor,
+          wickUpColor: chartTheme.wickUpColor,
+          wickDownColor: chartTheme.wickDownColor,
+          borderUpColor: chartTheme.upColor,
+          borderDownColor: chartTheme.downColor,
+        });
+        p.widget?.series?.applyOptions?.({ precision: prec });
+        p.widget?.chart?.setPriceScaleOptions?.({
+          textColor: chartTheme.axisText,
+          fontSize: 12,
+        });
       } catch (_) {}
     });
     this.updateThemeButton();
+    this.renderWatchlist();
   }
 
   updateThemeButton() {
