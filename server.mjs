@@ -1022,6 +1022,21 @@ function createServer() {
 
     const reqUrl = new URL(req.url, 'http://localhost');
 
+    // ─── HEALTH CHECK & KEEP-ALIVE PING (UptimeRobot / Render) ───
+    if (reqUrl.pathname === '/health' || reqUrl.pathname === '/ping' || reqUrl.pathname === '/api/health') {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+      res.end(JSON.stringify({ status: 'ok', timestamp: Date.now(), uptime: Math.floor(process.uptime()) }));
+      return;
+    }
+
     // ─── 8. BROKER STATUS ENDPOINT ───
     if (reqUrl.pathname === '/api/broker/status') {
       res.writeHead(200, {
