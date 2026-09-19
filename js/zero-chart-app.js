@@ -14,9 +14,9 @@ import {
 import { ReplayController } from '../lib/openalgo-charts.mjs';
 import '../lib/openalgo-charts.indicators.mjs';
 import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs';
-import { MultiAssetFeed } from './feeds/multi-feed.js';
-import { getIntervalSeconds } from './feeds/openalgo-feed.js';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js';
+import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.4.0';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.4.0';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js?v=2.4.0';
 
 const FAVORITE_TOOL_DEFINITIONS = [
   { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },

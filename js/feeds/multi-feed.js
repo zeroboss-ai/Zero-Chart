@@ -3,10 +3,10 @@
  * Seamlessly switches between Binance Live WebSocket, Commodities, and OpenAlgo feeds.
  */
 
-import { BinanceFeed } from './binance-feed.js';
-import { CommodityFeed } from './commodity-feed.js';
-import { OpenAlgoLiveFeed } from './openalgo-feed.js';
-import { findInstrument } from '../watchlist-data.js';
+import { BinanceFeed } from './binance-feed.js?v=2.4.0';
+import { CommodityFeed } from './commodity-feed.js?v=2.4.0';
+import { OpenAlgoLiveFeed } from './openalgo-feed.js?v=2.4.0';
+import { findInstrument } from '../watchlist-data.js?v=2.4.0';
 
 export class MultiAssetFeed {
   constructor() {
