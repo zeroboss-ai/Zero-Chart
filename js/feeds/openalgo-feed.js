@@ -268,8 +268,13 @@ export class OpenAlgoLiveFeed {
 
     // Fast in-memory cache check (instant response under 2ms!)
     const cached = this._barMemoryCache.get(cacheKey);
-    if (cached && Date.now() - cached.time < 3000 && Array.isArray(cached.data) && cached.data.length > 0) {
-      return cached.data;
+    if (cached && Date.now() - cached.time < 15000 && Array.isArray(cached.data) && cached.data.length > 0) {
+      const bars = [...cached.data];
+      const last = this._lastBars.get(cacheKey);
+      if (last && bars.length > 0 && bars[bars.length - 1].time === last.time) {
+        bars[bars.length - 1] = { ...last };
+      }
+      return bars;
     }
 
     // 1. Fetch 100% REAL LIVE Indian exchange candles from server market endpoint
@@ -451,19 +456,29 @@ export class OpenAlgoLiveFeed {
     if (!price || isNaN(price) || price <= 0) return;
 
     for (const [subKey, onTick] of this._wsSubscriptions.entries()) {
-      if (subKey.startsWith(`${symKey}_`)) {
-        const interval = subKey.substring(symKey.length + 1);
+      const sepIdx = subKey.lastIndexOf('_');
+      const subSym = sepIdx > 0 ? subKey.substring(0, sepIdx) : subKey;
+      const interval = sepIdx > 0 ? subKey.substring(sepIdx + 1) : '5m';
+
+      const normSubSym = subSym.replace(/\s+/g, '').toUpperCase();
+      const normSymKey = symKey.replace(/\s+/g, '').toUpperCase();
+      const isMatch = subSym === symKey || normSubSym === normSymKey ||
+        (normSymKey === 'NIFTY50' && normSubSym === 'NIFTY') ||
+        (normSymKey === 'NIFTY' && normSubSym === 'NIFTY50') ||
+        (normSymKey === 'BANKNIFTY' && normSubSym === 'BANKNIFTY');
+
+      if (isMatch) {
         const intervalSecs = getIntervalSeconds(interval);
         const nowSec = Math.floor(Date.now() / 1000);
         const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
 
         let bar = this._lastBars.get(subKey);
-        if (bar && (bar.time === bucketTime || nowSec < bar.time + intervalSecs)) {
-          bar.high = Math.max(bar.high, bar.open, price);
-          bar.low = Math.min(bar.low, bar.open, price);
+        if (bar && bar.time === bucketTime) {
+          bar.high = Math.max(bar.high, price);
+          bar.low = Math.min(bar.low, price);
           bar.close = price;
-          bar.time = bucketTime;
-        } else {
+          bar.volume = (bar.volume || 0) + 1;
+        } else if (!bar || bucketTime > bar.time) {
           const openPrice = bar ? bar.close : price;
           bar = {
             time: bucketTime,
@@ -471,7 +486,7 @@ export class OpenAlgoLiveFeed {
             high: Math.max(openPrice, price),
             low: Math.min(openPrice, price),
             close: price,
-            volume: (bar ? bar.volume : 0) + 1,
+            volume: 1,
           };
           this._lastBars.set(subKey, bar);
         }

@@ -1365,7 +1365,7 @@ class ZeroChartApp {
     };
 
     pollQuotes();
-    setInterval(pollQuotes, 400);
+    setInterval(pollQuotes, 350);
   }
 
   updateLivePrice(inst, newPrice, chg, chgPct, explicitPrevClose) {
@@ -1396,7 +1396,16 @@ class ZeroChartApp {
     // Direct in-place primary series update on all active panes displaying this instrument
     this.panes.forEach((p) => {
       if (this.isReplayMode && p.id === this.activePaneIndex) return;
-      if (p.instrument?.symbol === inst.symbol && p.widget?.chart) {
+      const paneSym = (p.instrument?.symbol || '').toUpperCase().trim();
+      const tickSym = (inst.symbol || '').toUpperCase().trim();
+      const normPane = paneSym.replace(/\s+/g, '');
+      const normTick = tickSym.replace(/\s+/g, '');
+      const isMatch = paneSym === tickSym || normPane === normTick ||
+        (normPane === 'NIFTY50' && normTick === 'NIFTY') ||
+        (normPane === 'NIFTY' && normTick === 'NIFTY50') ||
+        (normPane === 'BANKNIFTY' && normTick === 'BANKNIFTY');
+
+      if (isMatch && p.widget?.chart) {
         try {
           const s = p.widget.chart.primarySeries?.();
           if (s && typeof s.getData === 'function' && typeof s.update === 'function') {
@@ -1406,7 +1415,7 @@ class ZeroChartApp {
               const nowSec = Math.floor(Date.now() / 1000);
               const intervalSecs = getIntervalSeconds(p.interval || '5m');
               const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
-              if (last.time === bucketTime || nowSec < last.time + intervalSecs) {
+              if (last.time === bucketTime) {
                 s.update({
                   time: last.time,
                   open: last.open,
@@ -1415,12 +1424,12 @@ class ZeroChartApp {
                   close: newPrice,
                   volume: (last.volume || 0) + 1,
                 });
-              } else {
+              } else if (bucketTime > last.time) {
                 s.update({
                   time: bucketTime,
                   open: last.close,
-                  high: newPrice,
-                  low: newPrice,
+                  high: Math.max(last.close, newPrice),
+                  low: Math.min(last.close, newPrice),
                   close: newPrice,
                   volume: 1,
                 });

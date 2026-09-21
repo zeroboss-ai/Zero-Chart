@@ -549,6 +549,20 @@ function mapAngelInterval(interval) {
   return 'FIVE_MINUTE';
 }
 
+function mapIntervalToSeconds(interval) {
+  const norm = (interval || '5m').toLowerCase().trim();
+  if (norm === '1m' || norm === '1') return 60;
+  if (norm === '2m' || norm === '2') return 120;
+  if (norm === '3m' || norm === '3') return 180;
+  if (norm === '5m' || norm === '5') return 300;
+  if (norm === '15m' || norm === '15') return 900;
+  if (norm === '30m' || norm === '30') return 1800;
+  if (norm === '60m' || norm === '1h' || norm === '60') return 3600;
+  if (norm === '1d' || norm === 'd' || norm === 'day') return 86400;
+  if (norm === '1w' || norm === 'w' || norm === '1wk') return 604800;
+  return 300;
+}
+
 const candleCache = new Map();
 const quoteCache = new Map();
 
@@ -562,13 +576,22 @@ function formatISTDate(d) {
 
 let angelCandleRateLimitUntil = 0;
 
-function sanitizeCandles(rawBars, precision = null) {
+function sanitizeCandles(rawBars, interval = '5m', precision = null) {
   if (!Array.isArray(rawBars) || rawBars.length === 0) return [];
+  const intervalSec = mapIntervalToSeconds(interval);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const maxAllowedTime = Math.floor(nowSec / intervalSec) * intervalSec;
+
   const map = new Map();
   for (const b of rawBars) {
     if (!b) continue;
-    const t = Math.floor(Number(b.time));
+    let t = Math.floor(Number(b.time));
     if (!Number.isFinite(t) || t <= 0) continue;
+
+    // Align timestamp strictly to the interval bucket boundary
+    t = Math.floor(t / intervalSec) * intervalSec;
+    // Guarantee no bar exists in the future
+    if (t > maxAllowedTime) t = maxAllowedTime;
 
     let c = Number(b.close);
     if (!Number.isFinite(c) || c <= 0) continue;
@@ -586,14 +609,22 @@ function sanitizeCandles(rawBars, precision = null) {
 
     const v = Number.isFinite(Number(b.volume)) && Number(b.volume) >= 0 ? Number(b.volume) : 0;
 
-    map.set(t, {
-      time: t,
-      open: precision !== null ? +o.toFixed(precision) : (o < 1 ? +o.toFixed(4) : +o.toFixed(2)),
-      high: precision !== null ? +h.toFixed(precision) : (h < 1 ? +h.toFixed(4) : +h.toFixed(2)),
-      low: precision !== null ? +l.toFixed(precision) : (l < 1 ? +l.toFixed(4) : +l.toFixed(2)),
-      close: precision !== null ? +c.toFixed(precision) : (c < 1 ? +c.toFixed(4) : +c.toFixed(2)),
-      volume: v,
-    });
+    const existing = map.get(t);
+    if (existing) {
+      existing.high = Math.max(existing.high, h);
+      existing.low = Math.min(existing.low, l);
+      existing.close = c;
+      existing.volume += v;
+    } else {
+      map.set(t, {
+        time: t,
+        open: precision !== null ? +o.toFixed(precision) : (o < 1 ? +o.toFixed(4) : +o.toFixed(2)),
+        high: precision !== null ? +h.toFixed(precision) : (h < 1 ? +h.toFixed(4) : +h.toFixed(2)),
+        low: precision !== null ? +l.toFixed(precision) : (l < 1 ? +l.toFixed(4) : +l.toFixed(2)),
+        close: precision !== null ? +c.toFixed(precision) : (c < 1 ? +c.toFixed(4) : +c.toFixed(2)),
+        volume: v,
+      });
+    }
   }
   return Array.from(map.values()).sort((a, b) => a.time - b.time);
 }
@@ -815,7 +846,7 @@ async function fetchAngelOneCandles(angelInst, interval) {
     }
   }
 
-  return sanitizeCandles(rawBars);
+  return sanitizeCandles(rawBars, interval);
 }
 
 // ─── 6. ANGELONE REAL-TIME LTP FETCHER ───
@@ -864,10 +895,30 @@ async function fetchAngelOneLtp(angelInst) {
         chg: netChg,
         chgPct: pctChg,
         time: Math.floor(Date.now() / 1000),
+        _fetchTime: Date.now(),
       };
     }
   } catch (_) {}
   return null;
+}
+
+async function fetchAndStoreAngelQuotes(items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const batchSize = 10;
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(async ({ symKey, inst }) => {
+      try {
+        const q = await fetchAngelOneLtp(inst);
+        if (q) {
+          quoteCache.set(symKey, q);
+          if (inst.symbol && inst.symbol !== symKey) {
+            quoteCache.set(inst.symbol.toUpperCase().trim(), q);
+          }
+        }
+      } catch (_) {}
+    }));
+  }
 }
 
 // ─── 7. EXCHANGE HISTORY WITH ANGELONE PRIMARY & YAHOO FALLBACK ───
@@ -876,7 +927,23 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   const cacheKey = `${symNorm}_${interval}`;
 
   const cached = candleCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < 1500) {
+  // Cache historical candles for 25 seconds to respect AngelOne rate limits
+  if (cached && Date.now() - cached.timestamp < 25000) {
+    // Overlay latest live LTP onto the last candle
+    const ltpData = quoteCache.get(symNorm);
+    if (ltpData && Number.isFinite(ltpData.ltp) && ltpData.ltp > 0 && Array.isArray(cached.data) && cached.data.length > 0) {
+      const bars = cached.data.map(b => ({ ...b }));
+      const last = bars[bars.length - 1];
+      const intervalSec = mapIntervalToSeconds(interval);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const bucketTime = Math.floor(nowSec / intervalSec) * intervalSec;
+      if (last.time === bucketTime) {
+        last.close = +ltpData.ltp;
+        last.high = Math.max(last.high, last.close);
+        last.low = Math.min(last.low, last.close);
+      }
+      return bars;
+    }
     return cached.data;
   }
 
@@ -908,12 +975,12 @@ async function fetchLiveExchangeHistory(symbol, interval) {
             lastBar.low = Math.min(lastBar.low, lastBar.open, lastBar.close);
           }
         }
-        const cleaned = sanitizeCandles(angelBars);
+        const cleaned = sanitizeCandles(angelBars, interval);
         candleCache.set(cacheKey, { timestamp: Date.now(), data: cleaned });
         return cleaned;
       }
     } catch (angelErr) {
-      // Gentle fallback
+      console.warn(`[AngelOne Candles] Error for ${symNorm}:`, angelErr.message);
     }
   }
 
@@ -965,7 +1032,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
     });
   }
 
-  const bars = sanitizeCandles(rawBars);
+  const bars = sanitizeCandles(rawBars, interval);
 
   if (bars.length > 0) {
     const lastBar = bars[bars.length - 1];
@@ -1397,25 +1464,40 @@ function createServer() {
         await refreshBinanceQuotes(cryptoInRequest);
       }
 
+      const now = Date.now();
+      const needsFreshLtp = [];
+
       for (const sym of symbols) {
         const s = sym.trim().toUpperCase();
+        if (!s) continue;
         let cached = quoteCache.get(s);
-        if (!cached) {
+        // Refresh if missing or older than 450ms
+        const isStale = !cached || (now - (cached._fetchTime || 0) > 450);
+        if (isStale) {
           if (isCryptoSymbol(s)) {
-            refreshBinanceQuotes([s]).catch(() => {});
+            // Refreshed in refreshBinanceQuotes
           } else {
             const angelInst = resolveAngelInstrument(s);
             if (angelInst && angelSession.isAuthenticated) {
-              // Asynchronously fetch live LTP from AngelOne
-              fetchAngelOneLtp(angelInst).then((ltpData) => {
-                if (ltpData) quoteCache.set(s, ltpData);
-              }).catch(() => {});
+              needsFreshLtp.push({ symKey: s, inst: angelInst });
             } else {
               fetchLiveExchangeHistory(s, '5m').catch(() => {});
             }
           }
-        } else {
+        }
+        if (cached) {
           quotes[s] = cached;
+        }
+      }
+
+      // Fetch stale / missing AngelOne quotes concurrently
+      if (needsFreshLtp.length > 0) {
+        await fetchAndStoreAngelQuotes(needsFreshLtp);
+        for (const item of needsFreshLtp) {
+          const fresh = quoteCache.get(item.symKey);
+          if (fresh) {
+            quotes[item.symKey] = fresh;
+          }
         }
       }
 
