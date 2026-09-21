@@ -511,6 +511,31 @@ const SYMBOL_MAP = {
   TSLA: 'TSLA',
   EURUSD: 'EURUSD=X',
   USDINR: 'USDINR=X',
+
+  // Global Indices & US Markets
+  'DOW JONES': '^DJI',
+  'DOW': '^DJI',
+  'DJI': '^DJI',
+  'S&P 500': '^GSPC',
+  'SP500': '^GSPC',
+  'SPX': '^GSPC',
+  'NASDAQ': '^IXIC',
+  'NASDAQ 100': '^NDX',
+  'NDX': '^NDX',
+  'DAX': '^GDAXI',
+  'DAX 40': '^GDAXI',
+  'FTSE': '^FTSE',
+  'FTSE 100': '^FTSE',
+  'NIKKEI': '^N225',
+  'NIKKEI 225': '^N225',
+  'HANG SENG': '^HSI',
+  'HSI': '^HSI',
+  'CAC 40': '^FCHI',
+  'CAC': '^FCHI',
+  'DXY': 'DX-Y.NYB',
+  'DOLLAR INDEX': 'DX-Y.NYB',
+  'GIFT NIFTY': '^NSEI',
+  'GIFTNIFTY': '^NSEI',
 };
 
 function resolveTicker(symbol) {
@@ -760,6 +785,171 @@ async function refreshBinanceQuotes(symbols = []) {
   return binanceFetchPromise;
 }
 
+// ─── 4.5. GLOBAL INDICES & GIFT NIFTY LIVE QUOTES ───
+const GLOBAL_INDICES_SYMBOLS = new Set([
+  'GIFT NIFTY', 'GIFTNIFTY',
+  'DOW JONES', 'DOW', 'DJI',
+  'S&P 500', 'SP500', 'SPX',
+  'NASDAQ', 'NASDAQ 100', 'NDX',
+  'DAX', 'DAX 40',
+  'FTSE', 'FTSE 100',
+  'NIKKEI', 'NIKKEI 225',
+  'HANG SENG', 'HSI',
+  'CAC 40', 'CAC',
+  'DXY', 'DOLLAR INDEX'
+]);
+
+let lastGlobalBoardFetchTime = 0;
+let globalBoardPromise = null;
+
+async function refreshGlobalIndices() {
+  const now = Date.now();
+  if (now - lastGlobalBoardFetchTime < 2500) {
+    return;
+  }
+  if (globalBoardPromise) return globalBoardPromise;
+
+  globalBoardPromise = (async () => {
+    try {
+      const resp = await fetch('https://giftcitynifty.com/wp-json/giftnifty/v1/board', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(3500),
+      });
+      if (resp.ok) {
+        const d = await resp.json();
+        const timeSec = Math.floor(now / 1000);
+
+        if (d?.nifty && Number.isFinite(d.nifty.price)) {
+          const n = d.nifty;
+          const q = {
+            ltp: +n.price,
+            open: +n.open || +n.price,
+            high: +n.high || +n.price,
+            low: +n.low || +n.price,
+            close: +n.price,
+            prevClose: +n.prevClose || +n.price,
+            chg: +n.change || 0,
+            chgPct: +n.pct || 0,
+            time: timeSec,
+            _fetchTime: now,
+          };
+          quoteCache.set('GIFT NIFTY', q);
+          quoteCache.set('GIFTNIFTY', q);
+        }
+
+        if (Array.isArray(d?.globals)) {
+          for (const g of d.globals) {
+            if (!g.symbol || !g.last) continue;
+            const ltp = parseFloat(String(g.last).replace(/,/g, ''));
+            if (!Number.isFinite(ltp) || ltp <= 0) continue;
+            const chg = parseFloat(String(g.change || 0).replace(/,/g, '')) || 0;
+            const chgPct = parseFloat(String(g.pct || 0).replace(/[%+]/g, '')) || 0;
+            const prevClose = +(ltp - chg).toFixed(2);
+
+            const q = {
+              ltp,
+              open: ltp,
+              high: ltp,
+              low: ltp,
+              close: ltp,
+              prevClose,
+              chg,
+              chgPct,
+              time: timeSec,
+              _fetchTime: now,
+            };
+
+            const sym = g.symbol.toUpperCase();
+            if (sym.includes('DOW')) {
+              quoteCache.set('DOW JONES', q);
+              quoteCache.set('DOW', q);
+              quoteCache.set('DJI', q);
+            } else if (sym.includes('S&P 500')) {
+              quoteCache.set('S&P 500', q);
+              quoteCache.set('SP500', q);
+              quoteCache.set('SPX', q);
+            } else if (sym.includes('NASDAQ')) {
+              quoteCache.set('NASDAQ', q);
+              quoteCache.set('NASDAQ 100', q);
+              quoteCache.set('NDX', q);
+            } else if (sym.includes('FTSE')) {
+              quoteCache.set('FTSE', q);
+              quoteCache.set('FTSE 100', q);
+            } else if (sym.includes('CAC')) {
+              quoteCache.set('CAC 40', q);
+              quoteCache.set('CAC', q);
+            } else if (sym.includes('DAX')) {
+              quoteCache.set('DAX', q);
+              quoteCache.set('DAX 40', q);
+            } else if (sym.includes('NIKKEI')) {
+              quoteCache.set('NIKKEI', q);
+              quoteCache.set('NIKKEI 225', q);
+            } else if (sym.includes('HANG SENG')) {
+              quoteCache.set('HANG SENG', q);
+              quoteCache.set('HSI', q);
+            } else if (sym.includes('DOLLAR INDEX') || sym.includes('DXY')) {
+              quoteCache.set('DXY', q);
+              quoteCache.set('DOLLAR INDEX', q);
+            }
+          }
+        }
+        lastGlobalBoardFetchTime = now;
+      }
+    } catch (_) {}
+    finally {
+      globalBoardPromise = null;
+    }
+  })();
+
+  return globalBoardPromise;
+}
+
+let lastGiftFetch = 0;
+let giftQuotePromise = null;
+async function fetchGiftNiftyQuote() {
+  const now = Date.now();
+  if (now - lastGiftFetch < 2000 && quoteCache.has('GIFT NIFTY')) {
+    return quoteCache.get('GIFT NIFTY');
+  }
+  if (giftQuotePromise) return giftQuotePromise;
+
+  giftQuotePromise = (async () => {
+    try {
+      const resp = await fetch('https://giftcitynifty.com/wp-json/giftnifty/v1/quote', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(3500),
+      });
+      if (resp.ok) {
+        const d = await resp.json();
+        if (d && Number.isFinite(d.price)) {
+          const q = {
+            ltp: +d.price,
+            open: +d.open || +d.price,
+            high: +d.high || +d.price,
+            low: +d.low || +d.price,
+            close: +d.price,
+            prevClose: +d.prevClose || +d.price,
+            chg: +d.change || 0,
+            chgPct: +d.pct || 0,
+            time: Math.floor(now / 1000),
+            _fetchTime: now,
+          };
+          quoteCache.set('GIFT NIFTY', q);
+          quoteCache.set('GIFTNIFTY', q);
+          lastGiftFetch = now;
+          return q;
+        }
+      }
+    } catch (_) {}
+    finally {
+      giftQuotePromise = null;
+    }
+    return quoteCache.get('GIFT NIFTY') || null;
+  })();
+
+  return giftQuotePromise;
+}
+
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 async function fetchAngelOneCandles(angelInst, interval) {
   if (Date.now() < angelCandleRateLimitUntil) {
@@ -958,6 +1148,40 @@ async function fetchLiveExchangeHistory(symbol, interval) {
     } catch (_) {}
   }
 
+  // Handle GIFT Nifty with live calibration to GIFT City price
+  if (symNorm === 'GIFT NIFTY' || symNorm === 'GIFTNIFTY') {
+    try {
+      const giftQuote = await fetchGiftNiftyQuote();
+      const baseBars = await fetchLiveExchangeHistory('^NSEI', interval).catch(() => []);
+      if (baseBars && baseBars.length > 0) {
+        const lastBase = baseBars[baseBars.length - 1];
+        const ltp = (giftQuote && Number.isFinite(giftQuote.ltp) && giftQuote.ltp > 0) ? giftQuote.ltp : lastBase.close;
+        const offset = ltp - lastBase.close;
+        const calibrated = baseBars.map(b => ({
+          time: b.time,
+          open: +(b.open + offset).toFixed(2),
+          high: +(b.high + offset).toFixed(2),
+          low: +(b.low + offset).toFixed(2),
+          close: +(b.close + offset).toFixed(2),
+          volume: b.volume || 0,
+        }));
+        const lastBar = calibrated[calibrated.length - 1];
+        lastBar.close = +ltp.toFixed(2);
+        lastBar.high = Math.max(lastBar.high, lastBar.close);
+        lastBar.low = Math.min(lastBar.low, lastBar.close);
+
+        if (giftQuote) {
+          quoteCache.set('GIFT NIFTY', giftQuote);
+          quoteCache.set('GIFTNIFTY', giftQuote);
+        }
+        candleCache.set(cacheKey, { timestamp: Date.now(), data: calibrated });
+        return calibrated;
+      }
+    } catch (gErr) {
+      console.warn('[GIFT NIFTY Candles] Error:', gErr.message);
+    }
+  }
+
   // Try AngelOne SmartAPI first if authenticated
   const angelInst = resolveAngelInstrument(symNorm);
   if (angelInst && angelSession.isAuthenticated && Date.now() >= angelCandleRateLimitUntil) {
@@ -989,19 +1213,33 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   const mappedInt = mapInterval(interval);
   const mappedRng = mappedInt === '1m' ? '2d' : (mappedInt === '1d' ? '1y' : '5d');
 
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(mappedTicker)}?interval=${mappedInt}&range=${mappedRng}`;
-  const resp = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Exchange HTTP ${resp.status}: ${resp.statusText}`);
+  const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+  let json = null;
+  let lastErr = null;
+  for (const host of hosts) {
+    try {
+      const url = `${host}/v8/finance/chart/${encodeURIComponent(mappedTicker)}?interval=${mappedInt}&range=${mappedRng}`;
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+        },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (resp.ok) {
+        json = await resp.json();
+        if (json?.chart?.result?.[0]?.timestamp) break;
+      } else {
+        lastErr = new Error(`Exchange HTTP ${resp.status}: ${resp.statusText}`);
+      }
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
-  const json = await resp.json();
-  const result = json.chart?.result?.[0];
+  const result = json?.chart?.result?.[0];
   if (!result || !result.timestamp || result.timestamp.length === 0) {
-    throw new Error('No candle data returned for symbol');
+    throw (lastErr || new Error('No candle data returned for symbol'));
   }
 
   const timestamps = result.timestamp;
@@ -1411,6 +1649,52 @@ function createServer() {
         }
       }
 
+      // 6. Search Global Indices & GIFT Nifty
+      if (cat === 'all' || cat === 'indices' || cat === 'global') {
+        const globalIndices = [
+          { symbol: 'GIFT NIFTY', displaySymbol: 'GIFT NIFTY', name: 'GIFT Nifty 50 Index Futures (NSE IX)', exchange: 'NSE IX', basePrice: 24078, badge: 'GIFT', color: '#ff6d00' },
+          { symbol: 'DOW JONES', displaySymbol: 'DOW JONES', name: 'Dow Jones Industrial Average (DJIA)', exchange: 'INDEX', basePrice: 51492.6, badge: 'US30', color: '#1e88e5' },
+          { symbol: 'S&P 500', displaySymbol: 'S&P 500', name: 'S&P 500 Index (Standard & Poor\'s)', exchange: 'INDEX', basePrice: 7420.1, badge: 'SPX', color: '#3949ab' },
+          { symbol: 'NASDAQ', displaySymbol: 'NASDAQ', name: 'Nasdaq Composite Index (US Tech)', exchange: 'INDEX', basePrice: 26021.7, badge: 'NDX', color: '#00acc1' },
+          { symbol: 'DAX', displaySymbol: 'DAX 40', name: 'DAX Performance Index (Germany)', exchange: 'INDEX', basePrice: 25007.2, badge: 'DAX', color: '#d81b60' },
+          { symbol: 'FTSE', displaySymbol: 'FTSE 100', name: 'FTSE 100 Index (London Stock Exchange)', exchange: 'INDEX', basePrice: 10418.3, badge: 'UK', color: '#8e24aa' },
+          { symbol: 'NIKKEI', displaySymbol: 'NIKKEI 225', name: 'Nikkei 225 Stock Average (Japan)', exchange: 'INDEX', basePrice: 71053.5, badge: 'JP225', color: '#e53935' },
+          { symbol: 'HANG SENG', displaySymbol: 'HANG SENG', name: 'Hang Seng Index (Hong Kong)', exchange: 'INDEX', basePrice: 23924.8, badge: 'HK50', color: '#fb8c00' },
+          { symbol: 'CAC 40', displaySymbol: 'CAC 40', name: 'CAC 40 Index (France Paris)', exchange: 'INDEX', basePrice: 8440.99, badge: 'FR', color: '#5e35b1' },
+          { symbol: 'DXY', displaySymbol: 'US DOLLAR DXY', name: 'US Dollar Index Currency Basket', exchange: 'INDEX', basePrice: 100.7, badge: 'DXY', color: '#43a047' },
+        ];
+
+        for (const item of globalIndices) {
+          let score = 0;
+          const sUpper = item.symbol.toUpperCase();
+          const nUpper = item.name.toUpperCase();
+          const dUpper = item.displaySymbol.toUpperCase();
+          if (!q) score = 35;
+          else if (sUpper === q || sUpper === cleanQ || dUpper === q) score = 240;
+          else if (sUpper.startsWith(cleanQ) || dUpper.startsWith(cleanQ)) score = 180;
+          else if (sUpper.includes(cleanQ) || dUpper.includes(cleanQ) || nUpper.includes(cleanQ)) score = 110;
+
+          if (score > 0 && !candidates.find((cand) => cand.item.symbol === item.symbol)) {
+            candidates.push({
+              score,
+              item: {
+                symbol: item.symbol,
+                displaySymbol: item.displaySymbol,
+                name: item.name,
+                exchange: item.exchange,
+                category: 'indices',
+                feedType: 'global',
+                basePrice: item.basePrice,
+                tickSize: 0.05,
+                precision: 2,
+                badgeText: item.badge,
+                badgeColor: item.color,
+              },
+            });
+          }
+        }
+      }
+
       // Sort all matched candidates by relevance score descending
       candidates.sort((a, b) => b.score - a.score);
       const results = candidates.slice(0, 60).map((c) => c.item);
@@ -1464,6 +1748,14 @@ function createServer() {
         await refreshBinanceQuotes(cryptoInRequest);
       }
 
+      const globalInRequest = symbols.filter(s => GLOBAL_INDICES_SYMBOLS.has(s.trim().toUpperCase()));
+      if (globalInRequest.length > 0) {
+        await refreshGlobalIndices();
+        if (globalInRequest.some(s => s.trim().toUpperCase().includes('GIFT'))) {
+          await fetchGiftNiftyQuote();
+        }
+      }
+
       const now = Date.now();
       const needsFreshLtp = [];
 
@@ -1476,6 +1768,8 @@ function createServer() {
         if (isStale) {
           if (isCryptoSymbol(s)) {
             // Refreshed in refreshBinanceQuotes
+          } else if (GLOBAL_INDICES_SYMBOLS.has(s)) {
+            // Refreshed in refreshGlobalIndices
           } else {
             const angelInst = resolveAngelInstrument(s);
             if (angelInst && angelSession.isAuthenticated) {

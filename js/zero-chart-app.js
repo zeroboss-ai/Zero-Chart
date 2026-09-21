@@ -228,7 +228,19 @@ class ZeroChartApp {
           const indicesTab = cleaned.find(w => w.id === 'wl-indices');
           if (indicesTab && Array.isArray(indicesTab.symbols)) {
             indicesTab.symbols = indicesTab.symbols.filter(s => !['MUTHOOTFIN', 'ICICIBANK', 'RELIANCE', 'TCS'].includes(s));
+            if (!indicesTab.symbols.includes('GIFT NIFTY')) {
+              const sIdx = indicesTab.symbols.indexOf('SENSEX');
+              if (sIdx !== -1) indicesTab.symbols.splice(sIdx + 1, 0, 'GIFT NIFTY');
+              else indicesTab.symbols.push('GIFT NIFTY');
+            }
           }
+
+          // Ensure Global Indices tab is present
+          if (!cleaned.some(w => w.id === 'wl-global')) {
+            const defGlobal = DEFAULT_WATCHLISTS.find(w => w.id === 'wl-global');
+            if (defGlobal) cleaned.push(JSON.parse(JSON.stringify(defGlobal)));
+          }
+
           if (cleaned.length > 0) return cleaned;
         }
       }
