@@ -1350,8 +1350,11 @@ class ZeroChartApp {
             activeSymbols.push(p.instrument.symbol);
           }
         });
+        const activeSym = this.currentInstrument?.symbol || '';
         const symQuery = encodeURIComponent(activeSymbols.join(','));
-        const resp = await fetch(`/api/market/quotes?symbols=${symQuery}`);
+        const resp = await fetch(`/api/market/quotes?active=${encodeURIComponent(activeSym)}&symbols=${symQuery}`, {
+          signal: AbortSignal.timeout(2000),
+        });
         if (resp.ok) {
           const json = await resp.json();
           if (json.status === 'success' && json.quotes) {

@@ -1079,12 +1079,27 @@ async function fetchAngelOneCandles(angelInst, interval) {
   return sanitizeCandles(rawBars, interval);
 }
 
-// ─── 6. ANGELONE REAL-TIME LTP FETCHER ───
+// ─── 6. ANGELONE REAL-TIME LTP FETCHER & SMOOTH RATE-LIMIT PACER ───
+let angelLtpRateLimitedUntil = 0;
+let lastAngelRequestTime = 0;
+const ANGEL_MIN_INTERVAL_MS = 360; // Max ~2.7 req/sec (strictly below Angel One's 3 req/sec limit)
+
+const angelQueue = {
+  highPriority: [], // Active chart symbol
+  lowPriority: [],  // Watchlist background symbols
+  inQueue: new Set(),
+  isProcessing: false,
+};
+
 async function fetchAngelOneLtp(angelInst) {
   if (!angelSession.jwtToken) {
     await authenticateAngelOne();
   }
   if (!angelSession.jwtToken) return null;
+
+  if (Date.now() < angelLtpRateLimitedUntil) {
+    return null;
+  }
 
   try {
     const resp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/order/v1/getLtpData', {
@@ -1105,10 +1120,24 @@ async function fetchAngelOneLtp(angelInst) {
         tradingsymbol: angelInst.symbol,
         symboltoken: String(angelInst.token),
       }),
+      signal: AbortSignal.timeout(1500),
     });
 
-    const json = await resp.json();
-    if (json.status && json.data) {
+    const text = await resp.text();
+    if (text.includes('exceeding access rate') || resp.status === 429) {
+      console.warn('[AngelOne] ⚠️ REST rate limit hit. Cooling down for 2.5s...');
+      angelLtpRateLimitedUntil = Date.now() + 2500;
+      return null;
+    }
+
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (_) {
+      return null;
+    }
+
+    if (json && json.status && json.data) {
       const d = json.data;
       const ltp = +d.ltp;
       const prevClose = +d.close || +d.open || ltp;
@@ -1132,22 +1161,58 @@ async function fetchAngelOneLtp(angelInst) {
   return null;
 }
 
-async function fetchAndStoreAngelQuotes(items) {
-  if (!Array.isArray(items) || items.length === 0) return;
-  const batchSize = 10;
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    await Promise.all(batch.map(async ({ symKey, inst }) => {
+function enqueueAngelQuote(symKey, inst, isHighPriority = false) {
+  const normKey = (symKey || '').toUpperCase().trim();
+  if (!normKey || !inst) return;
+  if (angelQueue.inQueue.has(normKey)) return;
+  angelQueue.inQueue.add(normKey);
+
+  const item = { symKey: normKey, inst, isHighPriority };
+  if (isHighPriority) {
+    angelQueue.highPriority.unshift(item);
+  } else {
+    angelQueue.lowPriority.push(item);
+  }
+  processAngelQueue();
+}
+
+async function processAngelQueue() {
+  if (angelQueue.isProcessing) return;
+  angelQueue.isProcessing = true;
+
+  try {
+    while (angelQueue.highPriority.length > 0 || angelQueue.lowPriority.length > 0) {
+      if (Date.now() < angelLtpRateLimitedUntil) {
+        const waitMs = Math.min(2500, Math.max(100, angelLtpRateLimitedUntil - Date.now()));
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+
+      const elapsed = Date.now() - lastAngelRequestTime;
+      if (elapsed < ANGEL_MIN_INTERVAL_MS) {
+        await new Promise((r) => setTimeout(r, ANGEL_MIN_INTERVAL_MS - elapsed));
+      }
+
+      const item = angelQueue.highPriority.shift() || angelQueue.lowPriority.shift();
+      if (!item) break;
+
+      angelQueue.inQueue.delete(item.symKey);
+      lastAngelRequestTime = Date.now();
+
       try {
-        const q = await fetchAngelOneLtp(inst);
+        const q = await fetchAngelOneLtp(item.inst);
         if (q) {
-          quoteCache.set(symKey, q);
-          if (inst.symbol && inst.symbol !== symKey) {
-            quoteCache.set(inst.symbol.toUpperCase().trim(), q);
+          quoteCache.set(item.symKey, q);
+          if (item.inst.symbol && item.inst.symbol !== item.symKey) {
+            quoteCache.set(item.inst.symbol.toUpperCase().trim(), q);
           }
+        } else {
+          // If AngelOne is rate-limited or in cooldown, fall back to exchange feed so cache is refreshed
+          fetchLiveExchangeHistory(item.symKey, '5m').catch(() => {});
         }
       } catch (_) {}
-    }));
+    }
+  } finally {
+    angelQueue.isProcessing = false;
   }
 }
 
@@ -1320,10 +1385,15 @@ async function fetchLiveExchangeHistory(symbol, interval) {
 
     quoteCache.set(symNorm, {
       ltp: ltp,
+      open: lastBar.open,
+      high: Math.max(...bars.slice(-10).map(b => b.high)),
+      low: Math.min(...bars.slice(-10).map(b => b.low)),
+      close: lastBar.close,
       time: lastBar.time,
       prevClose: prevClose,
       chg: netChg,
       chgPct: pctChg,
+      _fetchTime: Date.now(),
     });
     candleCache.set(cacheKey, { timestamp: Date.now(), data: bars });
   }
@@ -1779,37 +1849,35 @@ function createServer() {
     // ─── 11. LIVE MARKET QUOTES API ENDPOINT ───
     if (reqUrl.pathname === '/api/market/quotes' || reqUrl.pathname === '/api/v1/quotes' || reqUrl.pathname === '/api/v1/multiquotes') {
       const symbolsParam = reqUrl.searchParams.get('symbols');
+      const activeParam = (reqUrl.searchParams.get('active') || '').trim().toUpperCase();
       const symbols = symbolsParam ? symbolsParam.split(',') : Array.from(nseEquitiesMap.keys()).slice(0, 30);
       const quotes = {};
 
       const cryptoInRequest = symbols.filter(isCryptoSymbol);
       if (cryptoInRequest.length > 0) {
-        await refreshBinanceQuotes(cryptoInRequest);
+        refreshBinanceQuotes(cryptoInRequest).catch(() => {});
       }
 
       const globalInRequest = symbols.filter(s => GLOBAL_INDICES_SYMBOLS.has(s.trim().toUpperCase()));
       if (globalInRequest.length > 0) {
-        await refreshGlobalIndices();
+        refreshGlobalIndices().catch(() => {});
       }
 
       const now = Date.now();
-      const needsFreshLtp = [];
 
       for (const sym of symbols) {
         const s = sym.trim().toUpperCase();
         if (!s) continue;
         let cached = quoteCache.get(s);
-        // Refresh if missing or older than 450ms
-        const isStale = !cached || (now - (cached._fetchTime || 0) > 450);
+        const isActive = (s === activeParam) || (!activeParam && s === symbols[0]?.trim().toUpperCase());
+        const staleThreshold = isActive ? 1000 : 2500;
+        const isStale = !cached || (now - (cached._fetchTime || 0) > staleThreshold);
+
         if (isStale) {
-          if (isCryptoSymbol(s)) {
-            // Refreshed in refreshBinanceQuotes
-          } else if (GLOBAL_INDICES_SYMBOLS.has(s)) {
-            // Refreshed in refreshGlobalIndices
-          } else {
+          if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
             const angelInst = resolveAngelInstrument(s);
             if (angelInst && angelSession.isAuthenticated) {
-              needsFreshLtp.push({ symKey: s, inst: angelInst });
+              enqueueAngelQuote(s, angelInst, isActive);
             } else {
               fetchLiveExchangeHistory(s, '5m').catch(() => {});
             }
@@ -1817,17 +1885,6 @@ function createServer() {
         }
         if (cached) {
           quotes[s] = cached;
-        }
-      }
-
-      // Fetch stale / missing AngelOne quotes concurrently
-      if (needsFreshLtp.length > 0) {
-        await fetchAndStoreAngelQuotes(needsFreshLtp);
-        for (const item of needsFreshLtp) {
-          const fresh = quoteCache.get(item.symKey);
-          if (fresh) {
-            quotes[item.symKey] = fresh;
-          }
         }
       }
 
