@@ -801,6 +801,91 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'DXY', 'DOLLAR INDEX'
 ]);
 
+// ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY & GLOBAL) ───
+async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5m', barCount = 350) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    let timer = null;
+
+    const norm = (interval || '5m').toLowerCase().trim();
+    let tvInt = '5';
+    if (norm === '1m' || norm === '1') tvInt = '1';
+    else if (norm === '3m' || norm === '3') tvInt = '3';
+    else if (norm === '5m' || norm === '5') tvInt = '5';
+    else if (norm === '15m' || norm === '15') tvInt = '15';
+    else if (norm === '30m' || norm === '30') tvInt = '30';
+    else if (norm === '60m' || norm === '1h' || norm === '60') tvInt = '60';
+    else if (norm === '1d' || norm === 'd' || norm === 'day') tvInt = '1D';
+    else if (norm === '1w' || norm === 'w' || norm === '1wk') tvInt = '1W';
+
+    let ws = null;
+    try {
+      ws = new WebSocket('wss://data.tradingview.com/socket.io/websocket', {
+        headers: {
+          'Origin': 'https://www.tradingview.com',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+    } catch (_) {
+      return resolve([]);
+    }
+
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      try { if (ws && ws.readyState === WebSocket.OPEN) ws.close(); } catch (_) {}
+      resolve(result);
+    };
+
+    timer = setTimeout(() => finish([]), 4500);
+
+    function formatMsg(func, params) {
+      const payload = JSON.stringify({ m: func, p: params });
+      return `~m~${payload.length}~m~${payload}`;
+    }
+
+    ws.onopen = () => {
+      const chartSession = 'cs_' + Math.random().toString(36).substring(2, 12);
+      ws.send(formatMsg('set_auth_token', ['unauthorized_user_token']));
+      ws.send(formatMsg('chart_create_session', [chartSession, '']));
+      ws.send(formatMsg('resolve_symbol', [chartSession, 'sds_sym_1', `={"symbol":"${tvSymbol}","adjustment":"splits"}`]));
+      ws.send(formatMsg('create_series', [chartSession, 'sds_1', 's1', 'sds_sym_1', tvInt, barCount, '']));
+    };
+
+    ws.onmessage = (event) => {
+      const str = event.data.toString();
+      if (str.includes('timescale_update')) {
+        try {
+          const msgs = str.split(/~m~\d+~m~/).filter(Boolean);
+          for (const m of msgs) {
+            const j = JSON.parse(m);
+            if (j.m === 'timescale_update' && j.p?.[1]?.sds_1?.s) {
+              const rawBars = j.p[1].sds_1.s;
+              const bars = rawBars.map(row => ({
+                time: Math.floor(row.v[0]),
+                open: row.v[1],
+                high: row.v[2],
+                low: row.v[3],
+                close: row.v[4],
+                volume: row.v[5] || 0,
+              }));
+              if (bars.length > 0) {
+                return finish(sanitizeCandles(bars, interval));
+              }
+            }
+          }
+        } catch (_) {}
+      } else if (str.startsWith('~h~')) {
+        try { ws.send('~h~' + str.slice(3)); } catch (_) {}
+      }
+    };
+
+    ws.onerror = () => finish([]);
+    ws.onclose = () => finish([]);
+  });
+}
+
 let lastGlobalIndicesFetch = 0;
 let globalIndicesPromise = null;
 
@@ -867,6 +952,31 @@ async function refreshGlobalIndices() {
           } catch (_) {}
         }
       }));
+      // Fetch live GIFT NIFTY quote from official continuous contract (NSEIX:NIFTY1!)
+      try {
+        const giftBars = await fetchTradingViewCandles('NSEIX:NIFTY1!', '5m', 10);
+        if (giftBars && giftBars.length > 0) {
+          const last = giftBars[giftBars.length - 1];
+          const prev = giftBars.length > 1 ? giftBars[giftBars.length - 2].close : last.open;
+          const chg = +(last.close - prev).toFixed(2);
+          const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
+          const q = {
+            ltp: last.close,
+            open: last.open,
+            high: last.high,
+            low: last.low,
+            close: last.close,
+            prevClose: prev,
+            chg,
+            chgPct,
+            time: last.time,
+            _fetchTime: now,
+          };
+          quoteCache.set('GIFT NIFTY', q);
+          quoteCache.set('GIFTNIFTY', q);
+        }
+      } catch (_) {}
+
       lastGlobalIndicesFetch = now;
     } catch (_) {}
     finally {
@@ -1078,8 +1188,36 @@ async function fetchLiveExchangeHistory(symbol, interval) {
     } catch (_) {}
   }
 
-  // Handle GIFT Nifty — mirrors continuous Nifty 50 Index contract
+  // Handle GIFT Nifty — directly fetch official continuous GIFT Nifty futures contract from TradingView (NSEIX:NIFTY1!)
   if (symNorm === 'GIFT NIFTY' || symNorm === 'GIFTNIFTY') {
+    try {
+      const tvBars = await fetchTradingViewCandles('NSEIX:NIFTY1!', interval, 350);
+      if (tvBars && tvBars.length > 0) {
+        const lastBar = tvBars[tvBars.length - 1];
+        const firstBar = tvBars[0];
+        const prevClose = tvBars.length > 1 ? tvBars[tvBars.length - 2].close : firstBar.open;
+        const chg = +(lastBar.close - prevClose).toFixed(2);
+        const chgPct = prevClose !== 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
+
+        quoteCache.set('GIFT NIFTY', {
+          ltp: lastBar.close,
+          open: firstBar.open,
+          high: Math.max(...tvBars.slice(-20).map(b => b.high)),
+          low: Math.min(...tvBars.slice(-20).map(b => b.low)),
+          close: lastBar.close,
+          prevClose: prevClose,
+          chg: chg,
+          chgPct: chgPct,
+          time: lastBar.time,
+          _fetchTime: Date.now(),
+        });
+        quoteCache.set('GIFTNIFTY', quoteCache.get('GIFT NIFTY'));
+        candleCache.set(cacheKey, { timestamp: Date.now(), data: tvBars });
+        return tvBars;
+      }
+    } catch (tvErr) {
+      console.warn('[GIFT NIFTY TV] Fallback to ^NSEI:', tvErr.message);
+    }
     return fetchLiveExchangeHistory('^NSEI', interval);
   }
 
