@@ -125,6 +125,7 @@ async function authenticateAngelOne() {
       angelSession.lastAuthTime = Date.now();
       angelSession.isAuthenticated = true;
       console.log(`[AngelOne] ✅ Authenticated SmartAPI session for Client ${angelSession.clientCode}`);
+      initSmartStreamWebSocket();
       return true;
     }
   } catch (err) {
@@ -169,6 +170,22 @@ const indicesMap = new Map([
   ['MCXGOLDEX', { token: '99920003', symbol: 'MCXGOLDEX', exch_seg: 'MCX', name: 'MCX GOLD INDEX' }],
   ['MCXCOPRDEX', { token: '99920001', symbol: 'MCXCOPRDEX', exch_seg: 'MCX', name: 'MCX COPPER INDEX' }],
   ['MCXCOMPDEX', { token: '99920006', symbol: 'MCXCOMPDEX', exch_seg: 'MCX', name: 'MCX COMPOSITE INDEX' }],
+]);
+
+const tokenToSymbolsMap = new Map([
+  ['99926000', ['NIFTY 50', 'NIFTY', 'NIFTY50']],
+  ['99926009', ['BANKNIFTY', 'BANK NIFTY']],
+  ['99926037', ['FINNIFTY']],
+  ['99919000', ['SENSEX']],
+  ['99926008', ['CNXIT']],
+  ['99926004', ['CNXAUTO']],
+  ['99926014', ['NIFTYMIDCAP']],
+  ['99920005', ['MCXBULLDEX']],
+  ['99920004', ['MCXMETLDEX']],
+  ['99920015', ['MCXENRGDEX', 'MCXENERGY']],
+  ['99920000', ['MCXCRUDEX']],
+  ['99920002', ['MCXSILVDEX']],
+  ['99920003', ['MCXGOLDEX']],
 ]);
 
 const COMMODITY_METAS = {
@@ -307,6 +324,7 @@ function indexInstruments(instruments) {
       const rawSym = item.symbol.replace(/-EQ$/, '').toUpperCase();
       nseEquitiesMap.set(rawSym, item);
       nseTokensMap.set(item.token, item);
+      tokenToSymbolsMap.set(String(item.token), [rawSym, item.symbol]);
     } else if (item.exch_seg === 'NFO' && (item.instrumenttype === 'FUTIDX' || item.instrumenttype === 'FUTSTK')) {
       const baseName = item.name.toUpperCase();
       if (!futuresMap.has(baseName)) futuresMap.set(baseName, []);
@@ -1079,141 +1097,166 @@ async function fetchAngelOneCandles(angelInst, interval) {
   return sanitizeCandles(rawBars, interval);
 }
 
-// ─── 6. ANGELONE REAL-TIME LTP FETCHER & SMOOTH RATE-LIMIT PACER ───
-let angelLtpRateLimitedUntil = 0;
-let lastAngelRequestTime = 0;
-const ANGEL_MIN_INTERVAL_MS = 360; // Max ~2.7 req/sec (strictly below Angel One's 3 req/sec limit)
+// ─── 6. ANGELONE REAL-TIME SMARTSTREAM WEBSOCKET ENGINE (TRUE SUB-SECOND TICKS) ───
+let smartStreamWs = null;
+let smartStreamPingTimer = null;
+const smartStreamSubscribedTokens = new Set();
 
-const angelQueue = {
-  highPriority: [], // Active chart symbol
-  lowPriority: [],  // Watchlist background symbols
-  inQueue: new Set(),
-  isProcessing: false,
-};
-
-async function fetchAngelOneLtp(angelInst) {
-  if (!angelSession.jwtToken) {
-    await authenticateAngelOne();
+function parseSmartStreamBinary(buf) {
+  if (buf.length < 51) return null;
+  const subMode = buf.readUInt8(0);
+  const exchType = buf.readUInt8(1);
+  let token = '';
+  for (let i = 2; i < 27; i++) {
+    if (buf[i] === 0) break;
+    token += String.fromCharCode(buf[i]);
   }
-  if (!angelSession.jwtToken) return null;
+  const seqNum = Number(buf.readBigInt64LE(27));
+  const exchTime = Number(buf.readBigInt64LE(35));
+  const ltpPaisa = Number(buf.readBigInt64LE(43));
+  const ltp = ltpPaisa / 100;
 
-  if (Date.now() < angelLtpRateLimitedUntil) {
-    return null;
+  let open = 0, high = 0, low = 0, close = 0;
+  if (buf.length >= 123) {
+    open = Number(buf.readBigInt64LE(91)) / 100;
+    high = Number(buf.readBigInt64LE(99)) / 100;
+    low = Number(buf.readBigInt64LE(107)) / 100;
+    close = Number(buf.readBigInt64LE(115)) / 100;
+  }
+
+  return { subMode, exchType, token, seqNum, exchTime, ltp, open, high, low, close };
+}
+
+function initSmartStreamWebSocket() {
+  if (!angelSession.jwtToken || !angelSession.feedToken || !angelSession.apiKey) return;
+  if (smartStreamWs && (smartStreamWs.readyState === WebSocket.OPEN || smartStreamWs.readyState === WebSocket.CONNECTING)) {
+    return;
   }
 
   try {
-    const resp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/order/v1/getLtpData', {
-      method: 'POST',
+    smartStreamWs = new WebSocket('wss://smartapisocket.angelone.in/smart-stream', {
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-UserType': 'USER',
-        'X-SourceID': 'WEB',
-        'X-ClientLocalIP': '127.0.0.1',
-        'X-ClientPublicIP': '127.0.0.1',
-        'X-MACAddress': 'fe80::1',
-        'X-PrivateKey': angelSession.apiKey,
         'Authorization': `Bearer ${angelSession.jwtToken}`,
-      },
-      body: JSON.stringify({
-        exchange: angelInst.exch_seg || 'NSE',
-        tradingsymbol: angelInst.symbol,
-        symboltoken: String(angelInst.token),
-      }),
-      signal: AbortSignal.timeout(1500),
+        'x-api-key': angelSession.apiKey,
+        'x-client-code': angelSession.clientCode,
+        'x-feed-token': angelSession.feedToken,
+      }
     });
 
-    const text = await resp.text();
-    if (text.includes('exceeding access rate') || resp.status === 429) {
-      console.warn('[AngelOne] ⚠️ REST rate limit hit. Cooling down for 2.5s...');
-      angelLtpRateLimitedUntil = Date.now() + 2500;
-      return null;
-    }
-
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch (_) {
-      return null;
-    }
-
-    if (json && json.status && json.data) {
-      const d = json.data;
-      const ltp = +d.ltp;
-      const prevClose = +d.close || +d.open || ltp;
-      const netChg = +(ltp - prevClose).toFixed(2);
-      const pctChg = prevClose !== 0 ? +((netChg / prevClose) * 100).toFixed(2) : 0;
-
-      return {
-        ltp,
-        open: +d.open,
-        high: +d.high,
-        low: +d.low,
-        close: +d.close,
-        prevClose,
-        chg: netChg,
-        chgPct: pctChg,
-        time: Math.floor(Date.now() / 1000),
-        _fetchTime: Date.now(),
-      };
-    }
-  } catch (_) {}
-  return null;
-}
-
-function enqueueAngelQuote(symKey, inst, isHighPriority = false) {
-  const normKey = (symKey || '').toUpperCase().trim();
-  if (!normKey || !inst) return;
-  if (angelQueue.inQueue.has(normKey)) return;
-  angelQueue.inQueue.add(normKey);
-
-  const item = { symKey: normKey, inst, isHighPriority };
-  if (isHighPriority) {
-    angelQueue.highPriority.unshift(item);
-  } else {
-    angelQueue.lowPriority.push(item);
-  }
-  processAngelQueue();
-}
-
-async function processAngelQueue() {
-  if (angelQueue.isProcessing) return;
-  angelQueue.isProcessing = true;
-
-  try {
-    while (angelQueue.highPriority.length > 0 || angelQueue.lowPriority.length > 0) {
-      if (Date.now() < angelLtpRateLimitedUntil) {
-        const waitMs = Math.min(2500, Math.max(100, angelLtpRateLimitedUntil - Date.now()));
-        await new Promise((r) => setTimeout(r, waitMs));
-      }
-
-      const elapsed = Date.now() - lastAngelRequestTime;
-      if (elapsed < ANGEL_MIN_INTERVAL_MS) {
-        await new Promise((r) => setTimeout(r, ANGEL_MIN_INTERVAL_MS - elapsed));
-      }
-
-      const item = angelQueue.highPriority.shift() || angelQueue.lowPriority.shift();
-      if (!item) break;
-
-      angelQueue.inQueue.delete(item.symKey);
-      lastAngelRequestTime = Date.now();
-
-      try {
-        const q = await fetchAngelOneLtp(item.inst);
-        if (q) {
-          quoteCache.set(item.symKey, q);
-          if (item.inst.symbol && item.inst.symbol !== item.symKey) {
-            quoteCache.set(item.inst.symbol.toUpperCase().trim(), q);
-          }
-        } else {
-          // If AngelOne is rate-limited or in cooldown, fall back to exchange feed so cache is refreshed
-          fetchLiveExchangeHistory(item.symKey, '5m').catch(() => {});
+    smartStreamWs.onopen = () => {
+      console.log('[SmartStream WS] ⚡ Connected to Angel One real-time tick-by-tick stream!');
+      if (smartStreamPingTimer) clearInterval(smartStreamPingTimer);
+      smartStreamPingTimer = setInterval(() => {
+        if (smartStreamWs && smartStreamWs.readyState === WebSocket.OPEN) {
+          try { smartStreamWs.send('ping'); } catch (_) {}
         }
-      } catch (_) {}
-    }
-  } finally {
-    angelQueue.isProcessing = false;
+      }, 10000);
+
+      const defaultTokens = ['99926000', '99926009', '99919000', '99926037', '2885', '11536', '1594', '1333', '4963', '3045', '23650', '10999'];
+      defaultTokens.forEach(t => smartStreamSubscribedTokens.add(t));
+      subscribeSmartStreamTokens(Array.from(smartStreamSubscribedTokens), true);
+    };
+
+    smartStreamWs.onmessage = async (evt) => {
+      let data = evt.data;
+      if (data instanceof Blob) {
+        data = Buffer.from(await data.arrayBuffer());
+      } else if (data instanceof ArrayBuffer) {
+        data = Buffer.from(data);
+      }
+      if (Buffer.isBuffer(data)) {
+        const parsed = parseSmartStreamBinary(data);
+        if (parsed && Number.isFinite(parsed.ltp) && parsed.ltp > 0) {
+          const syms = tokenToSymbolsMap.get(parsed.token) || [];
+          for (const s of syms) {
+            const prevClose = parsed.close || quoteCache.get(s)?.prevClose || parsed.ltp;
+            const chg = +(parsed.ltp - prevClose).toFixed(2);
+            const chgPct = prevClose > 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
+
+            quoteCache.set(s, {
+              ltp: parsed.ltp,
+              open: parsed.open || parsed.ltp,
+              high: parsed.high || parsed.ltp,
+              low: parsed.low || parsed.ltp,
+              close: parsed.close || parsed.ltp,
+              prevClose: prevClose,
+              chg: chg,
+              chgPct: chgPct,
+              time: Math.floor(parsed.exchTime / 1000) || Math.floor(Date.now() / 1000),
+              _fetchTime: Date.now(),
+            });
+          }
+        }
+      }
+    };
+
+    smartStreamWs.onerror = (err) => {
+      console.warn('[SmartStream WS] Error:', err.message || err);
+    };
+
+    smartStreamWs.onclose = () => {
+      if (smartStreamPingTimer) clearInterval(smartStreamPingTimer);
+      console.log('[SmartStream WS] Disconnected. Reconnecting in 3s...');
+      setTimeout(initSmartStreamWebSocket, 3000);
+    };
+  } catch (err) {
+    console.warn('[SmartStream WS] Init error:', err.message);
   }
+}
+
+function subscribeSmartStreamTokens(tokenList, force = false) {
+  if (!smartStreamWs || smartStreamWs.readyState !== WebSocket.OPEN) {
+    tokenList.forEach(t => smartStreamSubscribedTokens.add(String(t)));
+    return;
+  }
+
+  const newTokens = force ? tokenList : tokenList.filter(t => !smartStreamSubscribedTokens.has(String(t)));
+  if (newTokens.length === 0) return;
+
+  const nseTokens = [];
+  const bseTokens = [];
+  const mcxTokens = [];
+  const nfoTokens = [];
+
+  for (const t of newTokens) {
+    const sToken = String(t);
+    smartStreamSubscribedTokens.add(sToken);
+    const inst = nseTokensMap.get(sToken) || resolveAngelInstrument(sToken);
+    const seg = inst?.exch_seg || (sToken === '99919000' ? 'BSE' : (sToken.startsWith('99920') ? 'MCX' : 'NSE'));
+
+    if (seg === 'BSE') bseTokens.push(sToken);
+    else if (seg === 'MCX') mcxTokens.push(sToken);
+    else if (seg === 'NFO') nfoTokens.push(sToken);
+    else nseTokens.push(sToken);
+  }
+
+  const tokenGroups = [];
+  if (nseTokens.length > 0) tokenGroups.push({ exchangeType: 1, tokens: nseTokens });
+  if (nfoTokens.length > 0) tokenGroups.push({ exchangeType: 2, tokens: nfoTokens });
+  if (bseTokens.length > 0) tokenGroups.push({ exchangeType: 3, tokens: bseTokens });
+  if (mcxTokens.length > 0) tokenGroups.push({ exchangeType: 5, tokens: mcxTokens });
+
+  if (tokenGroups.length > 0) {
+    try {
+      smartStreamWs.send(JSON.stringify({
+        correlationID: 'sub_' + Date.now(),
+        action: 1, // Subscribe
+        params: {
+          mode: 2, // Quote Mode
+          tokenList: tokenGroups,
+        },
+      }));
+    } catch (_) {}
+  }
+}
+
+async function fetchAngelOneLtp(angelInst) {
+  if (angelInst?.token) {
+    subscribeSmartStreamTokens([String(angelInst.token)]);
+  }
+  const cached = quoteCache.get(angelInst.symbol);
+  if (cached) return cached;
+  return null;
 }
 
 // ─── 7. EXCHANGE HISTORY WITH ANGELONE PRIMARY & YAHOO FALLBACK ───
@@ -1865,27 +1908,32 @@ function createServer() {
 
       const now = Date.now();
 
+      const tokensToSub = [];
       for (const sym of symbols) {
         const s = sym.trim().toUpperCase();
         if (!s) continue;
         let cached = quoteCache.get(s);
-        const isActive = (s === activeParam) || (!activeParam && s === symbols[0]?.trim().toUpperCase());
-        const staleThreshold = isActive ? 1000 : 2500;
-        const isStale = !cached || (now - (cached._fetchTime || 0) > staleThreshold);
 
-        if (isStale) {
-          if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
-            const angelInst = resolveAngelInstrument(s);
-            if (angelInst && angelSession.isAuthenticated) {
-              enqueueAngelQuote(s, angelInst, isActive);
-            } else {
-              fetchLiveExchangeHistory(s, '5m').catch(() => {});
+        if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
+          const angelInst = resolveAngelInstrument(s);
+          if (angelInst && angelInst.token) {
+            tokensToSub.push(String(angelInst.token));
+            if (!tokenToSymbolsMap.has(String(angelInst.token))) {
+              tokenToSymbolsMap.set(String(angelInst.token), [s, angelInst.symbol]);
             }
           }
+          if (!cached) {
+            fetchLiveExchangeHistory(s, '5m').catch(() => {});
+          }
         }
+
         if (cached) {
           quotes[s] = cached;
         }
+      }
+
+      if (tokensToSub.length > 0) {
+        subscribeSmartStreamTokens(tokensToSub);
       }
 
       res.writeHead(200, {

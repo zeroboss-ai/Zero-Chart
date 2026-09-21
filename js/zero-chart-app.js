@@ -1380,7 +1380,7 @@ class ZeroChartApp {
     };
 
     pollQuotes();
-    setInterval(pollQuotes, 350);
+    setInterval(pollQuotes, 200);
   }
 
   updateLivePrice(inst, newPrice, chg, chgPct, explicitPrevClose) {
