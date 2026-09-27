@@ -431,7 +431,7 @@ export const MASTER_INSTRUMENTS = [
     tickSize: 0.05,
     precision: 2,
     badgeText: '50',
-    badgeColor: '#2962ff',
+    badgeColor: '#131f37',
   },
   {
     symbol: 'BANKNIFTY',
@@ -443,8 +443,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 56248.75,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'BK',
-    badgeColor: '#1e53e5',
+    badgeText: '🏛️',
+    badgeColor: '#102a45',
   },
   {
     symbol: 'FINNIFTY',
@@ -456,8 +456,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 25469.10,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'FN',
-    badgeColor: '#089981',
+    badgeText: '🪙',
+    badgeColor: '#123338',
   },
   {
     symbol: 'CNXAUTO',
@@ -469,8 +469,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 27232.55,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'AU',
-    badgeColor: '#e040fb',
+    badgeText: '🚗',
+    badgeColor: '#281b3d',
   },
   {
     symbol: 'NIFTYMIDCAP',
@@ -482,8 +482,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 17784.30,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'MC',
-    badgeColor: '#ff9800',
+    badgeText: '💎',
+    badgeColor: '#15223e',
   },
   {
     symbol: 'CNXIT',
@@ -495,21 +495,21 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 28664.15,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'IT',
-    badgeColor: '#00bcd4',
+    badgeText: '💻',
+    badgeColor: '#16203b',
   },
   {
     symbol: 'SENSEX',
     displaySymbol: 'SENSEX',
-    name: 'BSE Sensex Index',
+    name: 'S&P BSE Sensex Index',
     exchange: 'BSE',
     category: 'india',
     feedType: 'openalgo',
     basePrice: 74467.15,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'SX',
-    badgeColor: '#ff5252',
+    badgeText: 'BSE',
+    badgeColor: '#0277bd',
   },
   {
     symbol: 'NIFTY FUT',
@@ -521,8 +521,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 23360.00,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'NF',
-    badgeColor: '#2962ff',
+    badgeText: '50',
+    badgeColor: '#131f37',
   },
   {
     symbol: 'BANKNIFTY FUT',
@@ -534,8 +534,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 56310.00,
     tickSize: 0.05,
     precision: 2,
-    badgeText: 'BF',
-    badgeColor: '#1e53e5',
+    badgeText: '🏛️',
+    badgeColor: '#102a45',
   },
 
   // ─── 24/7 LIVE CRYPTO ──────────────────────────────────────────────
@@ -1022,7 +1022,7 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 23374.35,
     tickSize: 0.5,
     precision: 2,
-    badgeText: 'GIFT',
+    badgeText: '🇮🇳',
     badgeColor: '#ff6d00',
   },
   {
@@ -1035,8 +1035,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 51682.64,
     tickSize: 1.0,
     precision: 2,
-    badgeText: 'US30',
-    badgeColor: '#1e88e5',
+    badgeText: '30',
+    badgeColor: '#0288d1',
   },
   {
     symbol: 'S&P 500',
@@ -1048,8 +1048,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 7650.50,
     tickSize: 0.25,
     precision: 2,
-    badgeText: 'SPX',
-    badgeColor: '#3949ab',
+    badgeText: '500',
+    badgeColor: '#b71c1c',
   },
   {
     symbol: 'SP500',
@@ -1061,8 +1061,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 7650.50,
     tickSize: 0.25,
     precision: 2,
-    badgeText: 'SPX',
-    badgeColor: '#3949ab',
+    badgeText: '500',
+    badgeColor: '#b71c1c',
   },
   {
     symbol: 'NASDAQ',
@@ -1074,8 +1074,8 @@ export const MASTER_INSTRUMENTS = [
     basePrice: 26522.55,
     tickSize: 0.5,
     precision: 2,
-    badgeText: 'NDX',
-    badgeColor: '#00acc1',
+    badgeText: '100',
+    badgeColor: '#00838f',
   },
   {
     symbol: 'DAX',
@@ -1229,4 +1229,99 @@ export function findInstrument(symbol) {
     badgeText: cleanSym.slice(0, 2),
     badgeColor: isMcx ? '#ff9800' : '#2962ff',
   };
+}
+
+/**
+ * Generates high-fidelity TradingView SVG badges or formatted text for watchlist items.
+ */
+export function getInstrumentBadgeHtml(inst) {
+  if (!inst) return '';
+  const sym = (inst.symbol || '').toUpperCase().trim();
+  const dSym = (inst.displaySymbol || '').toUpperCase().trim();
+
+  // 1. GIFT NIFTY — Authentic Indian Tricolor Roundel (like TradingView NIFTY1!)
+  if (sym.includes('GIFT') || sym === 'NIFTY1!' || dSym.includes('GIFT')) {
+    return `<svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;border-radius:50%;">
+      <defs>
+        <clipPath id="trident-clip"><circle cx="18" cy="18" r="18"/></clipPath>
+      </defs>
+      <g clip-path="url(#trident-clip)">
+        <rect width="36" height="12" fill="#FF9933"/>
+        <rect y="12" width="36" height="12" fill="#FFFFFF"/>
+        <rect y="24" width="36" height="12" fill="#138808"/>
+        <circle cx="18" cy="18" r="4.2" fill="none" stroke="#000080" stroke-width="1.2"/>
+        <circle cx="18" cy="18" r="1.5" fill="#000080"/>
+      </g>
+    </svg>`;
+  }
+
+  // 2. BANKNIFTY — Classical Bank Temple Pillars
+  if (sym === 'BANKNIFTY' || sym === 'BANKNIFTY FUT' || dSym === 'BANKNIFTY') {
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+      <path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 2L2 7h20L12 2z"/>
+    </svg>`;
+  }
+
+  // 3. FINNIFTY / CNXFINANCE — Financial Services Coins
+  if (sym === 'FINNIFTY' || sym.includes('FINANCE') || dSym === 'FINNIFTY') {
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+      <ellipse cx="12" cy="6" rx="8" ry="3"/>
+      <path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/>
+      <path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>
+    </svg>`;
+  }
+
+  // 4. CNXIT — Microchip / CPU
+  if (sym === 'CNXIT' || sym.includes('IT INDEX') || dSym === 'CNXIT') {
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+      <rect x="4" y="4" width="16" height="16" rx="2"/>
+      <rect x="9" y="9" width="6" height="6"/>
+      <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/>
+    </svg>`;
+  }
+
+  // 5. CNXAUTO — Automobile
+  if (sym === 'CNXAUTO' || dSym === 'CNXAUTO') {
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+      <path d="M5 17h14M3 11l2-5h14l2 5M3 11v6a1 1 0 001 1h1m14 0h1a1 1 0 001-1v-6M3 11h18"/>
+      <circle cx="7.5" cy="16.5" r="1.5"/>
+      <circle cx="16.5" cy="16.5" r="1.5"/>
+    </svg>`;
+  }
+
+  // 6. NIFTY MIDCAP / SMALLCAP — Diamond Gem
+  if (sym.includes('MIDCAP') || sym.includes('SMALLCAP') || sym.includes('SELECT')) {
+    return `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+      <path d="M6 3h12l4 6-10 12L2 9z"/>
+      <path d="M2 9h20M12 21L8 9l4-6 4 6-4 12"/>
+    </svg>`;
+  }
+
+  // 7. SENSEX — BSE
+  if (sym.includes('SENSEX')) {
+    return 'BSE';
+  }
+
+  // 8. NIFTY 50 / NIFTY FUT — 50
+  if (sym.startsWith('NIFTY')) {
+    return '50';
+  }
+
+  // 9. DOW JONES — 30
+  if (sym.includes('DOW') || sym === 'DJI') {
+    return '30';
+  }
+
+  // 10. S&P 500 — 500
+  if (sym.includes('S&P') || sym.includes('SP500') || sym === 'SPX') {
+    return '500';
+  }
+
+  // 11. NASDAQ — 100
+  if (sym.includes('NASDAQ') || sym === 'NDX') {
+    return '100';
+  }
+
+  // 12. Fallback to badgeText or 2-letter uppercase
+  return inst.badgeText || sym.slice(0, 2);
 }

@@ -16,7 +16,7 @@ import '../lib/openalgo-charts.indicators.mjs';
 import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs';
 import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.5.0';
 import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.5.0';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument } from './watchlist-data.js?v=2.5.0';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.5.0';
 
 const FAVORITE_TOOL_DEFINITIONS = [
   { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },
@@ -582,13 +582,17 @@ class ZeroChartApp {
     const rightPanel = document.getElementById('right-panel');
     if (!resizer || !rightPanel) return;
 
-    // Load saved width
-    const savedWidth = localStorage.getItem('zerochart_sidebar_width');
-    if (savedWidth) {
-      const parsed = parseInt(savedWidth, 10);
-      if (parsed >= 220 && parsed <= 1200) {
-        rightPanel.style.width = `${parsed}px`;
+    // Load saved width (Desktop only)
+    if (window.innerWidth > 768) {
+      const savedWidth = localStorage.getItem('zerochart_sidebar_width');
+      if (savedWidth) {
+        const parsed = parseInt(savedWidth, 10);
+        if (parsed >= 220 && parsed <= 1200) {
+          rightPanel.style.width = `${parsed}px`;
+        }
       }
+    } else {
+      rightPanel.style.width = '100vw';
     }
 
     let isDragging = false;
@@ -1026,11 +1030,22 @@ class ZeroChartApp {
   // ─── MULTI-WATCHLIST UI & MANAGEMENT (HORIZONTAL TABS) ───
   initWatchlistUI() {
     const addBtn = document.getElementById('btn-wl-add');
+    const editModeBtn = document.getElementById('btn-wl-edit-mode');
     const renameBtn = document.getElementById('btn-wl-rename');
     const deleteBtn = document.getElementById('btn-wl-delete');
 
     if (addBtn) {
       addBtn.onclick = () => document.getElementById('btn-open-search')?.click();
+    }
+
+    if (editModeBtn) {
+      editModeBtn.onclick = () => {
+        const body = document.getElementById('watchlist-table-body');
+        if (body) {
+          const isEdit = body.classList.toggle('edit-mode');
+          editModeBtn.classList.toggle('active', isEdit);
+        }
+      };
     }
 
     if (renameBtn) {
@@ -1173,7 +1188,8 @@ class ZeroChartApp {
     instruments.forEach((inst) => {
       const row = document.createElement('div');
       row.className = `tv-wl-row ${inst.symbol === this.currentInstrument?.symbol ? 'selected' : ''}`;
-      row.id = `wl-row-${inst.symbol.replace(/[^A-Za-z0-9]/g, '_')}`;
+      const cleanId = inst.symbol.replace(/[^A-Za-z0-9]/g, '_');
+      row.id = `wl-row-${cleanId}`;
 
       const q = this.livePrices.get(inst.symbol) || {
         last: inst.basePrice,
@@ -1183,23 +1199,28 @@ class ZeroChartApp {
 
       const isUp = q.chg >= 0;
       const sign = isUp ? '+' : '';
+      const badgeContent = getInstrumentBadgeHtml(inst);
 
       row.innerHTML = `
         <div class="tv-wl-cell-sym">
-          <div class="tv-symbol-circle" style="background:${inst.badgeColor};">${inst.badgeText}</div>
+          <div class="tv-symbol-circle" style="background:${inst.badgeColor || '#2962ff'};">${badgeContent}</div>
           <div class="tv-symbol-meta">
-            <div class="tv-sym-name">${inst.displaySymbol}</div>
+            <div class="tv-sym-name">${inst.displaySymbol} <span class="tv-sym-dash">-</span></div>
             <div class="tv-sym-desc">${inst.name}</div>
           </div>
         </div>
-        <div class="tv-wl-cell-last" id="wl-last-${inst.symbol.replace(/[^A-Za-z0-9]/g, '_')}">
-          ${q.last.toLocaleString(undefined, { minimumFractionDigits: inst.precision, maximumFractionDigits: inst.precision })}
-        </div>
-        <div class="tv-wl-cell-chg ${isUp ? 'up' : 'dn'}" id="wl-chg-${inst.symbol.replace(/[^A-Za-z0-9]/g, '_')}">
-          ${sign}${q.chg.toFixed(inst.precision)}
-        </div>
-        <div class="tv-wl-cell-pct ${isUp ? 'up' : 'dn'}" id="wl-pct-${inst.symbol.replace(/[^A-Za-z0-9]/g, '_')}">
-          ${sign}${q.chgPct.toFixed(2)}%
+        <div class="tv-wl-cell-price-group">
+          <div class="tv-wl-cell-last" id="wl-last-${cleanId}" data-price="${q.last}">
+            ${q.last.toLocaleString(undefined, { minimumFractionDigits: inst.precision, maximumFractionDigits: inst.precision })}
+          </div>
+          <div class="tv-wl-cell-chg-wrap">
+            <span class="tv-wl-cell-chg ${isUp ? 'up' : 'dn'}" id="wl-chg-${cleanId}">
+              ${sign}${q.chg.toFixed(inst.precision)}
+            </span>
+            <span class="tv-wl-cell-pct ${isUp ? 'up' : 'dn'}" id="wl-pct-${cleanId}">
+              ${sign}${q.chgPct.toFixed(2)}%
+            </span>
+          </div>
         </div>
         <div class="tv-wl-cell-del">
           <button class="tv-btn-del-sym" title="Remove ${inst.symbol}" data-sym="${inst.symbol}">✕</button>
@@ -1464,10 +1485,19 @@ class ZeroChartApp {
     const sign = isUp ? '+' : '';
 
     if (lastEl) {
+      const prevPriceVal = parseFloat(lastEl.getAttribute('data-price') || '0');
       lastEl.textContent = newPrice.toLocaleString(undefined, {
         minimumFractionDigits: inst.precision,
         maximumFractionDigits: inst.precision,
       });
+      lastEl.setAttribute('data-price', newPrice);
+
+      // Flash animation on live tick
+      if (prevPriceVal && prevPriceVal !== newPrice) {
+        lastEl.classList.remove('tv-tick-up', 'tv-tick-down');
+        void lastEl.offsetWidth; // trigger reflow
+        lastEl.classList.add(newPrice > prevPriceVal ? 'tv-tick-up' : 'tv-tick-down');
+      }
     }
     if (chgEl) {
       chgEl.textContent = `${sign}${(chg || 0).toFixed(inst.precision)}`;
@@ -3162,6 +3192,9 @@ class ZeroChartApp {
     }
     if (rightPanel) {
       rightPanel.classList.remove('collapsed');
+      if (window.innerWidth <= 768) {
+        rightPanel.style.width = '100vw';
+      }
     }
     tabPanes.forEach((p) => (p.style.display = 'none'));
     const targetPane = document.getElementById(`panel-${tabName}`);

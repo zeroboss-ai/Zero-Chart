@@ -802,16 +802,23 @@ html, body {
 }
 
 .tv-symbol-circle {
-  width: 19px;
-  height: 19px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   color: #ffffff;
   font-weight: 800;
-  font-size: 9px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.tv-symbol-circle svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .tv-symbol-meta {
@@ -826,6 +833,10 @@ html, body {
   line-height: 1.2;
 }
 
+.tv-sym-dash {
+  display: none;
+}
+
 .tv-sym-desc {
   font-size: 10.5px;
   font-weight: 500;
@@ -835,12 +846,21 @@ html, body {
   line-height: 1.2;
 }
 
+.tv-wl-cell-price-group {
+  display: contents;
+}
+
+.tv-wl-cell-chg-wrap {
+  display: contents;
+}
+
 .tv-wl-cell-last {
   font-family: var(--mono);
   font-weight: 600;
   font-size: 11.5px;
   text-align: right;
   color: var(--text-bright);
+  transition: background 0.3s ease;
 }
 
 .tv-wl-cell-chg {
@@ -855,6 +875,35 @@ html, body {
   font-size: 11px;
   font-weight: 500;
   text-align: right;
+}
+
+/* Real-Time Price Tick Flash Animation */
+@keyframes tvTickUp {
+  0% {
+    background-color: rgba(8, 153, 129, 0.32);
+    border-radius: 3px;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes tvTickDown {
+  0% {
+    background-color: rgba(242, 54, 69, 0.32);
+    border-radius: 3px;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.tv-tick-up {
+  animation: tvTickUp 0.6s ease-out;
+}
+
+.tv-tick-down {
+  animation: tvTickDown 0.6s ease-out;
 }
 
 .tv-wl-cell-del {
@@ -1625,12 +1674,12 @@ html, body {
   .tv-stage {
     flex: 1 1 auto !important;
     width: 100vw !important;
-    height: calc(100dvh - 42px - 52px) !important;
-    max-height: calc(100dvh - 42px - 52px) !important;
+    height: calc(100dvh - 42px - 56px) !important;
+    max-height: calc(100dvh - 42px - 56px) !important;
     min-height: 0 !important;
     position: relative !important;
     overflow: hidden !important;
-    margin-bottom: 52px !important;
+    margin-bottom: 56px !important;
     padding: 0 !important;
   }
 
@@ -1746,18 +1795,19 @@ html, body {
   /* ─── Right Sidebar as Full Overlay Slide-In Drawer on Mobile ─── */
   .tv-right-sidebar {
     position: fixed !important;
-    top: 42px !important;
+    top: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    bottom: 52px !important;
+    bottom: 56px !important;
     width: 100vw !important;
-    height: calc(100dvh - 42px - 52px) !important;
-    max-height: calc(100dvh - 42px - 52px) !important;
-    z-index: 500 !important;
-    background: var(--bg) !important;
+    height: calc(100dvh - 56px) !important;
+    max-height: calc(100dvh - 56px) !important;
+    z-index: 5000 !important;
+    background: #131722 !important;
     display: none !important;
     border-left: none !important;
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
   }
 
   .tv-right-sidebar.mobile-open {
@@ -1770,7 +1820,7 @@ html, body {
     max-width: 100vw !important;
     min-width: 100vw !important;
     height: 100% !important;
-    background: var(--panel-bg) !important;
+    background: #131722 !important;
     border-right: none !important;
     display: flex !important;
     flex-direction: column !important;
@@ -1793,43 +1843,304 @@ html, body {
     to { opacity: 1; }
   }
 
-  /* Hide 12-icon vertical rail on mobile */
-  .tv-vertical-rail {
+  /* Hide desktop vertical rail and sidebar resizer on mobile */
+  .tv-vertical-rail,
+  .tv-sidebar-resizer {
     display: none !important;
+  }
+
+  #panel-watchlist,
+  .tv-wl-body {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ─── Mobile Watchlist Header & Category Tabs ─── */
+  .tv-wl-horizontal-bar {
+    padding: 10px 14px 8px 14px !important;
+    background: #131722 !important;
+    gap: 8px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+
+  .tv-wl-tab-pill {
+    padding: 6px 14px !important;
+    font-size: 13px !important;
+    border-radius: 20px !important;
+    font-weight: 600 !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: #9db2c6 !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .tv-wl-tab-pill.active {
+    background: #2962ff !important;
+    border-color: #2962ff !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 8px rgba(41, 98, 255, 0.4) !important;
+  }
+
+  .tv-wl-tab-add-btn {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 16px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px dashed rgba(255, 255, 255, 0.2) !important;
+    color: #9db2c6 !important;
+  }
+
+  .tv-wl-sub-header {
+    padding: 10px 16px !important;
+    background: #131722 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .tv-wl-sub-title {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #f0f3fa !important;
+    letter-spacing: -0.2px !important;
+  }
+
+  .tv-wl-sub-count {
+    font-size: 12px !important;
+    color: #787b86 !important;
+    font-weight: 500 !important;
+    margin-left: 6px !important;
+  }
+
+  .tv-wl-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .tv-wl-act-btn {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: #f0f3fa !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .tv-wl-act-btn.active {
+    background: rgba(41, 98, 255, 0.3) !important;
+    border-color: #2962ff !important;
+    color: #2962ff !important;
+  }
+
+  .tv-wl-act-btn:active {
+    background: rgba(41, 98, 255, 0.25) !important;
+    transform: scale(0.95) !important;
   }
 
   .tv-mob-close-drawer-btn {
     display: flex !important;
-    align-items: center;
-    justify-content: center;
+    align-items: center !important;
+    justify-content: center !important;
     font-size: 14px !important;
     font-weight: 700 !important;
-    color: var(--text) !important;
-    background: var(--panel-elev) !important;
+    color: #f0f3fa !important;
+    background: rgba(255, 255, 255, 0.08) !important;
     border-radius: 50% !important;
+    width: 30px !important;
+    height: 30px !important;
+    cursor: pointer !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* ─── Watchlist table columns on Mobile: HIDE TABLE HEADER COMPLETELY (TradingView Benchmark) ─── */
+  .tv-wl-cols {
+    display: none !important;
+  }
+
+  /* ─── Sleek TradingView Mobile 2-Column Row Layout ─── */
+  .tv-wl-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 12px 16px !important;
+    min-height: 58px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    background: transparent !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: rgba(41, 98, 255, 0.08) !important;
+    transition: background-color 0.12s ease !important;
+    position: relative !important;
+  }
+
+  .tv-wl-row:active {
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
+
+  .tv-wl-row.selected {
+    background: rgba(41, 98, 255, 0.08) !important;
+    border-left: 3px solid #2962ff !important;
+  }
+
+  /* Left: Badge + Symbol Title & Subtitle */
+  .tv-wl-cell-sym {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .tv-symbol-circle {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    overflow: hidden !important;
+  }
+
+  .tv-symbol-circle svg {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+  }
+
+  .tv-symbol-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .tv-sym-name {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #f0f3fa !important;
+    letter-spacing: -0.2px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    line-height: 1.25 !important;
+  }
+
+  .tv-sym-dash {
+    display: inline-block !important;
+    color: #787b86 !important;
+    font-weight: 400 !important;
+    margin-left: 2px !important;
+  }
+
+  .tv-sym-desc {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: #787b86 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Right: Price on top line + Change & Change% on bottom line */
+  .tv-wl-cell-price-group {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    flex-shrink: 0 !important;
+    text-align: right !important;
+    padding-left: 8px !important;
+  }
+
+  .tv-wl-cell-last {
+    font-size: 15.5px !important;
+    font-weight: 700 !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    color: #f0f3fa !important;
+    letter-spacing: -0.2px !important;
+    line-height: 1.25 !important;
+    text-align: right !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+    transition: background 0.3s ease !important;
+  }
+
+  .tv-wl-cell-chg-wrap {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    line-height: 1.2 !important;
+  }
+
+  .tv-wl-cell-chg,
+  .tv-wl-cell-pct {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    line-height: 1.2 !important;
+    text-align: right !important;
+  }
+
+  .tv-wl-cell-chg.up,
+  .tv-wl-cell-pct.up {
+    color: #089981 !important;
+  }
+
+  .tv-wl-cell-chg.dn,
+  .tv-wl-cell-pct.dn {
+    color: #f23645 !important;
+  }
+
+  /* Delete button: Hidden on everyday mobile rows */
+  .tv-wl-cell-del {
+    display: none !important;
+  }
+
+  /* Show delete button only when Edit Mode is active */
+  .tv-wl-body.edit-mode .tv-wl-cell-del {
+    display: flex !important;
+    opacity: 1 !important;
+    align-items: center !important;
+    margin-left: 10px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .tv-wl-body.edit-mode .tv-btn-del-sym {
     width: 28px !important;
     height: 28px !important;
-    cursor: pointer !important;
-    border: 1px solid var(--border) !important;
-  }
-
-  /* ─── Watchlist table columns on Mobile ─── */
-  .tv-wl-cols {
-    display: grid !important;
-    grid-template-columns: 1fr 68px 50px 50px 22px !important;
-    padding: 5px 8px !important;
-    font-size: 10.5px !important;
-  }
-
-  .tv-wl-row {
-    display: grid !important;
-    grid-template-columns: 1fr 68px 50px 50px 22px !important;
-    padding: 8px 8px !important;
-    min-height: 44px !important;
-  }
-
-  .tv-wl-cell-del {
-    opacity: 1 !important;
+    border-radius: 50% !important;
+    background: rgba(242, 54, 69, 0.15) !important;
+    color: #f23645 !important;
+    border: 1px solid rgba(242, 54, 69, 0.3) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
   }
 
   /* ─── Mobile Bottom Navigation Bar (Guaranteed Fixed Bottom & Always Visible) ─── */
@@ -1839,16 +2150,18 @@ html, body {
     left: 0 !important;
     right: 0 !important;
     width: 100vw !important;
-    height: 52px !important;
+    height: 56px !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    background: var(--topbar-bg) !important;
-    border-top: 1px solid var(--border) !important;
+    background: #131722 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: space-around !important;
     z-index: 100000 !important;
     box-sizing: border-box !important;
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.45) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.45) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
   }
 
   .tv-mob-nav-btn {
@@ -1856,31 +2169,38 @@ html, body {
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 3px !important;
+    gap: 4px !important;
     background: transparent !important;
     border: none !important;
-    color: var(--text-muted) !important;
+    color: #787b86 !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     padding: 4px 6px !important;
-    border-radius: 6px !important;
+    border-radius: 8px !important;
     cursor: pointer !important;
     transition: all 0.12s ease !important;
     flex: 1 !important;
     height: 100% !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   .tv-mob-nav-btn:hover {
-    color: var(--text-bright) !important;
+    color: #f0f3fa !important;
+  }
+
+  .tv-mob-nav-btn:active {
+    background: rgba(255, 255, 255, 0.04) !important;
   }
 
   .tv-mob-nav-btn.active {
-    color: var(--accent) !important;
+    color: #2962ff !important;
     font-weight: 700 !important;
   }
 
   .tv-mob-nav-btn svg {
     stroke-width: 2.2 !important;
+    width: 19px !important;
+    height: 19px !important;
   }
 
   /* ─── Modals on Mobile ─── */
