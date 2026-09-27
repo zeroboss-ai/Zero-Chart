@@ -1803,10 +1803,10 @@ html, body {
     height: calc(100dvh - 56px) !important;
     max-height: calc(100dvh - 56px) !important;
     z-index: 5000 !important;
-    background: #131722 !important;
+    background: var(--bg) !important;
     display: none !important;
     border-left: none !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-bottom: 1px solid var(--border) !important;
     padding-top: env(safe-area-inset-top, 0px) !important;
   }
 
@@ -1820,7 +1820,7 @@ html, body {
     max-width: 100vw !important;
     min-width: 100vw !important;
     height: 100% !important;
-    background: #131722 !important;
+    background: var(--bg) !important;
     border-right: none !important;
     display: flex !important;
     flex-direction: column !important;
@@ -1858,9 +1858,9 @@ html, body {
   /* ─── Mobile Watchlist Header & Category Tabs ─── */
   .tv-wl-horizontal-bar {
     padding: 10px 14px 8px 14px !important;
-    background: #131722 !important;
+    background: var(--bg) !important;
     gap: 8px !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-bottom: 1px solid var(--border) !important;
   }
 
   .tv-wl-tab-pill {
@@ -1868,9 +1868,9 @@ html, body {
     font-size: 13px !important;
     border-radius: 20px !important;
     font-weight: 600 !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    color: #9db2c6 !important;
+    background: var(--panel-elev) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted) !important;
     -webkit-tap-highlight-color: transparent !important;
   }
 
@@ -1887,15 +1887,15 @@ html, body {
     height: 28px !important;
     font-size: 16px !important;
     border-radius: 50% !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px dashed rgba(255, 255, 255, 0.2) !important;
-    color: #9db2c6 !important;
+    background: var(--panel-elev) !important;
+    border: 1px dashed var(--border) !important;
+    color: var(--text-muted) !important;
   }
 
   .tv-wl-sub-header {
     padding: 10px 16px !important;
-    background: #131722 !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: var(--bg) !important;
+    border-bottom: 1px solid var(--border) !important;
     min-height: 48px !important;
     display: flex !important;
     align-items: center !important;
@@ -1905,13 +1905,13 @@ html, body {
   .tv-wl-sub-title {
     font-size: 15px !important;
     font-weight: 700 !important;
-    color: #f0f3fa !important;
+    color: var(--text-bright) !important;
     letter-spacing: -0.2px !important;
   }
 
   .tv-wl-sub-count {
     font-size: 12px !important;
-    color: #787b86 !important;
+    color: var(--text-muted) !important;
     font-weight: 500 !important;
     margin-left: 6px !important;
   }
@@ -1926,9 +1926,9 @@ html, body {
     width: 32px !important;
     height: 32px !important;
     border-radius: 8px !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    color: #f0f3fa !important;
+    background: var(--panel-elev) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-bright) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -1955,13 +1955,13 @@ html, body {
     justify-content: center !important;
     font-size: 14px !important;
     font-weight: 700 !important;
-    color: #f0f3fa !important;
-    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--text-bright) !important;
+    background: var(--panel-elev) !important;
     border-radius: 50% !important;
     width: 30px !important;
     height: 30px !important;
     cursor: pointer !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid var(--border) !important;
   }
 
   /* ─── Watchlist table columns on Mobile: HIDE TABLE HEADER COMPLETELY (TradingView Benchmark) ─── */
@@ -1978,7 +1978,7 @@ html, body {
     box-sizing: border-box !important;
     padding: 12px 16px !important;
     min-height: 58px !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
     background: transparent !important;
     cursor: pointer !important;
     -webkit-tap-highlight-color: rgba(41, 98, 255, 0.08) !important;
@@ -1987,7 +1987,7 @@ html, body {
   }
 
   .tv-wl-row:active {
-    background: rgba(255, 255, 255, 0.05) !important;
+    background: var(--panel-hover) !important;
   }
 
   .tv-wl-row.selected {
@@ -2036,7 +2036,7 @@ html, body {
   .tv-sym-name {
     font-size: 15px !important;
     font-weight: 700 !important;
-    color: #f0f3fa !important;
+    color: var(--text-bright) !important;
     letter-spacing: -0.2px !important;
     display: flex !important;
     align-items: center !important;
@@ -2046,7 +2046,7 @@ html, body {
 
   .tv-sym-dash {
     display: inline-block !important;
-    color: #787b86 !important;
+    color: var(--text-muted) !important;
     font-weight: 400 !important;
     margin-left: 2px !important;
   }
@@ -2054,7 +2054,7 @@ html, body {
   .tv-sym-desc {
     font-size: 12px !important;
     font-weight: 400 !important;
-    color: #787b86 !important;
+    color: var(--text-muted) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -2078,7 +2078,7 @@ html, body {
     font-weight: 700 !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif !important;
     font-variant-numeric: tabular-nums !important;
-    color: #f0f3fa !important;
+    color: var(--text-bright) !important;
     letter-spacing: -0.2px !important;
     line-height: 1.25 !important;
     text-align: right !important;
@@ -2152,14 +2152,14 @@ html, body {
     width: 100vw !important;
     height: 56px !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    background: #131722 !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: var(--topbar-bg) !important;
+    border-top: 1px solid var(--border) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: space-around !important;
     z-index: 100000 !important;
     box-sizing: border-box !important;
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.45) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25) !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
   }
@@ -2172,7 +2172,7 @@ html, body {
     gap: 4px !important;
     background: transparent !important;
     border: none !important;
-    color: #787b86 !important;
+    color: var(--text-muted) !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     padding: 4px 6px !important;
@@ -2185,11 +2185,11 @@ html, body {
   }
 
   .tv-mob-nav-btn:hover {
-    color: #f0f3fa !important;
+    color: var(--text-bright) !important;
   }
 
   .tv-mob-nav-btn:active {
-    background: rgba(255, 255, 255, 0.04) !important;
+    background: var(--panel-hover) !important;
   }
 
   .tv-mob-nav-btn.active {
@@ -2847,42 +2847,94 @@ html, body {
 
 /* ─── LIGHT THEME EXCLUSIVE REFINEMENTS & CONTRAST UPGRADE ─── */
 [data-theme="light"] .tv-topbar {
-  background: #ffffff;
-  border-bottom: 1px solid #e0e3eb;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-top-btn {
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-top-btn:hover {
+  background: #f0f3fa !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-top-btn-label {
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-top-sep {
+  background: #e0e3eb !important;
 }
 
 [data-theme="light"] .tv-sym-badge {
-  background: #f0f3fa;
-  border: 1px solid #e0e3eb;
-  color: #131722;
+  background: #f0f3fa !important;
+  border: 1px solid #e0e3eb !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-tf-btn {
+  color: #5b6472 !important;
+}
+
+[data-theme="light"] .tv-tf-btn:hover {
+  background: #f0f3fa !important;
+  color: #131722 !important;
 }
 
 [data-theme="light"] .tv-tf-btn.active {
-  color: #2962ff;
-  background: rgba(41, 98, 255, 0.12);
+  color: #2962ff !important;
+  background: rgba(41, 98, 255, 0.12) !important;
 }
 
-[data-theme="light"] .tv-top-btn:hover,
-[data-theme="light"] .tv-tf-btn:hover {
-  background: #f0f3fa;
-  color: #131722;
+/* Right Sidebar & Panels */
+[data-theme="light"] .tv-right-sidebar {
+  background: #ffffff !important;
+  border-left: 1px solid #e0e3eb !important;
+  border-bottom-color: #e0e3eb !important;
 }
 
+[data-theme="light"] .tv-right-content {
+  background: #ffffff !important;
+  border-right: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-vertical-rail {
+  background: #f8f9fd !important;
+  border-left: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-v-icon {
+  color: #787b86 !important;
+}
+
+[data-theme="light"] .tv-v-icon:hover {
+  background: #eef1f8 !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-v-icon.active {
+  background: #e8ecf8 !important;
+  color: #2962ff !important;
+}
+
+/* Watchlist Header & Tabs */
 [data-theme="light"] .tv-wl-horizontal-bar {
-  background: #ffffff;
-  border-bottom: 1px solid #e0e3eb;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e0e3eb !important;
 }
 
 [data-theme="light"] .tv-wl-tab-pill {
-  background: #f0f3fa;
-  border: 1px solid #e0e3eb;
-  color: #5b6472;
+  background: #f0f3fa !important;
+  border: 1px solid #e0e3eb !important;
+  color: #5b6472 !important;
 }
 
 [data-theme="light"] .tv-wl-tab-pill:hover {
-  background: #e4e7ee;
-  color: #131722;
-  border-color: #d1d4dc;
+  background: #e4e7ee !important;
+  color: #131722 !important;
+  border-color: #d1d4dc !important;
 }
 
 [data-theme="light"] .tv-wl-tab-pill.active {
@@ -2896,56 +2948,120 @@ html, body {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
+[data-theme="light"] .tv-wl-tab-add-btn {
+  background: #f0f3fa !important;
+  border: 1px dashed #d1d4dc !important;
+  color: #5b6472 !important;
+}
+
+[data-theme="light"] .tv-wl-tab-add-btn:hover {
+  background: #e4e7ee !important;
+  color: #131722 !important;
+}
+
 [data-theme="light"] .tv-wl-sub-header {
-  background: #ffffff;
-  border-bottom: 1px solid #edf0f7;
+  background: #ffffff !important;
+  border-bottom: 1px solid #edf0f7 !important;
+}
+
+[data-theme="light"] .tv-wl-sub-title {
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-wl-sub-count {
+  color: #787b86 !important;
+}
+
+[data-theme="light"] .tv-wl-act-btn {
+  background: #f0f3fa !important;
+  border: 1px solid #e0e3eb !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-wl-act-btn:hover {
+  background: #e4e7ee !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-mob-close-drawer-btn {
+  background: #f0f3fa !important;
+  border: 1px solid #e0e3eb !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-mob-close-drawer-btn:hover {
+  background: #e4e7ee !important;
+  color: #131722 !important;
 }
 
 [data-theme="light"] .tv-wl-cols {
-  background: #f8f9fd;
-  border-bottom: 1px solid #e0e3eb;
-  color: #6a7182;
+  background: #f8f9fd !important;
+  border-bottom: 1px solid #e0e3eb !important;
+  color: #6a7182 !important;
 }
 
 [data-theme="light"] .tv-wl-body {
-  background: #ffffff;
+  background: #ffffff !important;
 }
 
+/* Watchlist Rows & Text */
 [data-theme="light"] .tv-wl-row {
-  border-bottom: 1px solid #f2f4f8;
+  border-bottom: 1px solid #f2f4f8 !important;
+  background: transparent !important;
 }
 
 [data-theme="light"] .tv-wl-row:hover {
-  background: #f4f6fa;
+  background: #f8f9fd !important;
+}
+
+[data-theme="light"] .tv-wl-row:active {
+  background: #f0f3fa !important;
 }
 
 [data-theme="light"] .tv-wl-row.selected {
-  background: #edf1fa;
-}
-
-[data-theme="light"] .tv-wl-cell-last {
-  color: #131722;
+  background: #edf1fa !important;
 }
 
 [data-theme="light"] .tv-sym-name {
-  color: #131722;
+  color: #131722 !important;
 }
 
-[data-theme="light"] .tv-right-content {
-  background: #ffffff;
-  border-right: 1px solid #e0e3eb;
+[data-theme="light"] .tv-sym-dash {
+  color: #787b86 !important;
 }
 
-[data-theme="light"] .tv-vertical-rail {
-  background: #f8f9fd;
-  border-left: 1px solid #e0e3eb;
+[data-theme="light"] .tv-sym-desc {
+  color: #787b86 !important;
 }
 
-[data-theme="light"] .tv-v-icon.active {
-  background: #e8ecf8;
-  color: #2962ff;
+[data-theme="light"] .tv-wl-cell-last {
+  color: #131722 !important;
 }
 
+/* Mobile Bottom Navigation Bar in Light Theme */
+[data-theme="light"] .tv-mobile-nav {
+  background: #ffffff !important;
+  border-top: 1px solid #e0e3eb !important;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .tv-mob-nav-btn {
+  color: #787b86 !important;
+}
+
+[data-theme="light"] .tv-mob-nav-btn:hover {
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-mob-nav-btn:active {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .tv-mob-nav-btn.active {
+  color: #2962ff !important;
+}
+
+/* OpenAlgo Chart Widget Statusline */
 [data-theme="light"] .oac-widget .oac-statusline__sym {
   color: #131722 !important;
 }
@@ -2954,33 +3070,99 @@ html, body {
   color: #131722 !important;
 }
 
+/* Search Modal */
 [data-theme="light"] .tv-search-modal-content {
-  background: #ffffff;
-  border: 1px solid #e0e3eb;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+  background: #ffffff !important;
+  border: 1px solid #e0e3eb !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15) !important;
 }
 
 [data-theme="light"] .tv-search-box {
-  background: #f0f3fa;
-  border-bottom: 1px solid #e0e3eb;
+  background: #f0f3fa !important;
+  border-bottom: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-search-header {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e0e3eb !important;
+  color: #131722 !important;
 }
 
 [data-theme="light"] .tv-search-input {
-  color: #131722;
+  color: #131722 !important;
+  background: transparent !important;
+}
+
+[data-theme="light"] .tv-search-tabs {
+  background: #f8f9fd !important;
+  border-bottom: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-st-btn {
+  background: #ffffff !important;
+  border: 1px solid #e0e3eb !important;
+  color: #5b6472 !important;
+}
+
+[data-theme="light"] .tv-st-btn:hover {
+  border-color: #2962ff !important;
+  color: #2962ff !important;
+}
+
+[data-theme="light"] .tv-st-btn.active {
+  background: #2962ff !important;
+  border-color: #2962ff !important;
+  color: #ffffff !important;
 }
 
 [data-theme="light"] .tv-search-item {
-  border-bottom: 1px solid #f2f4f8;
+  border-bottom: 1px solid #f2f4f8 !important;
 }
 
 [data-theme="light"] .tv-search-item:hover {
-  background: #f4f6fa;
+  background: #f4f6fa !important;
 }
 
 [data-theme="light"] .tv-search-item .tv-sym-badge {
-  background: #f0f3fa;
-  border: 1px solid #e0e3eb;
-  color: #131722;
+  background: #f0f3fa !important;
+  border: 1px solid #e0e3eb !important;
+  color: #131722 !important;
+}
+
+/* Alert Modal */
+[data-theme="light"] .tv-alert-modal {
+  background: #ffffff !important;
+  border: 1px solid #e0e3eb !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .tv-alert-header {
+  background: #f8f9fd !important;
+  border-bottom: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] #alert-modal-title {
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-alert-footer {
+  background: #f8f9fd !important;
+  border-top: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-input-field {
+  background: #f8f9fd !important;
+  border: 1px solid #e0e3eb !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-input-field:focus {
+  border-color: #2962ff !important;
+  background: #ffffff !important;
+}
+
+[data-theme="light"] .tv-input-label {
+  color: #5b6472 !important;
 }
 
 

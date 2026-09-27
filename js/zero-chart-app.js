@@ -4007,5 +4007,5 @@ class ZeroChartApp {
 
 // Bootstrap on DOM ready
 window.addEventListener('DOMContentLoaded', () => {
-  new ZeroChartApp();
+  window.zeroChartApp = new ZeroChartApp();
 });
