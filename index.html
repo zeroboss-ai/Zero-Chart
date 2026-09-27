@@ -243,6 +243,12 @@
           <span>Delete Indicator</span>
         </button>
       </div>
+
+      <!-- Floating Draw Toolbar Show/Hide Toggle Button on Chart Canvas -->
+      <button class="tv-draw-toggle-btn" id="btn-toggle-drawing-toolbar" title="Toggle Drawing Tools">
+        <svg class="icon-pen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586"/></svg>
+        <svg class="icon-close" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
     </main>
 
     <!-- ─── 3. RIGHT WATCHLIST & TOOL PANELS ─── -->
@@ -413,7 +419,7 @@
 
       </div>
 
-      <!-- ─── FAR RIGHT 12-ICON VERTICAL RAIL ─── -->
+      <!-- ─── FAR RIGHT VERTICAL RAIL (ONLY WATCHLIST, ALERTS, NEWS, CALENDAR) ─── -->
       <div class="tv-vertical-rail">
         <button class="tv-v-icon active" data-tab="watchlist" title="Watchlist and details">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -424,29 +430,8 @@
         <button class="tv-v-icon" data-tab="news" title="News headlines">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m4 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 8h6m-6 4h6m-6 4h4"/></svg>
         </button>
-        <button class="tv-v-icon" data-tab="datawindow" title="Data window">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-        </button>
-        <button class="tv-v-icon" data-tab="hotlists" title="Hotlists & Market Movers">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-        </button>
         <button class="tv-v-icon" data-tab="calendar" title="Economic calendar">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        </button>
-        <button class="tv-v-icon" data-tab="ideas" title="My ideas & Community">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-        </button>
-        <button class="tv-v-icon" data-tab="chat" title="Public & Private chats">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        </button>
-        <button class="tv-v-icon" data-tab="notifications" title="Notifications">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
-        </button>
-        <button class="tv-v-icon" data-tab="trade" title="Order Panel / Trading Ticket">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-        </button>
-        <button class="tv-v-icon" data-tab="objects" title="Object Tree & Layers (Alt+O)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </button>
       </div>
     </aside>
@@ -660,18 +645,18 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span>Alerts</span>
       </button>
-      <button class="tv-mob-nav-btn" id="mob-nav-draw" data-action="draw">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586"/></svg>
-        <span>Draw</span>
+      <button class="tv-mob-nav-btn" id="mob-nav-news" data-tab="news">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m4 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 8h6m-6 4h6m-6 4h4"/></svg>
+        <span>News</span>
       </button>
-      <button class="tv-mob-nav-btn" id="mob-nav-search" data-action="search">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <span>Search</span>
+      <button class="tv-mob-nav-btn" id="mob-nav-calendar" data-tab="calendar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span>Calendar</span>
       </button>
     </nav>
 
   </div>
 
-  <script type="module" src="js/zero-chart-app.js?v=2.5.0"></script>
+  <script type="module" src="js/zero-chart-app.js?v=2.6.0"></script>
 </body>
 </html>

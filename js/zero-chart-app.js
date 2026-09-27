@@ -745,6 +745,7 @@ class ZeroChartApp {
       chartType: pane.chartType,
       theme: chartTheme,
       topbar: false, // Unified topbar managed by Zero Chart
+      mobile: false, // Unified mobile navigation managed by Zero Chart
       statusline: true,
       rail: paneIndex === 0 ? { favorites: this.favoriteTools } : false,
       legendOffset: { top: legTop, left: legLeft },
@@ -3157,16 +3158,41 @@ class ZeroChartApp {
     }).join('');
   }
 
+  toggleDrawingToolbar(forceOpen = null) {
+    const rail = document.querySelector('.oac-rail');
+    const stage = document.getElementById('tv-stage');
+    const drawBtn = document.getElementById('btn-toggle-drawing-toolbar');
+    const isMobile = window.innerWidth <= 768;
+
+    if (isMobile) {
+      if (!rail) return;
+      const willBeVisible = forceOpen !== null ? forceOpen : !rail.classList.contains('mobile-visible');
+      rail.classList.toggle('mobile-visible', willBeVisible);
+      stage?.classList.toggle('draw-rail-open', willBeVisible);
+      drawBtn?.classList.toggle('is-active', willBeVisible);
+      if (willBeVisible) {
+        this.pushHistoryState({ view: 'draw' });
+      }
+    } else {
+      if (!rail) return;
+      const isHidden = stage?.classList.contains('drawing-rail-hidden');
+      const willHide = forceOpen !== null ? !forceOpen : !isHidden;
+      stage?.classList.toggle('drawing-rail-hidden', willHide);
+      drawBtn?.classList.toggle('is-active', !willHide);
+      window.dispatchEvent(new Event('resize'));
+    }
+  }
+
   // ─── MOBILE BOTTOM NAV & SLIDE-IN DRAWERS ───
   initMobileUI() {
     const mobNavChart = document.getElementById('mob-nav-chart');
     const mobNavWatchlist = document.getElementById('mob-nav-watchlist');
     const mobNavAlerts = document.getElementById('mob-nav-alerts');
-    const mobNavDraw = document.getElementById('mob-nav-draw');
-    const mobNavSearch = document.getElementById('mob-nav-search');
+    const mobNavNews = document.getElementById('mob-nav-news');
+    const mobNavCalendar = document.getElementById('mob-nav-calendar');
+    const drawToggleBtn = document.getElementById('btn-toggle-drawing-toolbar');
     const topbarWlBtn = document.getElementById('btn-topbar-watchlist');
     const sidebar = document.querySelector('.tv-right-sidebar');
-    const rail = document.querySelector('.oac-rail');
     const mobCloseBtns = document.querySelectorAll('.tv-mob-close-drawer-btn');
 
     const updateMobNav = (activeId) => {
@@ -3207,21 +3233,24 @@ class ZeroChartApp {
       };
     }
 
-    if (mobNavDraw) {
-      mobNavDraw.onclick = () => {
-        if (rail) {
-          const isVisible = rail.classList.toggle('mobile-visible');
-          mobNavDraw.classList.toggle('active', isVisible);
-          if (isVisible && window.innerWidth <= 768) {
-            this.pushHistoryState({ view: 'draw' });
-          }
-        }
+    if (mobNavNews) {
+      mobNavNews.onclick = () => {
+        this.openMobileDrawer('news', true);
+        updateMobNav('mob-nav-news');
       };
     }
 
-    if (mobNavSearch) {
-      mobNavSearch.onclick = () => {
-        document.getElementById('btn-open-search')?.click();
+    if (mobNavCalendar) {
+      mobNavCalendar.onclick = () => {
+        this.openMobileDrawer('calendar', true);
+        updateMobNav('mob-nav-calendar');
+      };
+    }
+
+    if (drawToggleBtn) {
+      drawToggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.toggleDrawingToolbar();
       };
     }
 
@@ -3319,8 +3348,8 @@ class ZeroChartApp {
     const rail = document.querySelector('.oac-rail');
     if (rail?.classList.contains('mobile-visible')) {
       rail.classList.remove('mobile-visible');
-      const mobNavDraw = document.getElementById('mob-nav-draw');
-      if (mobNavDraw) mobNavDraw.classList.remove('active');
+      document.getElementById('tv-stage')?.classList.remove('draw-rail-open');
+      document.getElementById('btn-toggle-drawing-toolbar')?.classList.remove('is-active');
       return;
     }
 
@@ -3331,7 +3360,7 @@ class ZeroChartApp {
       const activeBtn = document.querySelector('.tv-mob-nav-btn.active');
       const activeTab = activeBtn?.dataset?.tab;
 
-      // If user is on Chart, Alerts, or any non-watchlist view:
+      // If user is on Chart, Alerts, News, Calendar, or any non-watchlist view:
       if (!isDrawerOpen || activeTab !== 'watchlist') {
         // Return to Watchlist landing page
         this.openMobileDrawer('watchlist', false);
@@ -3353,6 +3382,14 @@ class ZeroChartApp {
     const sidebar = document.querySelector('.tv-right-sidebar');
     const rightPanel = document.getElementById('right-panel');
     const tabPanes = document.querySelectorAll('.tv-right-content .tv-tab-pane');
+
+    // Auto-close mobile drawing rail if open
+    const rail = document.querySelector('.oac-rail');
+    if (rail?.classList.contains('mobile-visible')) {
+      rail.classList.remove('mobile-visible');
+      document.getElementById('tv-stage')?.classList.remove('draw-rail-open');
+      document.getElementById('btn-toggle-drawing-toolbar')?.classList.remove('is-active');
+    }
 
     document.body.classList.add('mobile-drawer-open');
 
@@ -3380,6 +3417,18 @@ class ZeroChartApp {
       this.currentViewState = 'alerts';
       if (pushState && window.innerWidth <= 768) {
         this.pushHistoryState({ view: 'alerts' });
+      }
+    } else if (tabName === 'news') {
+      this.loadMarketNews();
+      this.currentViewState = 'news';
+      if (pushState && window.innerWidth <= 768) {
+        this.pushHistoryState({ view: 'news' });
+      }
+    } else if (tabName === 'calendar') {
+      this.loadEconomicCalendar();
+      this.currentViewState = 'calendar';
+      if (pushState && window.innerWidth <= 768) {
+        this.pushHistoryState({ view: 'calendar' });
       }
     }
   }

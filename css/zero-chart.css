@@ -1775,6 +1775,13 @@ html, body {
     display: none !important;
   }
 
+  /* Hide library internal mobile chrome in favor of Zero Chart custom mobile navigation */
+  .oac-mobile,
+  .oac-mobile__bar,
+  .oac-mobile__footer {
+    display: none !important;
+  }
+
   /* ─── Left Drawing Rail on Mobile (Floats over canvas when toggled) ─── */
   .oac-rail {
     position: absolute !important;
@@ -3490,6 +3497,116 @@ html, body {
   background: #f1f5f9;
   color: #475569;
 }
+
+/* ─── Floating Show/Hide Drawing Toolbar Button on Chart ─── */
+.tv-draw-toggle-btn {
+  position: absolute;
+  left: 6px;
+  bottom: 8px;
+  z-index: 85;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-bg, #1e222d);
+  color: var(--text-muted, #787b86);
+  border: 1px solid var(--border, #2a2e39);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.16s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tv-draw-toggle-btn:hover {
+  color: var(--accent, #2962ff);
+  border-color: var(--accent, #2962ff);
+  background: var(--panel-hover, rgba(41, 98, 255, 0.08));
+}
+
+.tv-draw-toggle-btn .icon-pen {
+  display: block;
+}
+
+.tv-draw-toggle-btn .icon-close {
+  display: none;
+}
+
+.tv-draw-toggle-btn.is-active {
+  color: #ffffff;
+  background: #2962ff;
+  border-color: #2962ff;
+  box-shadow: 0 0 10px rgba(41, 98, 255, 0.4);
+}
+
+.tv-draw-toggle-btn.is-active:hover {
+  background: #1e53e5;
+  border-color: #1e53e5;
+}
+
+/* Light Theme for Draw Toggle Button */
+[data-theme="light"] .tv-draw-toggle-btn {
+  background: #ffffff;
+  color: #50535e;
+  border-color: #e0e3eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .tv-draw-toggle-btn:hover {
+  color: #2962ff;
+  border-color: #2962ff;
+  background: rgba(41, 98, 255, 0.06);
+}
+
+[data-theme="light"] .tv-draw-toggle-btn.is-active {
+  background: #2962ff;
+  color: #ffffff;
+  border-color: #2962ff;
+}
+
+/* Desktop Collapse Mode */
+@media (min-width: 769px) {
+  .tv-stage.drawing-rail-hidden .oac-rail {
+    display: none !important;
+  }
+}
+
+/* Mobile: Floating button over chart */
+@media (max-width: 768px) {
+  /* Hide draw button when drawer panels (Watchlist/News/Calendar/Alerts) are open */
+  body.mobile-drawer-open .tv-draw-toggle-btn {
+    display: none !important;
+  }
+
+  .tv-draw-toggle-btn {
+    left: 8px;
+    bottom: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    z-index: 1000;
+  }
+
+  /* When rail is open on mobile */
+  .tv-stage.draw-rail-open .tv-draw-toggle-btn,
+  .oac-rail.mobile-visible ~ .tv-draw-toggle-btn {
+    left: 48px;
+    bottom: 12px;
+  }
+
+  .tv-stage.draw-rail-open .tv-draw-toggle-btn .icon-pen,
+  .oac-rail.mobile-visible ~ .tv-draw-toggle-btn .icon-pen {
+    display: none;
+  }
+
+  .tv-stage.draw-rail-open .tv-draw-toggle-btn .icon-close,
+  .oac-rail.mobile-visible ~ .tv-draw-toggle-btn .icon-close {
+    display: block;
+  }
+}
+
 
 
 
