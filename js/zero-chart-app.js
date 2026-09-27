@@ -1423,14 +1423,20 @@ class ZeroChartApp {
 
     this.broker.onLtp(inst.symbol, newPrice);
 
-    // Dispatch live tick directly to chart widget feed for in-place candle updates (skip if active pane is in replay mode for this instrument)
-    if (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol) {
+    // Dispatch live tick directly to chart widget feed for in-place candle updates
+    // SKIP for Binance-fed symbols: the Binance kline WebSocket already handles chart candle updates
+    // through the widget's own feed adapter. Dispatching here would create a competing bar state
+    // causing saw-tooth price oscillation (real ↔ stale alternation).
+    const isBinanceFed = inst.feedType === 'binance';
+    if (!isBinanceFed && (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol)) {
       if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
         this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
       }
     }
 
     // Direct in-place primary series update on all active panes displaying this instrument
+    // SKIP for Binance-fed symbols: the kline WS feed already updates candles via the widget feed adapter.
+    if (!isBinanceFed) {
     this.panes.forEach((p) => {
       if (this.isReplayMode && p.id === this.activePaneIndex) return;
       const paneSym = (p.instrument?.symbol || '').toUpperCase().trim();
@@ -1476,6 +1482,7 @@ class ZeroChartApp {
         } catch (_) {}
       }
     });
+    } // end if (!isBinanceFed)
 
     // Update watchlist row cells
     const lastEl = document.getElementById(`wl-last-${cleanId}`);
