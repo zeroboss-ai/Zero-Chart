@@ -2963,9 +2963,61 @@ class ZeroChartApp {
           tabPanes.forEach((p) => (p.style.display = 'none'));
           const targetPane = document.getElementById(`panel-${target}`);
           if (targetPane) targetPane.style.display = 'flex';
+          if (target === 'calendar') this.loadEconomicCalendar();
+          if (target === 'news') this.loadMarketNews();
         }
       };
     });
+
+    // Calendar Filter Buttons
+    const calFilters = document.querySelectorAll('#calendar-filter-bar .tv-cal-filter-btn');
+    calFilters.forEach((btn) => {
+      btn.onclick = () => {
+        calFilters.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.loadEconomicCalendar(btn.dataset.filter || 'all');
+      };
+    });
+
+    // Calendar Refresh
+    const btnRefCal = document.getElementById('btn-refresh-calendar');
+    if (btnRefCal) {
+      btnRefCal.onclick = () => this.loadEconomicCalendar(this._currentCalFilter || 'all', true);
+    }
+
+    // Calendar Mobile Close
+    const btnMobCloseCal = document.getElementById('btn-mob-close-calendar');
+    if (btnMobCloseCal) {
+      btnMobCloseCal.onclick = () => this.closeSidebarDrawer();
+    }
+
+    // News Filter Buttons
+    const newsFilters = document.querySelectorAll('#news-filter-bar .tv-news-filter-btn');
+    newsFilters.forEach((btn) => {
+      btn.onclick = () => {
+        newsFilters.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.loadMarketNews(btn.dataset.cat || 'all');
+      };
+    });
+
+    // News Refresh
+    const btnRefNews = document.getElementById('btn-refresh-news');
+    if (btnRefNews) {
+      btnRefNews.onclick = () => this.loadMarketNews(this._currentNewsCategory || 'all', true);
+    }
+
+    // News Mobile Close
+    const btnMobCloseNews = document.getElementById('btn-mob-close-news');
+    if (btnMobCloseNews) {
+      btnMobCloseNews.onclick = () => this.closeSidebarDrawer();
+    }
+  }
+
+  closeSidebarDrawer() {
+    const sidebar = document.querySelector('.tv-right-sidebar');
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    document.querySelectorAll('.tv-mob-nav-btn').forEach((b) => b.classList.toggle('active', b.id === 'mob-nav-chart'));
   }
 
   openSidebarTab(tabName) {
@@ -2986,6 +3038,123 @@ class ZeroChartApp {
     tabPanes.forEach((p) => (p.style.display = 'none'));
     const targetPane = document.getElementById(`panel-${tabName}`);
     if (targetPane) targetPane.style.display = 'flex';
+    if (tabName === 'calendar') this.loadEconomicCalendar();
+    if (tabName === 'news') this.loadMarketNews();
+  }
+
+  // ─── ECONOMIC CALENDAR & MARKET NEWS IMPLEMENTATION ───
+  async loadEconomicCalendar(filter = 'all', force = false) {
+    this._currentCalFilter = filter;
+    const container = document.getElementById('calendar-events-list');
+    if (!container) return;
+
+    if (!this._cachedCalEvents || force) {
+      container.innerHTML = '<div class="tv-cal-loading">Fetching economic events...</div>';
+      try {
+        const resp = await fetch('/api/market/calendar');
+        if (resp.ok) {
+          const json = await resp.json();
+          this._cachedCalEvents = json.events || [];
+        }
+      } catch (err) {
+        console.warn('[Calendar] Fetch error:', err);
+      }
+    }
+
+    const events = this._cachedCalEvents || [];
+    let filtered = events;
+    if (filter === 'high') {
+      filtered = events.filter((e) => e.impact === 'high');
+    } else if (filter === 'US' || filter === 'IN') {
+      filtered = events.filter((e) => e.country === filter);
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="tv-cal-empty">No events matching this filter.</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map((ev) => {
+      const impactClass = ev.impact === 'high' ? 'high' : (ev.impact === 'medium' ? 'med' : 'low');
+      const impactText = ev.impact === 'high' ? 'HIGH' : (ev.impact === 'medium' ? 'MED' : 'LOW');
+      return `
+        <div class="tv-calendar-card" data-country="${ev.country}">
+          <div class="tv-cal-top">
+            <span class="tv-cal-flag-badge">${ev.flag} ${ev.country}</span>
+            <span class="tv-cal-impact tv-cal-impact--${impactClass}">${impactText}</span>
+            <span class="tv-cal-time">${ev.date} · ${ev.time}</span>
+          </div>
+          <div class="tv-cal-title">${ev.title}</div>
+          <div class="tv-cal-metrics">
+            <div class="tv-cal-metric">
+              <span class="tv-cal-metric-lbl">Actual</span>
+              <span class="tv-cal-metric-val actual">${ev.actual}</span>
+            </div>
+            <div class="tv-cal-metric">
+              <span class="tv-cal-metric-lbl">Forecast</span>
+              <span class="tv-cal-metric-val forecast">${ev.forecast}</span>
+            </div>
+            <div class="tv-cal-metric">
+              <span class="tv-cal-metric-lbl">Previous</span>
+              <span class="tv-cal-metric-val prev">${ev.previous}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async loadMarketNews(category = 'all', force = false) {
+    this._currentNewsCategory = category;
+    const container = document.getElementById('news-articles-list');
+    if (!container) return;
+
+    if (!this._cachedNews) this._cachedNews = {};
+    if (!this._cachedNews[category] || force) {
+      container.innerHTML = '<div class="tv-news-loading">Fetching real-time headlines...</div>';
+      try {
+        const resp = await fetch(`/api/market/news?category=${category}`);
+        if (resp.ok) {
+          const json = await resp.json();
+          this._cachedNews[category] = json.news || [];
+        }
+      } catch (err) {
+        console.warn('[News] Fetch error:', err);
+      }
+    }
+
+    const newsList = this._cachedNews[category] || [];
+    if (newsList.length === 0) {
+      container.innerHTML = '<div class="tv-news-empty">No headlines available right now.</div>';
+      return;
+    }
+
+    const formatTimeAgo = (isoString) => {
+      try {
+        const diffSec = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+        if (diffSec < 60) return 'Just now';
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+        if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+        return `${Math.floor(diffSec / 86400)}d ago`;
+      } catch (_) {
+        return 'Recently';
+      }
+    };
+
+    container.innerHTML = newsList.map((item) => {
+      const sentClass = item.sentiment === 'bullish' ? 'bullish' : (item.sentiment === 'bearish' ? 'bearish' : 'neutral');
+      const sentText = item.sentiment === 'bullish' ? '🟢 Bullish' : (item.sentiment === 'bearish' ? '🔴 Bearish' : '⚪ Neutral');
+      return `
+        <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="tv-news-card">
+          <div class="tv-news-card-meta">
+            <span class="tv-news-source">${item.source}</span>
+            <span class="tv-news-sentiment tv-news-sent--${sentClass}">${sentText}</span>
+            <span class="tv-news-time">${formatTimeAgo(item.publishedAt)}</span>
+          </div>
+          <div class="tv-news-title">${item.title}</div>
+        </a>
+      `;
+    }).join('');
   }
 
   // ─── MOBILE BOTTOM NAV & SLIDE-IN DRAWERS ───

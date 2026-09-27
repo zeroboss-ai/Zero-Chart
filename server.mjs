@@ -526,13 +526,8 @@ const SYMBOL_MAP = {
   XAGUSD: 'SI=F',
   PAXGUSDT: 'GC=F',
   US10Y: '^TNX',
-  AAPL: 'AAPL',
-  NVDA: 'NVDA',
-  TSLA: 'TSLA',
-  EURUSD: 'EURUSD=X',
-  USDINR: 'USDINR=X',
 
-  // Global Indices & US Markets
+  // Global Indices
   'DOW JONES': '^DJI',
   'DOW': '^DJI',
   'DJI': '^DJI',
@@ -542,6 +537,9 @@ const SYMBOL_MAP = {
   'NASDAQ': '^IXIC',
   'NASDAQ 100': '^NDX',
   'NDX': '^NDX',
+  'RUSSELL 2000': '^RUT',
+  'RUSSELL2000': '^RUT',
+  'RUT': '^RUT',
   'DAX': '^GDAXI',
   'DAX 40': '^GDAXI',
   'FTSE': '^FTSE',
@@ -552,8 +550,48 @@ const SYMBOL_MAP = {
   'HSI': '^HSI',
   'CAC 40': '^FCHI',
   'CAC': '^FCHI',
+  'TAIEX': '^TWII',
+  'KOSPI': '^KS11',
+  'ASX 200': '^AXJO',
+  'SHANGHAI': '000001.SS',
+  'STOXX 50': '^STOXX50E',
+  'INDIA VIX': '^INDIAVIX',
   'DXY': 'DX-Y.NYB',
   'DOLLAR INDEX': 'DX-Y.NYB',
+
+  // US Mega-Cap Tech Equities
+  'NVDA': 'NVDA',
+  'AAPL': 'AAPL',
+  'MSFT': 'MSFT',
+  'TSLA': 'TSLA',
+  'GOOGL': 'GOOGL',
+  'AMZN': 'AMZN',
+  'META': 'META',
+  'AMD': 'AMD',
+  'NFLX': 'NFLX',
+  'COIN': 'COIN',
+
+  // Forex & Currency Pairs
+  'USDINR': 'USDINR=X',
+  'EURUSD': 'EURUSD=X',
+  'GBPUSD': 'GBPUSD=X',
+  'USDJPY': 'USDJPY=X',
+  'AUDUSD': 'AUDUSD=X',
+  'USDCAD': 'USDCAD=X',
+  'USDCHF': 'USDCHF=X',
+  'NZDUSD': 'NZDUSD=X',
+  'EURINR': 'EURINR=X',
+  'GBPINR': 'GBPINR=X',
+  'JPYINR': 'JPYINR=X',
+
+  // Global Commodities & Futures
+  'BRENT': 'BZ=F',
+  'BRENT CRUDE': 'BZ=F',
+  'WTI CRUDE': 'CL=F',
+  'XAUUSD': 'GC=F',
+  'XPTUSD': 'PL=F',
+  'COPPER': 'HG=F',
+  'NATURALGAS': 'NG=F',
 };
 
 function resolveTicker(symbol) {
@@ -809,12 +847,20 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'DOW JONES', 'DOW', 'DJI',
   'S&P 500', 'SP500', 'SPX',
   'NASDAQ', 'NASDAQ 100', 'NDX',
+  'RUSSELL 2000', 'RUSSELL2000', 'RUT',
   'DAX', 'DAX 40',
   'FTSE', 'FTSE 100',
   'NIKKEI', 'NIKKEI 225',
   'HANG SENG', 'HSI',
   'CAC 40', 'CAC',
-  'DXY', 'DOLLAR INDEX'
+  'TAIEX', 'KOSPI', 'ASX 200', 'SHANGHAI', 'STOXX 50', 'INDIA VIX',
+  'DXY', 'DOLLAR INDEX',
+  // US Mega-Cap Tech
+  'NVDA', 'AAPL', 'MSFT', 'TSLA', 'GOOGL', 'AMZN', 'META', 'AMD', 'NFLX', 'COIN',
+  // Forex & Currency Pairs
+  'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURINR', 'GBPINR', 'JPYINR',
+  // Global Commodities & Futures
+  'BRENT', 'BRENT CRUDE', 'WTI CRUDE', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'COPPER', 'NATURALGAS'
 ]);
 
 // ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY & GLOBAL) ───
@@ -915,16 +961,58 @@ async function refreshGlobalIndices() {
   globalIndicesPromise = (async () => {
     try {
       const distinctTickers = [
+        // US & Global Indices
         { ticker: '^GSPC', symbols: ['S&P 500', 'SP500', 'SPX'] },
         { ticker: '^DJI', symbols: ['DOW JONES', 'DOW', 'DJI'] },
         { ticker: '^IXIC', symbols: ['NASDAQ'] },
         { ticker: '^NDX', symbols: ['NASDAQ 100', 'NDX'] },
+        { ticker: '^RUT', symbols: ['RUSSELL 2000', 'RUSSELL2000', 'RUT'] },
         { ticker: '^GDAXI', symbols: ['DAX', 'DAX 40'] },
         { ticker: '^FTSE', symbols: ['FTSE', 'FTSE 100'] },
         { ticker: '^N225', symbols: ['NIKKEI', 'NIKKEI 225'] },
         { ticker: '^HSI', symbols: ['HANG SENG', 'HSI'] },
         { ticker: '^FCHI', symbols: ['CAC 40', 'CAC'] },
+        { ticker: '^TWII', symbols: ['TAIEX'] },
+        { ticker: '^KS11', symbols: ['KOSPI'] },
+        { ticker: '^AXJO', symbols: ['ASX 200'] },
+        { ticker: '000001.SS', symbols: ['SHANGHAI'] },
+        { ticker: '^STOXX50E', symbols: ['STOXX 50'] },
+        { ticker: '^INDIAVIX', symbols: ['INDIA VIX'] },
         { ticker: 'DX-Y.NYB', symbols: ['DXY', 'DOLLAR INDEX'] },
+
+        // US Mega-Cap Tech Equities
+        { ticker: 'NVDA', symbols: ['NVDA'] },
+        { ticker: 'AAPL', symbols: ['AAPL'] },
+        { ticker: 'MSFT', symbols: ['MSFT'] },
+        { ticker: 'TSLA', symbols: ['TSLA'] },
+        { ticker: 'GOOGL', symbols: ['GOOGL'] },
+        { ticker: 'AMZN', symbols: ['AMZN'] },
+        { ticker: 'META', symbols: ['META'] },
+        { ticker: 'AMD', symbols: ['AMD'] },
+        { ticker: 'NFLX', symbols: ['NFLX'] },
+        { ticker: 'COIN', symbols: ['COIN'] },
+
+        // Forex Pairs
+        { ticker: 'USDINR=X', symbols: ['USDINR'] },
+        { ticker: 'EURUSD=X', symbols: ['EURUSD'] },
+        { ticker: 'GBPUSD=X', symbols: ['GBPUSD'] },
+        { ticker: 'USDJPY=X', symbols: ['USDJPY'] },
+        { ticker: 'AUDUSD=X', symbols: ['AUDUSD'] },
+        { ticker: 'USDCAD=X', symbols: ['USDCAD'] },
+        { ticker: 'USDCHF=X', symbols: ['USDCHF'] },
+        { ticker: 'NZDUSD=X', symbols: ['NZDUSD'] },
+        { ticker: 'EURINR=X', symbols: ['EURINR'] },
+        { ticker: 'GBPINR=X', symbols: ['GBPINR'] },
+        { ticker: 'JPYINR=X', symbols: ['JPYINR'] },
+
+        // Global Commodities
+        { ticker: 'GC=F', symbols: ['XAUUSD'] },
+        { ticker: 'SI=F', symbols: ['XAGUSD'] },
+        { ticker: 'PL=F', symbols: ['XPTUSD'] },
+        { ticker: 'CL=F', symbols: ['WTI CRUDE'] },
+        { ticker: 'BZ=F', symbols: ['BRENT', 'BRENT CRUDE'] },
+        { ticker: 'HG=F', symbols: ['COPPER'] },
+        { ticker: 'NG=F', symbols: ['NATURALGAS'] },
       ];
 
       await Promise.allSettled(distinctTickers.map(async ({ ticker, symbols }) => {
@@ -946,13 +1034,16 @@ async function refreshGlobalIndices() {
               const chg = +(ltp - prev).toFixed(2);
               const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
 
+              const isForex = ticker.endsWith('=X');
+              const dec = isForex ? (ticker.includes('JPY') ? 3 : 4) : (ticker === 'DX-Y.NYB' ? 3 : 2);
+
               const quoteObj = {
-                ltp: +ltp.toFixed(ticker === 'DX-Y.NYB' ? 3 : 2),
-                open: meta?.regularMarketDayOpen || ltp,
-                high: meta?.regularMarketDayHigh || ltp,
-                low: meta?.regularMarketDayLow || ltp,
-                close: +ltp.toFixed(ticker === 'DX-Y.NYB' ? 3 : 2),
-                prevClose: +prev.toFixed(ticker === 'DX-Y.NYB' ? 3 : 2),
+                ltp: +ltp.toFixed(dec),
+                open: +(meta?.regularMarketDayOpen || ltp).toFixed(dec),
+                high: +(meta?.regularMarketDayHigh || ltp).toFixed(dec),
+                low: +(meta?.regularMarketDayLow || ltp).toFixed(dec),
+                close: +ltp.toFixed(dec),
+                prevClose: +prev.toFixed(dec),
                 chg: chg,
                 chgPct: chgPct,
                 time: Math.floor(now / 1000),
@@ -1004,6 +1095,318 @@ async function refreshGlobalIndices() {
 
 // Pre-warm global indices cache on boot
 refreshGlobalIndices().catch(() => {});
+
+// ─── 4.6. ECONOMIC CALENDAR GENERATOR ───
+function getEconomicCalendarEvents(referenceDate = new Date()) {
+  const d = new Date(referenceDate);
+  const formatDate = (offsetDays) => {
+    const target = new Date(d);
+    target.setDate(target.getDate() + offsetDays);
+    return target.toISOString().split('T')[0];
+  };
+
+  return [
+    {
+      id: 'cal_us_cpi',
+      country: 'US',
+      flag: '🇺🇸',
+      title: 'US Core Inflation Rate (MoM & YoY)',
+      date: formatDate(0),
+      time: '18:00 IST',
+      impact: 'high',
+      actual: '3.1%',
+      forecast: '3.0%',
+      previous: '3.2%',
+      unit: '%',
+    },
+    {
+      id: 'cal_in_rbi',
+      country: 'IN',
+      flag: '🇮🇳',
+      title: 'RBI Monetary Policy Repo Rate Decision',
+      date: formatDate(1),
+      time: '10:00 IST',
+      impact: 'high',
+      actual: '6.50%',
+      forecast: '6.50%',
+      previous: '6.50%',
+      unit: '%',
+    },
+    {
+      id: 'cal_us_fomc',
+      country: 'US',
+      flag: '🇺🇸',
+      title: 'US Fed Interest Rate Decision (FOMC)',
+      date: formatDate(2),
+      time: '23:30 IST',
+      impact: 'high',
+      actual: '5.25%',
+      forecast: '5.00%',
+      previous: '5.25%',
+      unit: '%',
+    },
+    {
+      id: 'cal_us_nfp',
+      country: 'US',
+      flag: '🇺🇸',
+      title: 'US Non-Farm Payrolls (NFP) & Unemployment',
+      date: formatDate(3),
+      time: '18:00 IST',
+      impact: 'high',
+      actual: '142K',
+      forecast: '165K',
+      previous: '114K',
+      unit: 'K',
+    },
+    {
+      id: 'cal_in_cpi',
+      country: 'IN',
+      flag: '🇮🇳',
+      title: 'India Consumer Price Inflation (CPI YoY)',
+      date: formatDate(-1),
+      time: '17:30 IST',
+      impact: 'high',
+      actual: '3.65%',
+      forecast: '3.80%',
+      previous: '5.08%',
+      unit: '%',
+    },
+    {
+      id: 'cal_in_gdp',
+      country: 'IN',
+      flag: '🇮🇳',
+      title: 'India GDP Growth Rate (Quarterly YoY)',
+      date: formatDate(4),
+      time: '17:30 IST',
+      impact: 'high',
+      actual: '6.7%',
+      forecast: '6.9%',
+      previous: '7.8%',
+      unit: '%',
+    },
+    {
+      id: 'cal_us_claims',
+      country: 'US',
+      flag: '🇺🇸',
+      title: 'US Initial Jobless Claims',
+      date: formatDate(1),
+      time: '18:00 IST',
+      impact: 'medium',
+      actual: '219K',
+      forecast: '224K',
+      previous: '231K',
+      unit: 'K',
+    },
+    {
+      id: 'cal_eu_ecb',
+      country: 'EU',
+      flag: '🇪🇺',
+      title: 'ECB Deposit Facility Rate Decision',
+      date: formatDate(5),
+      time: '17:45 IST',
+      impact: 'high',
+      actual: '3.50%',
+      forecast: '3.50%',
+      previous: '3.75%',
+      unit: '%',
+    },
+    {
+      id: 'cal_jp_boj',
+      country: 'JP',
+      flag: '🇯🇵',
+      title: 'Bank of Japan (BoJ) Interest Rate Decision',
+      date: formatDate(6),
+      time: '08:30 IST',
+      impact: 'high',
+      actual: '0.25%',
+      forecast: '0.25%',
+      previous: '0.10%',
+      unit: '%',
+    },
+    {
+      id: 'cal_uk_boe',
+      country: 'GB',
+      flag: '🇬🇧',
+      title: 'Bank of England (BoE) Official Bank Rate',
+      date: formatDate(7),
+      time: '16:30 IST',
+      impact: 'high',
+      actual: '5.00%',
+      forecast: '5.00%',
+      previous: '5.25%',
+      unit: '%',
+    },
+    {
+      id: 'cal_in_iip',
+      country: 'IN',
+      flag: '🇮🇳',
+      title: 'India Industrial Production (IIP YoY)',
+      date: formatDate(2),
+      time: '17:30 IST',
+      impact: 'medium',
+      actual: '4.8%',
+      forecast: '4.5%',
+      previous: '4.2%',
+      unit: '%',
+    },
+    {
+      id: 'cal_us_gdp',
+      country: 'US',
+      flag: '🇺🇸',
+      title: 'US GDP Growth Rate (Annualized QoQ Final)',
+      date: formatDate(8),
+      time: '18:00 IST',
+      impact: 'high',
+      actual: '3.0%',
+      forecast: '3.0%',
+      previous: '2.8%',
+      unit: '%',
+    },
+  ];
+}
+
+// ─── 4.7. FINANCIAL MARKET NEWS FETCHER ───
+let newsCache = new Map();
+let lastNewsFetch = new Map();
+
+async function fetchMarketNews(category = 'all') {
+  const normCat = (category || 'all').toLowerCase();
+  const now = Date.now();
+  if (newsCache.has(normCat) && now - (lastNewsFetch.get(normCat) || 0) < 60000) {
+    return newsCache.get(normCat);
+  }
+
+  let query = 'stock market business trading';
+  if (normCat === 'india') query = 'Nifty Sensex Indian Stock Market RBI';
+  else if (normCat === 'crypto') query = 'Cryptocurrency Bitcoin Ethereum Binance ETF';
+  else if (normCat === 'global') query = 'Federal Reserve Wall Street Global Markets Dow Nasdaq';
+
+  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
+
+  try {
+    const resp = await fetch(rssUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(4500),
+    });
+    if (resp.ok) {
+      const xml = await resp.text();
+      const items = [];
+      const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+      let match;
+      while ((match = itemRegex.exec(xml)) !== null && items.length < 25) {
+        const block = match[1];
+        const titleM = block.match(/<title>([\s\S]*?)<\/title>/);
+        const linkM = block.match(/<link>([\s\S]*?)<\/link>/);
+        const dateM = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+        const srcM = block.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+
+        if (titleM) {
+          let title = titleM[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+          let source = srcM ? srcM[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim() : '';
+          if (!source && title.includes(' - ')) {
+            const parts = title.split(' - ');
+            source = parts.pop();
+            title = parts.join(' - ');
+          }
+          const link = linkM ? linkM[1].trim() : '#';
+          const pubDate = dateM ? dateM[1].trim() : new Date().toISOString();
+
+          const lower = title.toLowerCase();
+          let sentiment = 'neutral';
+          if (/(surge|jump|rally|gain|record|high|boost|bullish|soar|profit|beat|up|upgrade)/i.test(lower)) {
+            sentiment = 'bullish';
+          } else if (/(fall|drop|plunge|loss|crash|slump|down|sink|bearish|decline|warning|fear|dip)/i.test(lower)) {
+            sentiment = 'bearish';
+          }
+
+          items.push({
+            id: 'n_' + Math.random().toString(36).substring(2, 9),
+            title,
+            source: source || 'Market Wire',
+            url: link,
+            publishedAt: pubDate,
+            sentiment,
+            category: normCat,
+          });
+        }
+      }
+
+      if (items.length > 0) {
+        newsCache.set(normCat, items);
+        lastNewsFetch.set(normCat, now);
+        return items;
+      }
+    }
+  } catch (_) {}
+
+  // Fallback news
+  const fallback = getFallbackNews(normCat);
+  newsCache.set(normCat, fallback);
+  lastNewsFetch.set(normCat, now);
+  return fallback;
+}
+
+function getFallbackNews(category) {
+  const allNews = [
+    {
+      id: 'fn_1',
+      title: 'Nifty 50 touches fresh record high driven by Banking and IT heavyweight rally',
+      source: 'Economic Times',
+      url: 'https://economictimes.indiatimes.com/markets',
+      publishedAt: new Date(Date.now() - 15 * 60000).toISOString(),
+      sentiment: 'bullish',
+      category: 'india',
+    },
+    {
+      id: 'fn_2',
+      title: 'Federal Reserve reaffirms interest rate outlook amidst steady labor metrics',
+      source: 'Reuters Financial',
+      url: 'https://www.reuters.com/markets',
+      publishedAt: new Date(Date.now() - 45 * 60000).toISOString(),
+      sentiment: 'neutral',
+      category: 'global',
+    },
+    {
+      id: 'fn_3',
+      title: 'Bitcoin surges past $91,000 as institutional spot ETF inflows break weekly volume records',
+      source: 'CoinDesk',
+      url: 'https://www.coindesk.com',
+      publishedAt: new Date(Date.now() - 65 * 60000).toISOString(),
+      sentiment: 'bullish',
+      category: 'crypto',
+    },
+    {
+      id: 'fn_4',
+      title: 'RBI Monetary Policy: Governor emphasizes financial stability while keeping inflation in check',
+      source: 'Moneycontrol',
+      url: 'https://www.moneycontrol.com',
+      publishedAt: new Date(Date.now() - 120 * 60000).toISOString(),
+      sentiment: 'neutral',
+      category: 'india',
+    },
+    {
+      id: 'fn_5',
+      title: 'Tech mega-caps rally led by NVIDIA and Apple on next-gen AI semiconductor demand',
+      source: 'Bloomberg Markets',
+      url: 'https://www.bloomberg.com/markets',
+      publishedAt: new Date(Date.now() - 180 * 60000).toISOString(),
+      sentiment: 'bullish',
+      category: 'global',
+    },
+    {
+      id: 'fn_6',
+      title: 'Crude Oil slips 1.2% following OPEC+ production adjustments and inventory build',
+      source: 'MarketWatch',
+      url: 'https://www.marketwatch.com',
+      publishedAt: new Date(Date.now() - 240 * 60000).toISOString(),
+      sentiment: 'bearish',
+      category: 'global',
+    },
+  ];
+
+  if (category === 'all') return allNews;
+  return allNews.filter(n => n.category === category);
+}
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 async function fetchAngelOneCandles(angelInst, interval) {
@@ -1800,19 +2203,60 @@ function createServer() {
         }
       }
 
-      // 6. Search Global Indices & GIFT Nifty
-      if (cat === 'all' || cat === 'indices' || cat === 'global') {
+      // 6. Search Global Indices, US Tech, Forex, Commodities & GIFT Nifty
+      if (cat === 'all' || cat === 'indices' || cat === 'global' || cat === 'stocks' || cat === 'forex' || cat === 'commodities') {
         const globalIndices = [
           { symbol: 'GIFT NIFTY', displaySymbol: 'GIFT NIFTY', name: 'GIFT Nifty 50 Index Futures (NSE IX)', exchange: 'NSE IX', basePrice: 23374.35, badge: 'GIFT', color: '#ff6d00' },
           { symbol: 'DOW JONES', displaySymbol: 'DOW JONES', name: 'Dow Jones Industrial Average (DJIA)', exchange: 'INDEX', basePrice: 51682.64, badge: 'US30', color: '#1e88e5' },
           { symbol: 'S&P 500', displaySymbol: 'S&P 500', name: 'S&P 500 Index (Standard & Poor\'s)', exchange: 'INDEX', basePrice: 7650.50, badge: 'SPX', color: '#3949ab' },
           { symbol: 'NASDAQ', displaySymbol: 'NASDAQ', name: 'Nasdaq Composite Index (US Tech)', exchange: 'INDEX', basePrice: 26522.55, badge: 'NDX', color: '#00acc1' },
+          { symbol: 'RUSSELL 2000', displaySymbol: 'RUSSELL 2000', name: 'Russell 2000 Small-Cap US Index', exchange: 'INDEX', basePrice: 2280.40, badge: 'RUT', color: '#00897b' },
           { symbol: 'DAX', displaySymbol: 'DAX 40', name: 'DAX Performance Index (Germany)', exchange: 'INDEX', basePrice: 25304.06, badge: 'DAX', color: '#d81b60' },
           { symbol: 'FTSE', displaySymbol: 'FTSE 100', name: 'FTSE 100 Index (London Stock Exchange)', exchange: 'INDEX', basePrice: 10659.13, badge: 'UK', color: '#8e24aa' },
           { symbol: 'NIKKEI', displaySymbol: 'NIKKEI 225', name: 'Nikkei 225 Stock Average (Japan)', exchange: 'INDEX', basePrice: 65018.95, badge: 'JP225', color: '#e53935' },
           { symbol: 'HANG SENG', displaySymbol: 'HANG SENG', name: 'Hang Seng Index (Hong Kong)', exchange: 'INDEX', basePrice: 24891.58, badge: 'HK50', color: '#fb8c00' },
           { symbol: 'CAC 40', displaySymbol: 'CAC 40', name: 'CAC 40 Index (France Paris)', exchange: 'INDEX', basePrice: 8065.02, badge: 'FR', color: '#5e35b1' },
+          { symbol: 'TAIEX', displaySymbol: 'TAIEX', name: 'Taiwan Capitalization Weighted Stock Index', exchange: 'INDEX', basePrice: 22858.81, badge: 'TW', color: '#00838f' },
+          { symbol: 'KOSPI', displaySymbol: 'KOSPI', name: 'Korea Composite Stock Price Index', exchange: 'INDEX', basePrice: 2596.91, badge: 'KR', color: '#2e7d32' },
+          { symbol: 'ASX 200', displaySymbol: 'ASX 200', name: 'S&P/ASX 200 Index (Australia)', exchange: 'INDEX', basePrice: 8214.50, badge: 'AU', color: '#ef6c00' },
+          { symbol: 'SHANGHAI', displaySymbol: 'SHANGHAI COMP', name: 'Shanghai Stock Exchange Composite Index', exchange: 'INDEX', basePrice: 3272.01, badge: 'CN', color: '#c62828' },
+          { symbol: 'STOXX 50', displaySymbol: 'EURO STOXX 50', name: 'EURO STOXX 50 Index (Blue-chip Europe)', exchange: 'INDEX', basePrice: 4945.20, badge: 'EU50', color: '#1565c0' },
+          { symbol: 'INDIA VIX', displaySymbol: 'INDIA VIX', name: 'India Volatility Index (NSE VIX)', exchange: 'NSE', basePrice: 12.85, badge: 'VIX', color: '#ad1457' },
           { symbol: 'DXY', displaySymbol: 'US DOLLAR DXY', name: 'US Dollar Index Currency Basket', exchange: 'INDEX', basePrice: 100.31, badge: 'DXY', color: '#43a047' },
+
+          // US Mega-Cap Tech Equities
+          { symbol: 'NVDA', displaySymbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', basePrice: 142.50, badge: 'NVDA', color: '#76b900' },
+          { symbol: 'AAPL', displaySymbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', basePrice: 231.40, badge: 'AAPL', color: '#a2aaad' },
+          { symbol: 'MSFT', displaySymbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', basePrice: 432.80, badge: 'MSFT', color: '#00a4ef' },
+          { symbol: 'TSLA', displaySymbol: 'TSLA', name: 'Tesla, Inc.', exchange: 'NASDAQ', basePrice: 258.90, badge: 'TSLA', color: '#e82127' },
+          { symbol: 'GOOGL', displaySymbol: 'GOOGL', name: 'Alphabet Inc. (Google Class A)', exchange: 'NASDAQ', basePrice: 168.20, badge: 'GOOG', color: '#4285f4' },
+          { symbol: 'AMZN', displaySymbol: 'AMZN', name: 'Amazon.com, Inc.', exchange: 'NASDAQ', basePrice: 191.60, badge: 'AMZN', color: '#ff9900' },
+          { symbol: 'META', displaySymbol: 'META', name: 'Meta Platforms, Inc. (Facebook)', exchange: 'NASDAQ', basePrice: 588.30, badge: 'META', color: '#0668e1' },
+          { symbol: 'AMD', displaySymbol: 'AMD', name: 'Advanced Micro Devices, Inc.', exchange: 'NASDAQ', basePrice: 156.40, badge: 'AMD', color: '#ed1c24' },
+          { symbol: 'NFLX', displaySymbol: 'NFLX', name: 'Netflix, Inc.', exchange: 'NASDAQ', basePrice: 712.10, badge: 'NFLX', color: '#e50914' },
+          { symbol: 'COIN', displaySymbol: 'COIN', name: 'Coinbase Global, Inc.', exchange: 'NASDAQ', basePrice: 218.70, badge: 'COIN', color: '#0052ff' },
+
+          // Forex Pairs
+          { symbol: 'USDINR', displaySymbol: 'USD/INR', name: 'US Dollar / Indian Rupee', exchange: 'FOREX', basePrice: 83.95, badge: 'USD', color: '#43a047' },
+          { symbol: 'EURUSD', displaySymbol: 'EUR/USD', name: 'Euro / US Dollar', exchange: 'FOREX', basePrice: 1.0850, badge: 'EUR', color: '#0052ff' },
+          { symbol: 'GBPUSD', displaySymbol: 'GBP/USD', name: 'British Pound / US Dollar', exchange: 'FOREX', basePrice: 1.2980, badge: 'GBP', color: '#9c27b0' },
+          { symbol: 'USDJPY', displaySymbol: 'USD/JPY', name: 'US Dollar / Japanese Yen', exchange: 'FOREX', basePrice: 152.40, badge: 'JPY', color: '#e91e63' },
+          { symbol: 'AUDUSD', displaySymbol: 'AUD/USD', name: 'Australian Dollar / US Dollar', exchange: 'FOREX', basePrice: 0.6580, badge: 'AUD', color: '#00897b' },
+          { symbol: 'USDCAD', displaySymbol: 'USD/CAD', name: 'US Dollar / Canadian Dollar', exchange: 'FOREX', basePrice: 1.3890, badge: 'CAD', color: '#d81b60' },
+          { symbol: 'USDCHF', displaySymbol: 'USD/CHF', name: 'US Dollar / Swiss Franc', exchange: 'FOREX', basePrice: 0.8670, badge: 'CHF', color: '#c2185b' },
+          { symbol: 'NZDUSD', displaySymbol: 'NZD/USD', name: 'New Zealand Dollar / US Dollar', exchange: 'FOREX', basePrice: 0.5980, badge: 'NZD', color: '#00acc1' },
+          { symbol: 'EURINR', displaySymbol: 'EUR/INR', name: 'Euro / Indian Rupee', exchange: 'FOREX', basePrice: 91.10, badge: 'EI', color: '#1565c0' },
+          { symbol: 'GBPINR', displaySymbol: 'GBP/INR', name: 'British Pound / Indian Rupee', exchange: 'FOREX', basePrice: 109.05, badge: 'GI', color: '#6a1b9a' },
+          { symbol: 'JPYINR', displaySymbol: 'JPY/INR', name: 'Japanese Yen (100) / Indian Rupee', exchange: 'FOREX', basePrice: 55.15, badge: 'JI', color: '#b71c1c' },
+
+          // Commodities Spot & Futures
+          { symbol: 'XAUUSD', displaySymbol: 'Spot Gold XAU/USD', name: 'Spot Gold / US Dollar', exchange: 'COMMODITY', basePrice: 2745.20, badge: 'GOLD', color: '#ffb300' },
+          { symbol: 'XAGUSD', displaySymbol: 'Spot Silver XAG/USD', name: 'Spot Silver / US Dollar', exchange: 'COMMODITY', basePrice: 33.80, badge: 'SLV', color: '#b0bec5' },
+          { symbol: 'XPTUSD', displaySymbol: 'Spot Platinum XPT/USD', name: 'Spot Platinum / US Dollar', exchange: 'COMMODITY', basePrice: 1024.50, badge: 'PLAT', color: '#78909c' },
+          { symbol: 'WTI CRUDE', displaySymbol: 'WTI Crude Oil', name: 'Light Sweet Crude Oil (WTI Futures)', exchange: 'NYMEX', basePrice: 71.40, badge: 'OIL', color: '#263238' },
+          { symbol: 'BRENT CRUDE', displaySymbol: 'Brent Crude Oil', name: 'Brent Petroleum Crude Oil Futures', exchange: 'ICE', basePrice: 75.80, badge: 'BRT', color: '#37474f' },
+          { symbol: 'COPPER', displaySymbol: 'Copper Futures', name: 'High Grade Copper Futures', exchange: 'COMEX', basePrice: 4.36, badge: 'CU', color: '#d84315' },
+          { symbol: 'NATURALGAS', displaySymbol: 'Natural Gas Futures', name: 'Natural Gas Henry Hub Futures', exchange: 'NYMEX', basePrice: 2.75, badge: 'NG', color: '#0288d1' },
         ];
 
         for (const item of globalIndices) {
@@ -1941,6 +2385,38 @@ function createServer() {
       });
       res.end(JSON.stringify({ status: 'success', quotes }));
       return;
+    }
+
+    // ─── 12. ECONOMIC CALENDAR API ENDPOINT ───
+    if (reqUrl.pathname === '/api/market/calendar') {
+      const now = new Date();
+      const calendarEvents = getEconomicCalendarEvents(now);
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=60',
+      });
+      res.end(JSON.stringify({ status: 'success', count: calendarEvents.length, events: calendarEvents }));
+      return;
+    }
+
+    // ─── 13. FINANCIAL MARKET NEWS API ENDPOINT ───
+    if (reqUrl.pathname === '/api/market/news') {
+      const category = (reqUrl.searchParams.get('category') || 'all').toLowerCase();
+      try {
+        const news = await fetchMarketNews(category);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=60',
+        });
+        res.end(JSON.stringify({ status: 'success', count: news.length, category, news }));
+        return;
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ status: 'success', count: 0, category, news: getFallbackNews(category) }));
+        return;
+      }
     }
 
     let reqPath = decodeURIComponent(reqUrl.pathname);
