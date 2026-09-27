@@ -4113,6 +4113,8 @@ declare class Chart {
     private _cursorPane;
     private _cursor;
     private _dragging;
+    private _touchHoldTimer;
+    private _touchCrosshairMode;
     private readonly _navigation;
     private _dragStartX;
     private _dragStartY;
@@ -5057,6 +5059,13 @@ declare class Chart {
      */
     private _startKinetic;
     private _stopKinetic;
+    /**
+     * Programmatically set the crosshair position on the chart.
+     * Coordinates `x` and `localY` are relative to the chart pane.
+     */
+    setCrosshair(paneIndex: number, x: number, localY: number): void;
+    /** Clear the crosshair cursor and reset legend readings to the latest bar. */
+    clearCrosshair(): void;
     /**
      * True once `destroy()` has run. Anything holding a chart it did not create
      * (a link group, a controller, a host cache) needs to know the object is a
