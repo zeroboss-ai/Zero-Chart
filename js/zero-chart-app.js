@@ -3124,7 +3124,17 @@ class ZeroChartApp {
       }
     }
 
-    const newsList = this._cachedNews[category] || [];
+    const rawNews = this._cachedNews[category] || [];
+    // Strict chronological sort: newest articles on top!
+    const newsList = rawNews
+      .filter((item) => {
+        const pubTime = new Date(item.publishedAt).getTime();
+        if (isNaN(pubTime)) return false;
+        const diffHours = (Date.now() - pubTime) / 3600000;
+        return diffHours <= 48; // Max 48h recency
+      })
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
     if (newsList.length === 0) {
       container.innerHTML = '<div class="tv-news-empty">No headlines available right now.</div>';
       return;
@@ -3132,13 +3142,13 @@ class ZeroChartApp {
 
     const formatTimeAgo = (isoString) => {
       try {
-        const diffSec = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+        const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
         if (diffSec < 60) return 'Just now';
         if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
         if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
         return `${Math.floor(diffSec / 86400)}d ago`;
       } catch (_) {
-        return 'Recently';
+        return 'Just now';
       }
     };
 

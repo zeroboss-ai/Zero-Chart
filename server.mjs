@@ -1276,31 +1276,43 @@ async function fetchMarketNews(category = 'all') {
     return newsCache.get(normCat);
   }
 
-  let query = 'stock market business trading';
-  if (normCat === 'india') query = 'Nifty Sensex Indian Stock Market RBI';
-  else if (normCat === 'crypto') query = 'Cryptocurrency Bitcoin Ethereum Binance ETF';
-  else if (normCat === 'global') query = 'Federal Reserve Wall Street Global Markets Dow Nasdaq';
+  let query = '(stock market OR share market OR Nifty OR Sensex OR Wall Street OR crypto) when:2d';
+  if (normCat === 'india') {
+    query = '(Nifty OR Sensex OR "share market" OR "Indian stock market" OR RBI OR SEBI) when:2d';
+  } else if (normCat === 'crypto') {
+    query = '(Bitcoin OR Ethereum OR crypto OR cryptocurrency OR Binance OR Solana) when:2d';
+  } else if (normCat === 'global') {
+    query = '(Federal Reserve OR "Wall Street" OR Nasdaq OR "Dow Jones" OR SP500 OR inflation) when:2d';
+  }
 
   const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
 
   try {
     const resp = await fetch(rssUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      signal: AbortSignal.timeout(4500),
+      signal: AbortSignal.timeout(5000),
     });
     if (resp.ok) {
       const xml = await resp.text();
       const items = [];
       const itemRegex = /<item>([\s\S]*?)<\/item>/g;
       let match;
-      while ((match = itemRegex.exec(xml)) !== null && items.length < 25) {
+      while ((match = itemRegex.exec(xml)) !== null) {
         const block = match[1];
         const titleM = block.match(/<title>([\s\S]*?)<\/title>/);
         const linkM = block.match(/<link>([\s\S]*?)<\/link>/);
         const dateM = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
         const srcM = block.match(/<source[^>]*>([\s\S]*?)<\/source>/);
 
-        if (titleM) {
+        if (titleM && dateM) {
+          const pubDateStr = dateM[1].trim();
+          const pubTime = new Date(pubDateStr).getTime();
+          if (isNaN(pubTime)) continue;
+
+          const ageHours = (now - pubTime) / 3600000;
+          // Filter out future dates or articles older than 48 hours (fresh news only)
+          if (ageHours > 48 || ageHours < -1) continue;
+
           let title = titleM[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
           let source = srcM ? srcM[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim() : '';
           if (!source && title.includes(' - ')) {
@@ -1309,13 +1321,12 @@ async function fetchMarketNews(category = 'all') {
             title = parts.join(' - ');
           }
           const link = linkM ? linkM[1].trim() : '#';
-          const pubDate = dateM ? dateM[1].trim() : new Date().toISOString();
 
           const lower = title.toLowerCase();
           let sentiment = 'neutral';
-          if (/(surge|jump|rally|gain|record|high|boost|bullish|soar|profit|beat|up|upgrade)/i.test(lower)) {
+          if (/(surge|jump|rally|gain|record|high|boost|bullish|soar|profit|beat|up|upgrade|positive|grow)/i.test(lower)) {
             sentiment = 'bullish';
-          } else if (/(fall|drop|plunge|loss|crash|slump|down|sink|bearish|decline|warning|fear|dip)/i.test(lower)) {
+          } else if (/(fall|drop|plunge|loss|crash|slump|down|sink|bearish|decline|warning|fear|dip|negative|slide)/i.test(lower)) {
             sentiment = 'bearish';
           }
 
@@ -1324,20 +1335,26 @@ async function fetchMarketNews(category = 'all') {
             title,
             source: source || 'Market Wire',
             url: link,
-            publishedAt: pubDate,
+            publishedAt: new Date(pubTime).toISOString(),
             sentiment,
             category: normCat,
           });
         }
       }
 
+      // STRICT CHRONOLOGICAL SORT: Newest first!
+      items.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
       if (items.length > 0) {
-        newsCache.set(normCat, items);
+        const topItems = items.slice(0, 35);
+        newsCache.set(normCat, topItems);
         lastNewsFetch.set(normCat, now);
-        return items;
+        return topItems;
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[News] RSS fetch error:', err.message);
+  }
 
   // Fallback news
   const fallback = getFallbackNews(normCat);
