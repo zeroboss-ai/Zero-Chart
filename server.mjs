@@ -554,8 +554,6 @@ const SYMBOL_MAP = {
   'CAC': '^FCHI',
   'DXY': 'DX-Y.NYB',
   'DOLLAR INDEX': 'DX-Y.NYB',
-  'GIFT NIFTY': '^NSEI',
-  'GIFTNIFTY': '^NSEI',
 };
 
 function resolveTicker(symbol) {
@@ -927,7 +925,6 @@ async function refreshGlobalIndices() {
         { ticker: '^HSI', symbols: ['HANG SENG', 'HSI'] },
         { ticker: '^FCHI', symbols: ['CAC 40', 'CAC'] },
         { ticker: 'DX-Y.NYB', symbols: ['DXY', 'DOLLAR INDEX'] },
-        { ticker: '^NSEI', symbols: ['GIFT NIFTY', 'GIFTNIFTY'] },
       ];
 
       await Promise.allSettled(distinctTickers.map(async ({ ticker, symbols }) => {
@@ -1324,9 +1321,11 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         return tvBars;
       }
     } catch (tvErr) {
-      console.warn('[GIFT NIFTY TV] Fallback to ^NSEI:', tvErr.message);
+      console.warn('[GIFT NIFTY TV] Error:', tvErr.message);
     }
-    return fetchLiveExchangeHistory('^NSEI', interval);
+    const cachedBars = candleCache.get(cacheKey);
+    if (cachedBars?.data) return cachedBars.data;
+    return [];
   }
 
   // Try AngelOne SmartAPI first if authenticated
