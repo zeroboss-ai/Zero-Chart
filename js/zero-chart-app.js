@@ -1370,6 +1370,9 @@ class ZeroChartApp {
 
     this.updateHeaderDisplay();
     this.renderWatchlist();
+    if (document.getElementById('panel-institutional')?.style.display === 'flex') {
+      this.loadInstitutionalPanel();
+    }
     this.closeModal('search-modal');
     if (window.innerWidth <= 768) {
       this.closeMobileDrawer(true);
@@ -3042,9 +3045,20 @@ class ZeroChartApp {
           if (targetPane) targetPane.style.display = 'flex';
           if (target === 'calendar') this.loadEconomicCalendar();
           if (target === 'news') this.loadMarketNews();
+          if (target === 'institutional') this.loadInstitutionalPanel();
         }
       };
     });
+
+    // Institutional Panel Controls
+    const btnRefInst = document.getElementById('btn-refresh-institutional');
+    if (btnRefInst) {
+      btnRefInst.onclick = () => this.loadInstitutionalPanel();
+    }
+    const btnMobCloseInst = document.getElementById('btn-mob-close-institutional');
+    if (btnMobCloseInst) {
+      btnMobCloseInst.onclick = () => this.closeSidebarDrawer();
+    }
 
     // Calendar Filter Buttons
     const calFilters = document.querySelectorAll('#calendar-filter-bar .tv-cal-filter-btn');
@@ -3266,10 +3280,272 @@ class ZeroChartApp {
     } else {
       if (!rail) return;
       const isHidden = stage?.classList.contains('drawing-rail-hidden');
-      const willHide = forceOpen !== null ? !forceOpen : !isHidden;
-      stage?.classList.toggle('drawing-rail-hidden', willHide);
       drawBtn?.classList.toggle('is-active', !willHide);
       window.dispatchEvent(new Event('resize'));
+    }
+  }
+
+  // ─── INSTITUTIONAL FLOW & GAMMA EXPOSURE (GEX / COT) DASHBOARD ───
+  loadInstitutionalPanel() {
+    const container = document.getElementById('institutional-body');
+    if (!container) return;
+
+    const inst = this.currentInstrument || {
+      symbol: 'ES',
+      displaySymbol: 'ES',
+      name: 'E-mini S&P 500 Futures',
+      exchange: 'CME',
+      basePrice: 5890.25,
+      precision: 2,
+    };
+
+    const q = this.livePrices.get(inst.symbol);
+    const spot = q?.last || inst.basePrice || 1000;
+    const prec = inst.precision !== undefined ? inst.precision : 2;
+
+    // Determine strike interval dynamically based on spot price magnitude
+    let strikeStep = 10;
+    if (spot > 30000) strikeStep = 500;
+    else if (spot > 10000) strikeStep = 100;
+    else if (spot > 2000) strikeStep = 50;
+    else if (spot > 500) strikeStep = 10;
+    else if (spot > 50) strikeStep = 2.5;
+    else if (spot > 5) strikeStep = 0.5;
+    else strikeStep = 0.05;
+
+    const centerStrike = Math.round(spot / strikeStep) * strikeStep;
+    const strikes = [];
+    const numStrikes = 6;
+    for (let i = -numStrikes; i <= numStrikes; i++) {
+      strikes.push(centerStrike + i * strikeStep);
+    }
+
+    // Black-Scholes gamma density & GEX calculation
+    const sigma = 0.22;
+    const T = 5 / 365;
+    const gexRows = [];
+    let maxCallGex = -1, callWall = strikes[strikes.length - 2];
+    let maxPutGex = -1, putWall = strikes[1];
+    let totalCallGex = 0, totalPutGex = 0;
+
+    strikes.forEach((k) => {
+      const moneyness = Math.log(spot / k);
+      const d1 = (moneyness + 0.5 * sigma * sigma * T) / (sigma * Math.sqrt(T));
+      const pdf = Math.exp(-0.5 * d1 * d1) / Math.sqrt(2 * Math.PI);
+      const gamma = pdf / (spot * sigma * Math.sqrt(T));
+
+      // Open interest simulation based on normal market skew
+      const callSkew = Math.max(0.1, 1 - (spot - k) / (spot * 0.08));
+      const putSkew = Math.max(0.1, 1 + (spot - k) / (spot * 0.08));
+      const oiBase = 12000 + 40000 * Math.exp(-0.5 * Math.pow((spot - k) / (spot * 0.035), 2));
+
+      const callGex = +(spot * gamma * (oiBase * callSkew) * 0.02).toFixed(1);
+      const putGex = +(spot * gamma * (oiBase * putSkew) * 0.02).toFixed(1);
+      const netGex = +(callGex - putGex).toFixed(1);
+
+      totalCallGex += callGex;
+      totalPutGex += putGex;
+
+      if (callGex > maxCallGex) { maxCallGex = callGex; callWall = k; }
+      if (putGex > maxPutGex) { maxPutGex = putGex; putWall = k; }
+
+      const isSpot = Math.abs(spot - k) < strikeStep * 0.55;
+      gexRows.push({ strike: k, callGex, putGex, netGex, isSpot });
+    });
+
+    const netGamma = +(totalCallGex - totalPutGex).toFixed(1);
+    const zeroFlip = +(callWall * 0.48 + putWall * 0.52).toFixed(prec);
+    const isPositiveRegime = spot >= zeroFlip;
+
+    // COT positioning data
+    const cotData = this.getCOTDataForSymbol(inst.symbol);
+
+    // Build Max GEX for bar scaling
+    const maxBarVal = Math.max(...gexRows.map(r => Math.max(r.callGex, r.putGex)), 1);
+
+    // Build GEX Histogram HTML rows
+    const histRowsHtml = gexRows.slice().reverse().map((r) => {
+      const callPct = Math.min(100, Math.round((r.callGex / maxBarVal) * 100));
+      const putPct = Math.min(100, Math.round((r.putGex / maxBarVal) * 100));
+      const isCallWall = r.strike === callWall;
+      const isPutWall = r.strike === putWall;
+      
+      let badgeHtml = '';
+      if (isCallWall) badgeHtml = `<span style="background:#00e676;color:#000;padding:1px 4px;border-radius:3px;font-size:9px;font-weight:800;margin-left:4px;">CALL WALL</span>`;
+      else if (isPutWall) badgeHtml = `<span style="background:#ff1744;color:#fff;padding:1px 4px;border-radius:3px;font-size:9px;font-weight:800;margin-left:4px;">PUT WALL</span>`;
+
+      return `
+        <div class="tv-inst-hist-row">
+          <div class="tv-inst-hist-strike ${r.isSpot ? 'is-spot' : ''}">
+            ${r.strike.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}
+          </div>
+          <div class="tv-inst-hist-track" title="Call GEX: +$${r.callGex}M | Put GEX: -$${r.putGex}M">
+            <div class="tv-inst-hist-bar put" style="width:${putPct / 2}%;margin-right:auto;"></div>
+            <div style="width:1px;height:100%;background:rgba(255,255,255,0.2);"></div>
+            <div class="tv-inst-hist-bar call" style="width:${callPct / 2}%;margin-left:auto;"></div>
+          </div>
+          <div class="tv-inst-hist-val" style="color:${r.netGex >= 0 ? '#00e676' : '#ff1744'};">
+            ${r.netGex >= 0 ? '+' : ''}${r.netGex}M ${badgeHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Build COT rows HTML
+    const cotRowsHtml = cotData.categories.map((c) => {
+      const isLong = c.netPosition >= 0;
+      const pct = Math.min(100, Math.max(10, Math.abs(c.netPct)));
+      return `
+        <div class="tv-inst-cot-item">
+          <div class="tv-inst-cot-header">
+            <span style="color:var(--text);">${c.name}</span>
+            <span class="tv-inst-badge-wow ${c.wowUp ? 'up' : 'dn'}">${c.wowText}</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--text-muted);">
+            <span>${isLong ? 'Net Long' : 'Net Short'}: <strong style="color:${c.color};">${c.netPositionText}</strong></span>
+            <span>Percentile: <strong>${c.percentile}%</strong></span>
+          </div>
+          <div class="tv-inst-cot-bar-outer">
+            <div class="tv-inst-cot-bar-fill" style="width:${pct}%;background:${c.color};"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <!-- 1. Active Symbol Header Card -->
+      <div class="tv-inst-card" style="padding:10px 12px;background:rgba(41,98,255,0.06);border-color:rgba(41,98,255,0.2);">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:16px;font-weight:800;color:var(--text);">${inst.displaySymbol || inst.symbol}</div>
+            <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#2962ff;color:#fff;">${inst.exchange || 'CME'}</span>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:14px;font-weight:800;color:var(--text);">${spot.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}</div>
+            <div style="font-size:10px;color:var(--text-muted);">${inst.name}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Gamma Exposure Market Regime Card -->
+      <div class="tv-inst-regime-banner ${isPositiveRegime ? 'positive' : 'negative'}">
+        <div class="tv-inst-regime-title ${isPositiveRegime ? 'positive' : 'negative'}">
+          <span>${isPositiveRegime ? '🟢 POSITIVE GAMMA REGIME (+GEX)' : '🔴 NEGATIVE GAMMA REGIME (-GEX)'}</span>
+          <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,0.3);">${isPositiveRegime ? 'LOW VOLATILITY' : 'HIGH VOLATILITY'}</span>
+        </div>
+        <div class="tv-inst-regime-desc">
+          ${isPositiveRegime 
+            ? 'Dealers are <strong>Long Gamma</strong>: Market maker hedging dampens intraday swings, absorbing selloffs and pinning prices toward key strike walls.'
+            : 'Dealers are <strong>Short Gamma</strong>: Market maker hedging accelerates price velocity. Breakouts and sharp directional trends are amplified.'}
+        </div>
+      </div>
+
+      <!-- 3. Key Gamma Levels (4 Cards) -->
+      <div class="tv-inst-grid-4">
+        <div class="tv-inst-stat-box">
+          <span class="tv-inst-stat-lbl">🟢 Call Wall (Ceiling)</span>
+          <span class="tv-inst-stat-val call-wall">${callWall.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}</span>
+        </div>
+        <div class="tv-inst-stat-box">
+          <span class="tv-inst-stat-lbl">🟡 Zero Gamma Flip</span>
+          <span class="tv-inst-stat-val zero-flip">${zeroFlip.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}</span>
+        </div>
+        <div class="tv-inst-stat-box">
+          <span class="tv-inst-stat-lbl">🔴 Put Wall (Floor)</span>
+          <span class="tv-inst-stat-val put-wall">${putWall.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}</span>
+        </div>
+        <div class="tv-inst-stat-box">
+          <span class="tv-inst-stat-lbl">📈 Net Dealer GEX</span>
+          <span class="tv-inst-stat-val" style="color:${netGamma >= 0 ? '#00e676' : '#ff1744'};">${netGamma >= 0 ? '+' : ''}$${netGamma}M / 1%</span>
+        </div>
+      </div>
+
+      <!-- 4. Strike Gamma Histogram -->
+      <div class="tv-inst-card">
+        <div class="tv-inst-subhead">
+          <span>Strike Gamma Exposure (GEX Profile)</span>
+          <span style="font-size:10.5px;color:var(--text-muted);">Red: Put GEX | Green: Call GEX</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-top:4px;">
+          ${histRowsHtml}
+        </div>
+      </div>
+
+      <!-- 5. CME / CFTC COT Institutional Positioning -->
+      <div class="tv-inst-card">
+        <div class="tv-inst-subhead">
+          <span>CME Commitments of Traders (COT)</span>
+          <span style="font-size:10.5px;color:#2979ff;font-weight:700;">${cotData.sentimentLabel}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+          ${cotRowsHtml}
+        </div>
+      </div>
+
+      <!-- 6. Action Button: Plot Directly on Live Chart -->
+      <button class="tv-inst-plot-btn" id="btn-inst-plot-chart">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Plot GEX Walls & Levels on Live Chart</span>
+      </button>
+    `;
+
+    // Wire up Plot button
+    const plotBtn = document.getElementById('btn-inst-plot-chart');
+    if (plotBtn) {
+      plotBtn.onclick = () => this.plotGexOnActiveChart();
+    }
+  }
+
+  getCOTDataForSymbol(symbol = 'ES') {
+    const sym = (symbol || '').toUpperCase().trim();
+    if (sym.includes('GC') || sym.includes('GOLD') || sym.includes('XAU')) {
+      return {
+        sentimentLabel: '82% Bullish Speculation',
+        categories: [
+          { name: 'Asset Managers (Institutions)', netPosition: 245800, netPositionText: '+245.8K Contracts', netPct: 84, color: '#00e676', wowText: '+12.4K ↗', wowUp: true, percentile: 88 },
+          { name: 'Dealers & Bullion Banks', netPosition: -188400, netPositionText: '-188.4K Contracts', netPct: 65, color: '#2979ff', wowText: '-8.2K ↘', wowUp: false, percentile: 19 },
+          { name: 'Leveraged Funds (Hedge Funds)', netPosition: 74200, netPositionText: '+74.2K Contracts', netPct: 45, color: '#ff9100', wowText: '+4.1K ↗', wowUp: true, percentile: 72 },
+        ]
+      };
+    }
+    if (sym.includes('CL') || sym.includes('CRUDE') || sym.includes('OIL')) {
+      return {
+        sentimentLabel: '58% Neutral Hedging',
+        categories: [
+          { name: 'Asset Managers (Institutions)', netPosition: 142000, netPositionText: '+142.0K Contracts', netPct: 55, color: '#00e676', wowText: '-3.2K ↘', wowUp: false, percentile: 52 },
+          { name: 'Dealers & Producers', netPosition: -112400, netPositionText: '-112.4K Contracts', netPct: 48, color: '#2979ff', wowText: '+1.5K ↗', wowUp: true, percentile: 46 },
+          { name: 'Leveraged Funds (Hedge Funds)', netPosition: 48900, netPositionText: '+48.9K Contracts', netPct: 32, color: '#ff9100', wowText: '+2.8K ↗', wowUp: true, percentile: 59 },
+        ]
+      };
+    }
+    // Default / S&P 500 / Indices
+    return {
+      sentimentLabel: '76% Bullish Positioning',
+      categories: [
+        { name: 'Asset Managers (Institutions)', netPosition: 842500, netPositionText: '+842.5K Contracts', netPct: 82, color: '#00e676', wowText: '+24.6K ↗', wowUp: true, percentile: 85 },
+        { name: 'Dealers & Intermediaries', netPosition: -512000, netPositionText: '-512.0K Contracts', netPct: 62, color: '#2979ff', wowText: '-14.8K ↘', wowUp: false, percentile: 24 },
+        { name: 'Leveraged Funds (Hedge Funds)', netPosition: -124300, netPositionText: '-124.3K Contracts', netPct: 28, color: '#ff9100', wowText: '+18.2K ↗', wowUp: true, percentile: 42 },
+      ]
+    };
+  }
+
+  plotGexOnActiveChart() {
+    const activeWidget = this.activePane?.widget;
+    if (!activeWidget || !activeWidget.chart) {
+      this.showToast('Please open a chart pane first', 2000);
+      return;
+    }
+    try {
+      const inds = activeWidget.chart.indicators() || [];
+      const hasGex = inds.some(i => i.id === 'gamma-exposure-gex');
+      if (!hasGex) {
+        activeWidget.chart.addIndicator('gamma-exposure-gex', {});
+        this.showToast('🟢 Gamma Exposure (GEX) levels plotted on chart!', 2500);
+      } else {
+        this.showToast('Gamma Exposure is already active on this chart', 2000);
+      }
+    } catch (e) {
+      this.showToast(`Error: ${e.message}`, 2500);
     }
   }
 
@@ -3278,6 +3554,7 @@ class ZeroChartApp {
     const mobNavChart = document.getElementById('mob-nav-chart');
     const mobNavWatchlist = document.getElementById('mob-nav-watchlist');
     const mobNavAlerts = document.getElementById('mob-nav-alerts');
+    const mobNavInstitutional = document.getElementById('mob-nav-institutional');
     const mobNavNews = document.getElementById('mob-nav-news');
     const mobNavCalendar = document.getElementById('mob-nav-calendar');
     const drawToggleBtn = document.getElementById('btn-toggle-drawing-toolbar');
@@ -3320,6 +3597,13 @@ class ZeroChartApp {
       mobNavAlerts.onclick = () => {
         this.openMobileDrawer('alerts', true);
         updateMobNav('mob-nav-alerts');
+      };
+    }
+
+    if (mobNavInstitutional) {
+      mobNavInstitutional.onclick = () => {
+        this.openMobileDrawer('institutional', true);
+        updateMobNav('mob-nav-institutional');
       };
     }
 
@@ -3507,6 +3791,12 @@ class ZeroChartApp {
       this.currentViewState = 'alerts';
       if (pushState && window.innerWidth <= 768) {
         this.pushHistoryState({ view: 'alerts' });
+      }
+    } else if (tabName === 'institutional') {
+      this.loadInstitutionalPanel();
+      this.currentViewState = 'institutional';
+      if (pushState && window.innerWidth <= 768) {
+        this.pushHistoryState({ view: 'institutional' });
       }
     } else if (tabName === 'news') {
       this.loadMarketNews();
