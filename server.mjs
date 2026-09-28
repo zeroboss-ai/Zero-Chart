@@ -1096,174 +1096,111 @@ async function refreshGlobalIndices() {
 // Pre-warm global indices cache on boot
 refreshGlobalIndices().catch(() => {});
 
-// ─── 4.6. ECONOMIC CALENDAR GENERATOR ───
-function getEconomicCalendarEvents(referenceDate = new Date()) {
-  const d = new Date(referenceDate);
-  const formatDate = (offsetDays) => {
-    const target = new Date(d);
-    target.setDate(target.getDate() + offsetDays);
-    return target.toISOString().split('T')[0];
-  };
+// ─── 4.6. LIVE REAL-TIME ECONOMIC CALENDAR FETCHER ───
+let economicCalendarCache = {
+  timestamp: 0,
+  data: [],
+};
+let isFetchingCalendar = false;
 
-  return [
-    {
-      id: 'cal_us_cpi',
-      country: 'US',
-      flag: '🇺🇸',
-      title: 'US Core Inflation Rate (MoM & YoY)',
-      date: formatDate(0),
-      time: '18:00 IST',
-      impact: 'high',
-      actual: '3.1%',
-      forecast: '3.0%',
-      previous: '3.2%',
-      unit: '%',
-    },
-    {
-      id: 'cal_in_rbi',
-      country: 'IN',
-      flag: '🇮🇳',
-      title: 'RBI Monetary Policy Repo Rate Decision',
-      date: formatDate(1),
-      time: '10:00 IST',
-      impact: 'high',
-      actual: '6.50%',
-      forecast: '6.50%',
-      previous: '6.50%',
-      unit: '%',
-    },
-    {
-      id: 'cal_us_fomc',
-      country: 'US',
-      flag: '🇺🇸',
-      title: 'US Fed Interest Rate Decision (FOMC)',
-      date: formatDate(2),
-      time: '23:30 IST',
-      impact: 'high',
-      actual: '5.25%',
-      forecast: '5.00%',
-      previous: '5.25%',
-      unit: '%',
-    },
-    {
-      id: 'cal_us_nfp',
-      country: 'US',
-      flag: '🇺🇸',
-      title: 'US Non-Farm Payrolls (NFP) & Unemployment',
-      date: formatDate(3),
-      time: '18:00 IST',
-      impact: 'high',
-      actual: '142K',
-      forecast: '165K',
-      previous: '114K',
-      unit: 'K',
-    },
-    {
-      id: 'cal_in_cpi',
-      country: 'IN',
-      flag: '🇮🇳',
-      title: 'India Consumer Price Inflation (CPI YoY)',
-      date: formatDate(-1),
-      time: '17:30 IST',
-      impact: 'high',
-      actual: '3.65%',
-      forecast: '3.80%',
-      previous: '5.08%',
-      unit: '%',
-    },
-    {
-      id: 'cal_in_gdp',
-      country: 'IN',
-      flag: '🇮🇳',
-      title: 'India GDP Growth Rate (Quarterly YoY)',
-      date: formatDate(4),
-      time: '17:30 IST',
-      impact: 'high',
-      actual: '6.7%',
-      forecast: '6.9%',
-      previous: '7.8%',
-      unit: '%',
-    },
-    {
-      id: 'cal_us_claims',
-      country: 'US',
-      flag: '🇺🇸',
-      title: 'US Initial Jobless Claims',
-      date: formatDate(1),
-      time: '18:00 IST',
-      impact: 'medium',
-      actual: '219K',
-      forecast: '224K',
-      previous: '231K',
-      unit: 'K',
-    },
-    {
-      id: 'cal_eu_ecb',
-      country: 'EU',
-      flag: '🇪🇺',
-      title: 'ECB Deposit Facility Rate Decision',
-      date: formatDate(5),
-      time: '17:45 IST',
-      impact: 'high',
-      actual: '3.50%',
-      forecast: '3.50%',
-      previous: '3.75%',
-      unit: '%',
-    },
-    {
-      id: 'cal_jp_boj',
-      country: 'JP',
-      flag: '🇯🇵',
-      title: 'Bank of Japan (BoJ) Interest Rate Decision',
-      date: formatDate(6),
-      time: '08:30 IST',
-      impact: 'high',
-      actual: '0.25%',
-      forecast: '0.25%',
-      previous: '0.10%',
-      unit: '%',
-    },
-    {
-      id: 'cal_uk_boe',
-      country: 'GB',
-      flag: '🇬🇧',
-      title: 'Bank of England (BoE) Official Bank Rate',
-      date: formatDate(7),
-      time: '16:30 IST',
-      impact: 'high',
-      actual: '5.00%',
-      forecast: '5.00%',
-      previous: '5.25%',
-      unit: '%',
-    },
-    {
-      id: 'cal_in_iip',
-      country: 'IN',
-      flag: '🇮🇳',
-      title: 'India Industrial Production (IIP YoY)',
-      date: formatDate(2),
-      time: '17:30 IST',
-      impact: 'medium',
-      actual: '4.8%',
-      forecast: '4.5%',
-      previous: '4.2%',
-      unit: '%',
-    },
-    {
-      id: 'cal_us_gdp',
-      country: 'US',
-      flag: '🇺🇸',
-      title: 'US GDP Growth Rate (Annualized QoQ Final)',
-      date: formatDate(8),
-      time: '18:00 IST',
-      impact: 'high',
-      actual: '3.0%',
-      forecast: '3.0%',
-      previous: '2.8%',
-      unit: '%',
-    },
-  ];
+const CALENDAR_COUNTRY_FLAGS = {
+  IN: '🇮🇳', US: '🇺🇸', EU: '🇪🇺', GB: '🇬🇧', JP: '🇯🇵', CN: '🇨🇳', DE: '🇩🇪', CA: '🇨🇦', AU: '🇦🇺', CH: '🇨🇭', FR: '🇫🇷', IT: '🇮🇹', NZ: '🇳🇿', BR: '🇧🇷', MX: '🇲🇽', KR: '🇰🇷', RU: '🇷🇺', ZA: '🇿🇦',
+};
+
+async function fetchEconomicCalendarEvents(force = false) {
+  const now = Date.now();
+  // Return cached events if fresh within 10 minutes (600,000 ms)
+  if (!force && economicCalendarCache.data.length > 0 && now - economicCalendarCache.timestamp < 600000) {
+    return economicCalendarCache.data;
+  }
+
+  if (isFetchingCalendar && economicCalendarCache.data.length > 0) {
+    return economicCalendarCache.data;
+  }
+
+  isFetchingCalendar = true;
+  try {
+    const from = new Date(now - 12 * 3600000).toISOString();
+    const to = new Date(now + 14 * 86400000).toISOString();
+    const countries = 'IN,US,EU,GB,JP,CN,DE,CA,AU,CH,FR,IT,NZ';
+    const tvUrl = `https://economic-calendar.tradingview.com/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&countries=${countries}`;
+
+    const resp = await fetch(tvUrl, {
+      headers: {
+        'Origin': 'https://www.tradingview.com',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(7000),
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      const raw = json.result || [];
+      if (Array.isArray(raw) && raw.length > 0) {
+        const formatVal = (v, u) => {
+          if (v === null || v === undefined) return '-';
+          if (typeof v === 'number') {
+            const numStr = Number.isInteger(v) ? v.toString() : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+            return u ? (u === '%' ? `${numStr}%` : `${numStr} ${u}`) : numStr;
+          }
+          return String(v);
+        };
+
+        const parsed = raw.map((item) => {
+          const d = new Date(item.date);
+          const istDate = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+          const istTime = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) + ' IST';
+
+          let impact = 'low';
+          if (item.importance === 1) impact = 'high';
+          else if (item.importance === 0) impact = 'medium';
+
+          return {
+            id: String(item.id || item.ticker || Math.random()),
+            country: item.country || 'GLOBAL',
+            flag: CALENDAR_COUNTRY_FLAGS[item.country] || '🌐',
+            title: item.title,
+            comment: item.comment || item.indicator || '',
+            date: istDate,
+            time: istTime,
+            timestamp: isNaN(d.getTime()) ? 0 : d.getTime(),
+            impact,
+            actual: formatVal(item.actual, item.unit),
+            forecast: formatVal(item.forecast, item.unit),
+            previous: formatVal(item.previous, item.unit),
+            unit: item.unit || '',
+            source: item.source || '',
+            source_url: item.source_url || '',
+          };
+        });
+
+        // Chronological order: closest/upcoming first
+        parsed.sort((a, b) => a.timestamp - b.timestamp);
+
+        economicCalendarCache = {
+          timestamp: now,
+          data: parsed,
+        };
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('[Calendar] Failed to fetch live TradingView events:', err.message);
+  } finally {
+    isFetchingCalendar = false;
+  }
+
+  // Fallback to cached events if available
+  if (economicCalendarCache.data.length > 0) {
+    return economicCalendarCache.data;
+  }
+
+  return [];
 }
+
+// Pre-warm economic calendar cache on boot
+fetchEconomicCalendarEvents().catch(() => {});
 
 // ─── 4.7. FINANCIAL MARKET NEWS FETCHER ───
 let newsCache = new Map();
@@ -2406,15 +2343,24 @@ function createServer() {
 
     // ─── 12. ECONOMIC CALENDAR API ENDPOINT ───
     if (reqUrl.pathname === '/api/market/calendar') {
-      const now = new Date();
-      const calendarEvents = getEconomicCalendarEvents(now);
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=60',
-      });
-      res.end(JSON.stringify({ status: 'success', count: calendarEvents.length, events: calendarEvents }));
-      return;
+      try {
+        const force = reqUrl.searchParams.get('force') === 'true';
+        const calendarEvents = await fetchEconomicCalendarEvents(force);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=60',
+        });
+        res.end(JSON.stringify({ status: 'success', count: calendarEvents.length, events: calendarEvents }));
+        return;
+      } catch (err) {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ status: 'success', count: 0, events: [] }));
+        return;
+      }
     }
 
     // ─── 13. FINANCIAL MARKET NEWS API ENDPOINT ───

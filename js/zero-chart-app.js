@@ -3057,9 +3057,9 @@ class ZeroChartApp {
     if (!container) return;
 
     if (!this._cachedCalEvents || force) {
-      container.innerHTML = '<div class="tv-cal-loading">Fetching economic events...</div>';
+      container.innerHTML = '<div class="tv-cal-loading">Fetching real-time economic events...</div>';
       try {
-        const resp = await fetch('/api/market/calendar');
+        const resp = await fetch(`/api/market/calendar${force ? '?force=true' : ''}`);
         if (resp.ok) {
           const json = await resp.json();
           this._cachedCalEvents = json.events || [];
@@ -3074,37 +3074,41 @@ class ZeroChartApp {
     if (filter === 'high') {
       filtered = events.filter((e) => e.impact === 'high');
     } else if (filter === 'US' || filter === 'IN') {
-      filtered = events.filter((e) => e.country === filter);
+      filtered = events.filter((e) => (e.country || '').toUpperCase() === filter);
     }
 
     if (filtered.length === 0) {
-      container.innerHTML = '<div class="tv-cal-empty">No events matching this filter.</div>';
+      container.innerHTML = '<div class="tv-cal-empty">No economic events matching this filter.</div>';
       return;
     }
 
     container.innerHTML = filtered.map((ev) => {
       const impactClass = ev.impact === 'high' ? 'high' : (ev.impact === 'medium' ? 'med' : 'low');
       const impactText = ev.impact === 'high' ? 'HIGH' : (ev.impact === 'medium' ? 'MED' : 'LOW');
+      const cardTooltip = ev.comment ? ev.comment.replace(/"/g, '&quot;') : (ev.title || '');
       return `
-        <div class="tv-calendar-card" data-country="${ev.country}">
+        <div class="tv-calendar-card" data-country="${ev.country || ''}" title="${cardTooltip}">
           <div class="tv-cal-top">
-            <span class="tv-cal-flag-badge">${ev.flag} ${ev.country}</span>
+            <span class="tv-cal-flag-badge">
+              <img src="https://flagcdn.com/16x12/${(ev.country || 'us').toLowerCase()}.png" class="tv-cal-flag-img" alt="${ev.country || ''}" onerror="this.style.display='none'" />
+              ${ev.country || ''}
+            </span>
             <span class="tv-cal-impact tv-cal-impact--${impactClass}">${impactText}</span>
             <span class="tv-cal-time">${ev.date} · ${ev.time}</span>
           </div>
-          <div class="tv-cal-title">${ev.title}</div>
+          <div class="tv-cal-title">${ev.title || ''}</div>
           <div class="tv-cal-metrics">
             <div class="tv-cal-metric">
               <span class="tv-cal-metric-lbl">Actual</span>
-              <span class="tv-cal-metric-val actual">${ev.actual}</span>
+              <span class="tv-cal-metric-val actual">${ev.actual || '-'}</span>
             </div>
             <div class="tv-cal-metric">
               <span class="tv-cal-metric-lbl">Forecast</span>
-              <span class="tv-cal-metric-val forecast">${ev.forecast}</span>
+              <span class="tv-cal-metric-val forecast">${ev.forecast || '-'}</span>
             </div>
             <div class="tv-cal-metric">
               <span class="tv-cal-metric-lbl">Previous</span>
-              <span class="tv-cal-metric-val prev">${ev.previous}</span>
+              <span class="tv-cal-metric-val prev">${ev.previous || '-'}</span>
             </div>
           </div>
         </div>
