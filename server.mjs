@@ -2440,7 +2440,9 @@ function createServer() {
         res.writeHead(200, {
           'Content-Type': contentType,
           'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         });
         res.end(data);
       });

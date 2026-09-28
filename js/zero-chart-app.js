@@ -7,16 +7,24 @@
 import {
   createWidget,
   mountIndicatorPicker,
+  mountIndicatorSettings,
   mountSettingsDialog,
   mountObjectsPanel,
   openShortcutsPanel,
-} from '../lib/openalgo-charts.widget.mjs';
-import { ReplayController } from '../lib/openalgo-charts.mjs';
-import '../lib/openalgo-charts.indicators.mjs';
-import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs';
-import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.5.0';
-import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.5.0';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.5.0';
+} from '../lib/openalgo-charts.widget.mjs?v=2.7.0';
+import { ReplayController } from '../lib/openalgo-charts.mjs?v=2.7.0';
+import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.0';
+import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.0';
+import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.0';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.7.0';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.7.0';
+
+// Register all indicators immediately
+try {
+  registerBuiltinIndicators();
+} catch (e) {
+  console.warn('[Indicators] Registration warning:', e);
+}
 
 const FAVORITE_TOOL_DEFINITIONS = [
   { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },
@@ -3830,9 +3838,10 @@ class ZeroChartApp {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker
-          .register('./sw.js')
+          .register('./sw.js?v=2.7.0')
           .then((reg) => {
             console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+            try { reg.update(); } catch (_) {}
             reg.onupdatefound = () => {
               const installingWorker = reg.installing;
               if (installingWorker) {

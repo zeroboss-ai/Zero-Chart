@@ -1,5 +1,5 @@
 // Zero Chart — High-Performance Trading Terminal Service Worker
-const CACHE_NAME = 'zero-chart-v1.0.0';
+const CACHE_NAME = 'zero-chart-v2.7.0';
 
 const PRECACHE_ASSETS = [
   './',
@@ -13,6 +13,10 @@ const PRECACHE_ASSETS = [
   './js/feeds/multi-feed.js',
   './js/feeds/openalgo-feed.js',
   './lib/openalgo-charts.standalone.js',
+  './lib/openalgo-charts.mjs',
+  './lib/openalgo-charts.indicators.mjs',
+  './lib/openalgo-charts.widget.mjs',
+  './lib/openalgo-charts.trade.mjs',
   './assets/zero-chart-logo.svg',
   './assets/icon-192.png',
   './assets/icon-512.png',
@@ -22,16 +26,17 @@ const PRECACHE_ASSETS = [
 
 // 1. Install: Precache App Shell
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
         console.warn('[SW] Pre-caching partial failure:', err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
-// 2. Activate: Purge Outdated Caches
+// 2. Activate: Purge Outdated Caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -42,7 +47,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Fetch: Dynamic Strategy
+// 3. Fetch: Network-First with Cache Fallback for instant updates
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
@@ -57,27 +62,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-While-Revalidate for Static UI Assets & Scripts
+  // Network-first strategy so fresh code and indicators are always served immediately
   event.respondWith(
-    caches.match(req).then((cachedResponse) => {
-      const fetchPromise = fetch(req)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(req, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          // Offline fallback for navigation requests
+    fetch(req)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(req, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(req).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
           if (req.mode === 'navigate') {
             return caches.match('./index.html');
           }
         });
-
-      return cachedResponse || fetchPromise;
-    })
+      })
   );
 });
