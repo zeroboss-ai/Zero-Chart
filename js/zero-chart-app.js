@@ -983,19 +983,32 @@ class ZeroChartApp {
       window.__zeroChartWidget = pane.widget;
     }
 
-    // Auto-restore saved drawings and alert lines for this symbol
+    // Auto-restore saved drawings and alert lines for this symbol, and global indicators
     setTimeout(() => {
-      this.restoreSymbolState(paneIndex, pane.instrument.symbol);
+      this.restoreGlobalIndicators(paneIndex);
+      this.restoreSymbolDrawings(paneIndex, pane.instrument.symbol);
       this.syncAlertPriceLines(paneIndex);
     }, 200);
 
-    // Auto-save drawings & indicators on any modification
-    const autoSave = () => {
-      this.saveSymbolState(paneIndex, pane.instrument.symbol);
+    // Auto-save drawings on drawing modifications (per-symbol)
+    const autoSaveDrawings = () => {
+      if (this._isSwitchingSymbol) return;
+      const curSym = pane.instrument?.symbol || this.currentInstrument?.symbol;
+      if (curSym) this.saveSymbolDrawings(paneIndex, curSym);
     };
-    for (const evt of ['draw:add', 'draw:remove', 'draw:update', 'draw:paste', 'draw:cut', 'indicatorAdded', 'indicatorRemoved', 'indicatorSettings']) {
+    for (const evt of ['draw:add', 'draw:remove', 'draw:update', 'draw:paste', 'draw:cut']) {
       try {
-        pane.widget.chart.on(evt, autoSave);
+        pane.widget.chart.on(evt, autoSaveDrawings);
+      } catch (_) {}
+    }
+
+    // Auto-save global indicators on indicator modifications (global across symbols)
+    const autoSaveIndicators = () => {
+      this.saveGlobalIndicators(paneIndex);
+    };
+    for (const evt of ['indicatorAdded', 'indicatorRemoved', 'indicatorSettings']) {
+      try {
+        pane.widget.chart.on(evt, autoSaveIndicators);
       } catch (_) {}
     }
   }
@@ -1283,14 +1296,24 @@ class ZeroChartApp {
     if (this.isReplayMode) {
       this.exitReplayMode();
     }
-    const prevSym = this.currentInstrument?.symbol;
+    const pane = this.panes[this.activePaneIndex];
+    const prevSym = pane?.instrument?.symbol || this.currentInstrument?.symbol;
     if (prevSym) {
-      this.saveSymbolState(this.activePaneIndex, prevSym);
+      // 1. Save drawings for the previous symbol before switching
+      this.saveSymbolDrawings(this.activePaneIndex, prevSym);
     }
 
+    this._isSwitchingSymbol = true;
+    if (pane) {
+      pane.instrument = inst;
+    }
     this.currentInstrument = inst;
     const activeWidget = this.widget;
     if (activeWidget) {
+      // 2. Immediately clear drawings so previous symbol's lines never show on new symbol
+      activeWidget.draw?.clear?.();
+
+      // 3. Switch symbol on widget (indicators remain active and automatically recalculate!)
       activeWidget.setSymbol(inst.symbol, inst.exchange);
       const prec = inst.precision !== undefined ? inst.precision : 2;
       const chartTheme = this.getChartTheme(this.currentTheme);
@@ -1330,9 +1353,13 @@ class ZeroChartApp {
             fontSize: 12,
           });
         } catch (_) {}
-        this.restoreSymbolState(this.activePaneIndex, inst.symbol);
+        // 4. Restore drawings specifically for this new symbol
+        this.restoreSymbolDrawings(this.activePaneIndex, inst.symbol);
         this.syncAlertPriceLines(this.activePaneIndex);
-      }, 150);
+        this._isSwitchingSymbol = false;
+      }, 100);
+    } else {
+      this._isSwitchingSymbol = false;
     }
 
     this.updateHeaderDisplay();
@@ -3747,49 +3774,66 @@ class ZeroChartApp {
     setInterval(enforceToastLimits, 400);
   }
 
-  // ─── PER-SYMBOL DRAWINGS & INDICATOR PERSISTENCE ───
-  saveSymbolState(paneIndex, symbol) {
+  // ─── PER-SYMBOL DRAWINGS & GLOBAL INDICATORS PERSISTENCE ───
+  saveSymbolDrawings(paneIndex, symbol) {
     const pane = this.panes[paneIndex];
-    if (!pane?.widget || !symbol) return;
-    const symKey = symbol.toUpperCase().trim();
+    const sym = symbol || pane?.instrument?.symbol || this.currentInstrument?.symbol;
+    if (!pane?.widget || !sym) return;
+    const symKey = sym.toUpperCase().trim();
     try {
-      // 1. Save drawings
       if (typeof pane.widget.draw?.toJSON === 'function') {
         const drawings = pane.widget.draw.toJSON();
         localStorage.setItem(`zerochart_drawings_${symKey}`, JSON.stringify(drawings));
-      } else if (typeof pane.widget.chart?.getState === 'function') {
-        const state = pane.widget.chart.getState();
-        if (state?.drawings) {
-          localStorage.setItem(`zerochart_drawings_${symKey}`, JSON.stringify(state.drawings));
-        }
-      }
-      // 2. Save chart state (indicators, settings, viewport)
-      if (typeof pane.widget.chart?.getState === 'function') {
-        const state = pane.widget.chart.getState();
-        localStorage.setItem(`zerochart_chartstate_${symKey}`, JSON.stringify(state));
       }
     } catch (_) {}
   }
 
-  restoreSymbolState(paneIndex, symbol) {
+  restoreSymbolDrawings(paneIndex, symbol) {
     const pane = this.panes[paneIndex];
-    if (!pane?.widget || !symbol) return;
-    const symKey = symbol.toUpperCase().trim();
+    const sym = symbol || pane?.instrument?.symbol || this.currentInstrument?.symbol;
+    if (!pane?.widget || !sym) return;
+    const symKey = sym.toUpperCase().trim();
     try {
-      // 1. Restore chart state (indicators, studies, settings)
-      const savedState = localStorage.getItem(`zerochart_chartstate_${symKey}`);
-      if (savedState && typeof pane.widget.chart?.restoreState === 'function') {
-        const parsedState = JSON.parse(savedState);
-        if (parsedState) {
-          pane.widget.chart.restoreState(parsedState);
-        }
-      }
-      // 2. Restore drawings
+      // Clear drawings canvas first so other symbols' drawings never show
+      pane.widget.draw?.clear?.();
       const savedDrawings = localStorage.getItem(`zerochart_drawings_${symKey}`);
       if (savedDrawings && typeof pane.widget.draw?.fromJSON === 'function') {
-        const parsedDrawings = JSON.parse(savedDrawings);
-        if (Array.isArray(parsedDrawings)) {
-          pane.widget.draw.fromJSON(parsedDrawings);
+        const parsed = JSON.parse(savedDrawings);
+        if (parsed) {
+          pane.widget.draw.fromJSON(parsed);
+        }
+      }
+    } catch (_) {}
+  }
+
+  saveGlobalIndicators(paneIndex = 0) {
+    const pane = this.panes[paneIndex];
+    if (!pane?.widget?.chart) return;
+    try {
+      const inds = pane.widget.chart.indicators().map((i) => ({
+        indicatorId: i.indicatorId,
+        settings: i.settings(),
+        paneIndex: i.paneIndex,
+      }));
+      localStorage.setItem('zerochart_global_indicators', JSON.stringify(inds));
+    } catch (_) {}
+  }
+
+  restoreGlobalIndicators(paneIndex = 0) {
+    const pane = this.panes[paneIndex];
+    if (!pane?.widget?.chart) return;
+    try {
+      const current = pane.widget.chart.indicators();
+      if (current.length > 0) return; // already loaded
+      const saved = localStorage.getItem('zerochart_global_indicators');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          for (const ind of parsed) {
+            try {
+              pane.widget.chart.addIndicator(ind.indicatorId, ind.settings || {});
+            } catch (_) {}
+          }
         }
       }
     } catch (_) {}
@@ -3811,12 +3855,13 @@ class ZeroChartApp {
         })),
       };
       localStorage.setItem('zerochart_full_layout', JSON.stringify(layoutData));
-      // Save state for all active pane symbols
+      // Save drawings for all active pane symbols
       this.panes.forEach((p, idx) => {
         if (p.instrument?.symbol) {
-          this.saveSymbolState(idx, p.instrument.symbol);
+          this.saveSymbolDrawings(idx, p.instrument.symbol);
         }
       });
+      this.saveGlobalIndicators(0);
       return true;
     } catch (err) {
       console.warn('[ZeroChart] Failed to save full layout:', err);
