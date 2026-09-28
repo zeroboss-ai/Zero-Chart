@@ -15,11 +15,24 @@ const BINANCE_REST_ENDPOINTS = [
 const BINANCE_WS_ENDPOINT = 'wss://stream.binance.com:9443/ws';
 
 export function mapIntervalToBinance(interval) {
-  const norm = (interval || '5m').toLowerCase().trim();
-  if (norm === '1d' || norm === 'd') return '1d';
-  if (norm === '1w' || norm === 'w') return '1w';
-  if (norm === '1m' || (norm === 'm' && interval === 'M')) return '1M';
-  if (['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M'].includes(norm)) {
+  const raw = (interval || '5m').trim();
+  const norm = raw.toLowerCase();
+  if (raw === '1M' || raw === 'M' || norm === '1mo' || norm === '1month' || norm === 'month') return '1M';
+  if (norm === '1d' || norm === 'd' || norm === '1day' || norm === 'day') return '1d';
+  if (norm === '3d' || norm === '3day') return '3d';
+  if (norm === '1w' || norm === 'w' || norm === '1wk' || norm === '1week' || norm === 'week') return '1w';
+  if (norm === '1m' || norm === '1min' || norm === '1') return '1m';
+  if (norm === '3m' || norm === '3min' || norm === '3') return '3m';
+  if (norm === '5m' || norm === '5min' || norm === '5') return '5m';
+  if (norm === '15m' || norm === '15min' || norm === '15') return '15m';
+  if (norm === '30m' || norm === '30min' || norm === '30') return '30m';
+  if (norm === '1h' || norm === '60m' || norm === '60' || norm === 'h') return '1h';
+  if (norm === '2h' || norm === '120m' || norm === '120') return '2h';
+  if (norm === '4h' || norm === '240m' || norm === '240') return '4h';
+  if (norm === '6h' || norm === '360m') return '6h';
+  if (norm === '8h' || norm === '480m') return '8h';
+  if (norm === '12h' || norm === '720m') return '12h';
+  if (['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w'].includes(norm)) {
     return norm;
   }
   return '5m';
