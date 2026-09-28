@@ -89,6 +89,8 @@ class ZeroChartApp {
       constraints: { tickSize: 0.01, freezeQty: 100000 },
     });
 
+    const lastSavedInterval = localStorage.getItem('zerochart_last_interval') || '5m';
+
     // Multi-pane state
     this.activePaneIndex = 0;
     this.panes = [
@@ -98,7 +100,7 @@ class ZeroChartApp {
         widget: null,
         tradeController: null,
         instrument: this.getActiveWatchlistInstruments()[0] || MASTER_INSTRUMENTS[0],
-        interval: '5m',
+        interval: lastSavedInterval,
         chartType: 'candlestick',
       },
       {
@@ -163,6 +165,10 @@ class ZeroChartApp {
         this.activePaneIndex = savedLayout.activePaneIndex;
       }
     }
+    // Ensure active pane always reflects the user's latest chosen interval
+    if (lastSavedInterval && this.panes[this.activePaneIndex]) {
+      this.panes[this.activePaneIndex].interval = lastSavedInterval;
+    }
 
     // Favorite Drawing Tools
     let favTools = ['trend-line', 'horizontal-line', 'ray', 'price-range', 'fib-retracement', 'rectangle', 'brush', 'text', 'measure'];
@@ -202,11 +208,17 @@ class ZeroChartApp {
   }
 
   get currentInterval() {
-    return this.activePane.interval;
+    return this.activePane?.interval || localStorage.getItem('zerochart_last_interval') || '5m';
   }
 
   set currentInterval(val) {
-    if (this.activePane) this.activePane.interval = val;
+    if (this.activePane) {
+      this.activePane.interval = val;
+      try {
+        localStorage.setItem('zerochart_last_interval', val);
+        this.saveFullLayout();
+      } catch (_) {}
+    }
   }
 
   get currentChartType() {
@@ -736,6 +748,8 @@ class ZeroChartApp {
     const legTop = window.innerWidth <= 768 ? 48 : 42;
     const legLeft = window.innerWidth <= 768 ? 10 : 54;
     const chartTheme = this.getChartTheme(this.currentTheme);
+    const isMobile = window.innerWidth <= 768;
+    const defaultBars = isMobile ? 38 : 95;
 
     pane.widget = createWidget(container, {
       feed: this.multiFeed,
@@ -747,6 +761,10 @@ class ZeroChartApp {
       topbar: false, // Unified topbar managed by Zero Chart
       mobile: false, // Unified mobile navigation managed by Zero Chart
       statusline: true,
+      navigation: {
+        mousePan: 'both',
+        defaultVisibleBars: defaultBars,
+      },
       rail: paneIndex === 0 ? { favorites: this.favoriteTools } : false,
       legendOffset: { top: legTop, left: legLeft },
       persist: true,
@@ -807,6 +825,12 @@ class ZeroChartApp {
 
     try {
       pane.widget.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
+      if (pane.widget.chart?.setNavigationOptions) {
+        pane.widget.chart.setNavigationOptions({
+          mousePan: 'both',
+          defaultVisibleBars: defaultBars,
+        });
+      }
       if (pane.widget.chart?.setAxisChromeOptions) {
         pane.widget.chart.setAxisChromeOptions({
           barCountdown: true,
@@ -2781,6 +2805,10 @@ class ZeroChartApp {
             }
           } catch (_) {}
         }
+        try {
+          localStorage.setItem('zerochart_last_interval', interval);
+          this.saveFullLayout();
+        } catch (_) {}
       };
     });
 
