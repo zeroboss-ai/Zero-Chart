@@ -261,6 +261,12 @@ class ZeroChartApp {
             if (defGlobal) cleaned.push(JSON.parse(JSON.stringify(defGlobal)));
           }
 
+          // Ensure CME / COMEX / CBOT tab is present
+          if (!cleaned.some(w => w.id === 'wl-cme')) {
+            const defCme = DEFAULT_WATCHLISTS.find(w => w.id === 'wl-cme');
+            if (defCme) cleaned.push(JSON.parse(JSON.stringify(defCme)));
+          }
+
           if (cleaned.length > 0) return cleaned;
         }
       }
