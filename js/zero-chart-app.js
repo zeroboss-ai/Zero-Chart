@@ -1512,6 +1512,9 @@ class ZeroChartApp {
     if (document.getElementById('panel-institutional')?.style.display === 'flex') {
       this.loadInstitutionalPanel();
     }
+    if (document.getElementById('oi-analytics-modal')?.classList.contains('show')) {
+      this.openOIDashboard(inst.symbol);
+    }
     this.closeModal('search-modal');
     if (window.innerWidth <= 768) {
       this.closeMobileDrawer(true);
@@ -5245,8 +5248,14 @@ class ZeroChartApp {
   }
 
   openOIDashboard(symbol = null) {
-    const activeSym = symbol || this.currentInstrument?.symbol || 'NIFTY 50';
-    this.oiActiveSymbol = activeSym;
+    const activeSym = symbol || this.currentInstrument?.symbol || 'NIFTY';
+    if (this.oiActiveSymbol !== activeSym) {
+      this.oiActiveSymbol = activeSym;
+      this.oiSelectedExpiry = null;
+      this._cachedOIData = null;
+      this.oiCustomMin = null;
+      this.oiCustomMax = null;
+    }
     const modal = document.getElementById('oi-analytics-modal');
     if (modal) {
       modal.classList.add('show');

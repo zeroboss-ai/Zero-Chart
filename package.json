@@ -8,5 +8,8 @@
     "dev": "node server.mjs --watch"
   },
   "author": "Zero Chart Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
 }
