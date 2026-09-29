@@ -1485,17 +1485,32 @@ const GLOBAL_INDEX_ALIASES = {
 export function findInstrument(symbol) {
   if (!symbol) return null;
   const raw = symbol.toUpperCase().trim();
+  const unprefix = raw.includes(':') ? raw.split(':')[1].trim() : raw;
   const norm = raw.replace(/[^A-Z0-9]/g, '');
+  const unprefixNorm = unprefix.replace(/[^A-Z0-9]/g, '');
 
   if (GLOBAL_INDEX_ALIASES[norm]) {
     const aliased = MASTER_INSTRUMENTS.find(i => i.symbol === GLOBAL_INDEX_ALIASES[norm]);
+    if (aliased) return aliased;
+  }
+  if (GLOBAL_INDEX_ALIASES[unprefixNorm]) {
+    const aliased = MASTER_INSTRUMENTS.find(i => i.symbol === GLOBAL_INDEX_ALIASES[unprefixNorm]);
     if (aliased) return aliased;
   }
 
   const found = MASTER_INSTRUMENTS.find((item) => {
     const itemNorm = item.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const itemDisp = item.displaySymbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return itemNorm === norm || itemDisp === norm || item.symbol.toUpperCase() === raw;
+    const itemFull = (item.exchange ? item.exchange + ':' + item.symbol : item.symbol).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return (
+      itemNorm === norm ||
+      itemDisp === norm ||
+      item.symbol.toUpperCase() === raw ||
+      itemNorm === unprefixNorm ||
+      itemDisp === unprefixNorm ||
+      item.symbol.toUpperCase() === unprefix ||
+      itemFull === norm
+    );
   });
 
   if (found) return found;

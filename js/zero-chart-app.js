@@ -3474,7 +3474,7 @@ class ZeroChartApp {
       <!-- 5. CME / CFTC COT Institutional Positioning -->
       <div class="tv-inst-card">
         <div class="tv-inst-subhead">
-          <span>CME Commitments of Traders (COT)</span>
+          <span>${cotData.title || 'Institutional Positioning (COT)'}</span>
           <span style="font-size:10.5px;color:#2979ff;font-weight:700;">${cotData.sentimentLabel}</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
@@ -3497,34 +3497,190 @@ class ZeroChartApp {
   }
 
   getCOTDataForSymbol(symbol = 'ES') {
-    const sym = (symbol || '').toUpperCase().trim();
-    if (sym.includes('GC') || sym.includes('GOLD') || sym.includes('XAU')) {
+    const raw = (symbol || '').toUpperCase().trim();
+    const sym = raw.includes(':') ? raw.split(':')[1].trim() : raw;
+
+    // 1. Silver (COMEX / MCX / Spot)
+    if (sym === 'SI' || sym === 'SILVER' || sym === 'XAGUSD' || sym.startsWith('SILVER')) {
       return {
+        title: 'COMEX Silver Futures (5,000 oz)',
+        sentimentLabel: '72% Bullish Net Positioning',
+        categories: [
+          { name: 'Asset Managers (Institutions)', netPosition: 68500, netPositionText: '+68.5K Contracts', netPct: 72, color: '#00e676', wowText: '+3.8K ↗', wowUp: true, percentile: 79 },
+          { name: 'Commercial Dealers & Hedgers', netPosition: -42100, netPositionText: '-42.1K Contracts', netPct: -58, color: '#2979ff', wowText: '-2.4K ↘', wowUp: false, percentile: 25 },
+          { name: 'Managed Money (Hedge Funds)', netPosition: 26400, netPositionText: '+26.4K Contracts', netPct: 46, color: '#ff9100', wowText: '+1.4K ↗', wowUp: true, percentile: 68 },
+        ]
+      };
+    }
+
+    // 2. Gold (COMEX / MCX / Spot)
+    if (sym === 'GC' || sym === 'GOLD' || sym === 'XAU' || sym === 'XAUUSD' || sym === 'PAXGUSDT' || sym.startsWith('GOLD')) {
+      return {
+        title: 'COMEX Gold Futures (100 oz)',
         sentimentLabel: '82% Bullish Speculation',
         categories: [
           { name: 'Asset Managers (Institutions)', netPosition: 245800, netPositionText: '+245.8K Contracts', netPct: 84, color: '#00e676', wowText: '+12.4K ↗', wowUp: true, percentile: 88 },
-          { name: 'Dealers & Bullion Banks', netPosition: -188400, netPositionText: '-188.4K Contracts', netPct: 65, color: '#2979ff', wowText: '-8.2K ↘', wowUp: false, percentile: 19 },
+          { name: 'Dealers & Bullion Banks', netPosition: -188400, netPositionText: '-188.4K Contracts', netPct: -65, color: '#2979ff', wowText: '-8.2K ↘', wowUp: false, percentile: 19 },
           { name: 'Leveraged Funds (Hedge Funds)', netPosition: 74200, netPositionText: '+74.2K Contracts', netPct: 45, color: '#ff9100', wowText: '+4.1K ↗', wowUp: true, percentile: 72 },
         ]
       };
     }
-    if (sym.includes('CL') || sym.includes('CRUDE') || sym.includes('OIL')) {
+
+    // 3. Copper (COMEX / MCX)
+    if (sym === 'HG' || sym === 'COPPER') {
       return {
-        sentimentLabel: '58% Neutral Hedging',
+        title: 'COMEX Copper Futures (25,000 lbs)',
+        sentimentLabel: '64% Moderate Expansion',
         categories: [
-          { name: 'Asset Managers (Institutions)', netPosition: 142000, netPositionText: '+142.0K Contracts', netPct: 55, color: '#00e676', wowText: '-3.2K ↘', wowUp: false, percentile: 52 },
-          { name: 'Dealers & Producers', netPosition: -112400, netPositionText: '-112.4K Contracts', netPct: 48, color: '#2979ff', wowText: '+1.5K ↗', wowUp: true, percentile: 46 },
-          { name: 'Leveraged Funds (Hedge Funds)', netPosition: 48900, netPositionText: '+48.9K Contracts', netPct: 32, color: '#ff9100', wowText: '+2.8K ↗', wowUp: true, percentile: 59 },
+          { name: 'Managed Money (Asset Managers)', netPosition: 32100, netPositionText: '+32.1K Contracts', netPct: 62, color: '#00e676', wowText: '+2.1K ↗', wowUp: true, percentile: 67 },
+          { name: 'Commercial Producers & Merchants', netPosition: -41200, netPositionText: '-41.2K Contracts', netPct: -68, color: '#2979ff', wowText: '-3.5K ↘', wowUp: false, percentile: 31 },
+          { name: 'Non-Reportable Traders', netPosition: 16800, netPositionText: '+16.8K Contracts', netPct: 38, color: '#ff9100', wowText: '+0.9K ↗', wowUp: true, percentile: 55 },
         ]
       };
     }
-    // Default / S&P 500 / Indices
+
+    // 4. Crude Oil (NYMEX / ICE / MCX)
+    if (sym === 'CL' || sym === 'CRUDE' || sym === 'CRUDEOIL' || sym === 'WTI' || sym === 'BRENT' || sym === 'BZ' || sym.includes('CRUDE')) {
+      return {
+        title: 'NYMEX Light Sweet WTI Crude Oil',
+        sentimentLabel: '58% Neutral Hedging',
+        categories: [
+          { name: 'Managed Money (Asset Managers)', netPosition: 192500, netPositionText: '+192.5K Contracts', netPct: 58, color: '#00e676', wowText: '+5.4K ↗', wowUp: true, percentile: 58 },
+          { name: 'Commercial Producers & Merchants', netPosition: -284000, netPositionText: '-284.0K Contracts', netPct: -68, color: '#2979ff', wowText: '-6.8K ↘', wowUp: false, percentile: 42 },
+          { name: 'Swap Dealers', netPosition: 78200, netPositionText: '+78.2K Contracts', netPct: 35, color: '#ff9100', wowText: '+1.2K ↗', wowUp: true, percentile: 51 },
+        ]
+      };
+    }
+
+    // 5. Natural Gas (NYMEX / MCX)
+    if (sym === 'NG' || sym === 'NATGAS' || sym === 'NATURALGAS' || sym.includes('NATGAS')) {
+      return {
+        title: 'NYMEX Henry Hub Natural Gas',
+        sentimentLabel: '66% Winter Hedging Accumulation',
+        categories: [
+          { name: 'Swap Dealers', netPosition: 145200, netPositionText: '+145.2K Contracts', netPct: 72, color: '#00e676', wowText: '+7.8K ↗', wowUp: true, percentile: 76 },
+          { name: 'Commercial Producers / Processors', netPosition: -118400, netPositionText: '-118.4K Contracts', netPct: -64, color: '#2979ff', wowText: '-4.1K ↘', wowUp: false, percentile: 36 },
+          { name: 'Managed Money (Speculators)', netPosition: -42800, netPositionText: '-42.8K Contracts', netPct: -38, color: '#ff9100', wowText: '+3.1K ↗', wowUp: true, percentile: 49 },
+        ]
+      };
+    }
+
+    // 6. Nasdaq 100 (CME)
+    if (sym === 'NQ' || sym === 'NASDAQ' || sym === 'NDX' || sym === 'QQQ' || sym.includes('NASDAQ')) {
+      return {
+        title: 'CME E-mini Nasdaq 100 Futures',
+        sentimentLabel: '78% Bullish Tech Momentum',
+        categories: [
+          { name: 'Asset Managers (Institutions)', netPosition: 118200, netPositionText: '+118.2K Contracts', netPct: 79, color: '#00e676', wowText: '+6.8K ↗', wowUp: true, percentile: 82 },
+          { name: 'Dealers & Intermediaries', netPosition: -78500, netPositionText: '-78.5K Contracts', netPct: -64, color: '#2979ff', wowText: '-3.9K ↘', wowUp: false, percentile: 21 },
+          { name: 'Leveraged Funds (Hedge Funds)', netPosition: 24100, netPositionText: '+24.1K Contracts', netPct: 36, color: '#ff9100', wowText: '+2.4K ↗', wowUp: true, percentile: 74 },
+        ]
+      };
+    }
+
+    // 7. Dow Jones (CBOT)
+    if (sym === 'YM' || sym === 'DOW' || sym === 'DJI' || sym === 'DIA' || sym.includes('DOW')) {
+      return {
+        title: 'CBOT E-mini Dow Jones Futures',
+        sentimentLabel: '61% Value Rotation',
+        categories: [
+          { name: 'Asset Managers (Institutions)', netPosition: 45200, netPositionText: '+45.2K Contracts', netPct: 64, color: '#00e676', wowText: '+1.8K ↗', wowUp: true, percentile: 63 },
+          { name: 'Dealers & Intermediaries', netPosition: -38400, netPositionText: '-38.4K Contracts', netPct: -57, color: '#2979ff', wowText: '-1.2K ↘', wowUp: false, percentile: 38 },
+          { name: 'Leveraged Funds (Hedge Funds)', netPosition: -8900, netPositionText: '-8.9K Contracts', netPct: -22, color: '#ff9100', wowText: '+0.7K ↗', wowUp: true, percentile: 48 },
+        ]
+      };
+    }
+
+    // 8. Russell 2000 (CME)
+    if (sym === 'RTY' || sym === 'RUSSELL' || sym === 'RUT' || sym === 'IWM' || sym.includes('RUSSELL')) {
+      return {
+        title: 'CME E-mini Russell 2000 Futures',
+        sentimentLabel: '52% Neutral Consolidation',
+        categories: [
+          { name: 'Asset Managers (Institutions)', netPosition: 18400, netPositionText: '+18.4K Contracts', netPct: 48, color: '#00e676', wowText: '+1.1K ↗', wowUp: true, percentile: 54 },
+          { name: 'Dealers & Intermediaries', netPosition: -22100, netPositionText: '-22.1K Contracts', netPct: -52, color: '#2979ff', wowText: '-0.8K ↘', wowUp: false, percentile: 44 },
+          { name: 'Leveraged Funds (Hedge Funds)', netPosition: -36500, netPositionText: '-36.5K Contracts', netPct: -45, color: '#ff9100', wowText: '-2.3K ↘', wowUp: false, percentile: 30 },
+        ]
+      };
+    }
+
+    // 9. US Treasuries & Yields (CBOT)
+    if (sym === 'ZN' || sym === 'ZB' || sym === 'US10Y' || sym === 'TNX' || sym.includes('TREASURY') || sym.includes('BOND')) {
+      return {
+        title: 'CBOT 10Y/30Y US Treasury Futures',
+        sentimentLabel: '71% Institutional Duration Long',
+        categories: [
+          { name: 'Institutional Asset Managers', netPosition: 1280000, netPositionText: '+1.28M Contracts', netPct: 86, color: '#00e676', wowText: '+48.2K ↗', wowUp: true, percentile: 91 },
+          { name: 'Leveraged Basis Funds (Hedge Funds)', netPosition: -840500, netPositionText: '-840.5K Contracts', netPct: -78, color: '#2979ff', wowText: '-22.4K ↘', wowUp: false, percentile: 14 },
+          { name: 'Primary Dealers', netPosition: -310200, netPositionText: '-310.2K Contracts', netPct: -46, color: '#ff9100', wowText: '-9.8K ↘', wowUp: false, percentile: 38 },
+        ]
+      };
+    }
+
+    // 10. Grains & Agriculture (CBOT)
+    if (sym === 'ZC' || sym === 'ZW' || sym === 'ZS' || sym === 'CORN' || sym === 'WHEAT' || sym === 'SOYBEAN') {
+      return {
+        title: 'CBOT Agriculture & Grain Futures',
+        sentimentLabel: '54% Commercial Harvest Hedging',
+        categories: [
+          { name: 'Commercial Producers & Merchants', netPosition: -164200, netPositionText: '-164.2K Contracts', netPct: -62, color: '#2979ff', wowText: '-5.2K ↘', wowUp: false, percentile: 41 },
+          { name: 'Managed Money (Speculators)', netPosition: 88600, netPositionText: '+88.6K Contracts', netPct: 52, color: '#00e676', wowText: '+3.4K ↗', wowUp: true, percentile: 59 },
+          { name: 'Swap Dealers', netPosition: 42100, netPositionText: '+42.1K Contracts', netPct: 38, color: '#ff9100', wowText: '+1.1K ↗', wowUp: true, percentile: 53 },
+        ]
+      };
+    }
+
+    // 11. Crypto / Bitcoin / Ethereum (CME & Binance)
+    if (sym === 'BTC' || sym === 'ETH' || sym === 'SOL' || sym.endsWith('USDT') || sym.endsWith('BTC') || sym === 'COIN') {
+      return {
+        title: 'CME Bitcoin / Crypto Futures COT',
+        sentimentLabel: '84% Institutional Macro Long',
+        categories: [
+          { name: 'Institutional Asset Managers', netPosition: 18500, netPositionText: '+18.5K Contracts', netPct: 88, color: '#00e676', wowText: '+1.2K ↗', wowUp: true, percentile: 89 },
+          { name: 'Leveraged Funds (Basis Arbitrage)', netPosition: -16200, netPositionText: '-16.2K Contracts', netPct: -74, color: '#2979ff', wowText: '-0.9K ↘', wowUp: false, percentile: 18 },
+          { name: 'Other Reportable Speculators', netPosition: 4100, netPositionText: '+4.1K Contracts', netPct: 42, color: '#ff9100', wowText: '+0.4K ↗', wowUp: true, percentile: 68 },
+        ]
+      };
+    }
+
+    // 12. Indian Equities & Indices (NSE / BSE / F&O)
+    if (
+      sym.includes('NIFTY') ||
+      sym.includes('SENSEX') ||
+      sym === 'MUTHOOTFIN' ||
+      sym === 'RELIANCE' ||
+      sym === 'HDFCBANK' ||
+      sym === 'ICICIBANK' ||
+      sym === 'INFY' ||
+      sym === 'TCS' ||
+      sym === 'TATAMOTORS' ||
+      sym === 'SBIN' ||
+      sym === 'LT' ||
+      sym === 'ITC' ||
+      sym === 'HAL' ||
+      sym === 'BEL' ||
+      sym.endsWith('.NS') ||
+      sym.endsWith('.BO')
+    ) {
+      return {
+        title: 'NSE FII / DII Institutional F&O Positioning',
+        sentimentLabel: '68% Domestic Institutional Net Long',
+        categories: [
+          { name: 'DII (Mutual Funds & Insurance)', netPosition: 112400, netPositionText: '+112.4K Contracts', netPct: 78, color: '#00e676', wowText: '+8.2K ↗', wowUp: true, percentile: 84 },
+          { name: 'FII (Foreign Institutional Investors)', netPosition: 42800, netPositionText: '+42.8K Contracts', netPct: 58, color: '#2979ff', wowText: '+4.6K ↗', wowUp: true, percentile: 62 },
+          { name: 'Pro Desk / Proprietary Hedgers', netPosition: -68200, netPositionText: '-68.2K Contracts', netPct: -61, color: '#ff9100', wowText: '-3.1K ↘', wowUp: false, percentile: 34 },
+        ]
+      };
+    }
+
+    // 13. Default / S&P 500 / E-mini ES
     return {
+      title: 'CME Commitments of Traders (COT)',
       sentimentLabel: '76% Bullish Positioning',
       categories: [
         { name: 'Asset Managers (Institutions)', netPosition: 842500, netPositionText: '+842.5K Contracts', netPct: 82, color: '#00e676', wowText: '+24.6K ↗', wowUp: true, percentile: 85 },
-        { name: 'Dealers & Intermediaries', netPosition: -512000, netPositionText: '-512.0K Contracts', netPct: 62, color: '#2979ff', wowText: '-14.8K ↘', wowUp: false, percentile: 24 },
-        { name: 'Leveraged Funds (Hedge Funds)', netPosition: -124300, netPositionText: '-124.3K Contracts', netPct: 28, color: '#ff9100', wowText: '+18.2K ↗', wowUp: true, percentile: 42 },
+        { name: 'Dealers & Intermediaries', netPosition: -512000, netPositionText: '-512.0K Contracts', netPct: -62, color: '#2979ff', wowText: '-14.8K ↘', wowUp: false, percentile: 24 },
+        { name: 'Leveraged Funds (Hedge Funds)', netPosition: -124300, netPositionText: '-124.3K Contracts', netPct: -28, color: '#ff9100', wowText: '+18.2K ↗', wowUp: true, percentile: 42 },
       ]
     };
   }
@@ -4625,4 +4781,5 @@ class ZeroChartApp {
 // Bootstrap on DOM ready
 window.addEventListener('DOMContentLoaded', () => {
   window.zeroChartApp = new ZeroChartApp();
+  window.app = window.zeroChartApp;
 });

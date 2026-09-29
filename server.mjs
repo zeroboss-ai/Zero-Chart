@@ -592,15 +592,50 @@ const SYMBOL_MAP = {
   'XPTUSD': 'PL=F',
   'COPPER': 'HG=F',
   'NATURALGAS': 'NG=F',
+
+  // CME / COMEX / CBOT / NYMEX Futures
+  'ES': 'ES=F',
+  'ES FUT': 'ES=F',
+  'NQ': 'NQ=F',
+  'NQ FUT': 'NQ=F',
+  'YM': 'YM=F',
+  'YM FUT': 'YM=F',
+  'RTY': 'RTY=F',
+  'RTY FUT': 'RTY=F',
+  'GC': 'GC=F',
+  'GC FUT': 'GC=F',
+  'SI': 'SI=F',
+  'SI FUT': 'SI=F',
+  'HG': 'HG=F',
+  'HG FUT': 'HG=F',
+  'CL': 'CL=F',
+  'CL FUT': 'CL=F',
+  'NG': 'NG=F',
+  'NG FUT': 'NG=F',
+  'ZN': 'ZN=F',
+  'ZN FUT': 'ZN=F',
+  'ZB': 'ZB=F',
+  'ZB FUT': 'ZB=F',
+  'ZC': 'ZC=F',
+  'ZC FUT': 'ZC=F',
+  'ZW': 'ZW=F',
+  'ZW FUT': 'ZW=F',
+  'ZS': 'ZS=F',
+  'ZS FUT': 'ZS=F',
 };
 
 function resolveTicker(symbol) {
-  const norm = (symbol || '').toUpperCase().trim();
-  if (SYMBOL_MAP[norm]) return SYMBOL_MAP[norm];
-  if (norm.endsWith('.NS') || norm.endsWith('.BO') || norm.includes('=') || norm.startsWith('^')) {
-    return norm;
+  const raw = (symbol || '').toUpperCase().trim();
+  const unprefix = raw.includes(':') ? raw.split(':')[1].trim() : raw;
+  if (SYMBOL_MAP[raw]) return SYMBOL_MAP[raw];
+  if (SYMBOL_MAP[unprefix]) return SYMBOL_MAP[unprefix];
+  if (raw.endsWith('.NS') || raw.endsWith('.BO') || raw.includes('=') || raw.startsWith('^')) {
+    return raw;
   }
-  return `${norm}.NS`;
+  if (unprefix.endsWith('.NS') || unprefix.endsWith('.BO') || unprefix.includes('=') || unprefix.startsWith('^')) {
+    return unprefix;
+  }
+  return `${unprefix}.NS`;
 }
 
 function mapInterval(interval) {
@@ -874,7 +909,13 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   // Forex & Currency Pairs
   'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURINR', 'GBPINR', 'JPYINR',
   // Global Commodities & Futures
-  'BRENT', 'BRENT CRUDE', 'WTI CRUDE', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'COPPER', 'NATURALGAS'
+  'BRENT', 'BRENT CRUDE', 'WTI CRUDE', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'COPPER', 'NATURALGAS',
+  // CME / COMEX / CBOT / NYMEX Futures
+  'ES', 'ES FUT', 'NQ', 'NQ FUT', 'YM', 'YM FUT', 'RTY', 'RTY FUT',
+  'GC', 'GC FUT', 'SI', 'SI FUT', 'HG', 'HG FUT',
+  'CL', 'CL FUT', 'NG', 'NG FUT',
+  'ZN', 'ZN FUT', 'ZB', 'ZB FUT',
+  'ZC', 'ZC FUT', 'ZW', 'ZW FUT', 'ZS', 'ZS FUT'
 ]);
 
 // ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY & GLOBAL) ───
@@ -1019,14 +1060,25 @@ async function refreshGlobalIndices() {
         { ticker: 'GBPINR=X', symbols: ['GBPINR'] },
         { ticker: 'JPYINR=X', symbols: ['JPYINR'] },
 
-        // Global Commodities
-        { ticker: 'GC=F', symbols: ['XAUUSD'] },
-        { ticker: 'SI=F', symbols: ['XAGUSD'] },
+        // Global Commodities & Futures
+        { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'XAUUSD'] },
+        { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'XAGUSD'] },
         { ticker: 'PL=F', symbols: ['XPTUSD'] },
-        { ticker: 'CL=F', symbols: ['WTI CRUDE'] },
+        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'WTI CRUDE'] },
         { ticker: 'BZ=F', symbols: ['BRENT', 'BRENT CRUDE'] },
-        { ticker: 'HG=F', symbols: ['COPPER'] },
-        { ticker: 'NG=F', symbols: ['NATURALGAS'] },
+        { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COPPER'] },
+        { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NATURALGAS'] },
+
+        // CME / CBOT Indices & Bonds & Ags
+        { ticker: 'ES=F', symbols: ['ES', 'ES FUT'] },
+        { ticker: 'NQ=F', symbols: ['NQ', 'NQ FUT'] },
+        { ticker: 'YM=F', symbols: ['YM', 'YM FUT'] },
+        { ticker: 'RTY=F', symbols: ['RTY', 'RTY FUT'] },
+        { ticker: 'ZN=F', symbols: ['ZN', 'ZN FUT'] },
+        { ticker: 'ZB=F', symbols: ['ZB', 'ZB FUT'] },
+        { ticker: 'ZC=F', symbols: ['ZC', 'ZC FUT'] },
+        { ticker: 'ZW=F', symbols: ['ZW', 'ZW FUT'] },
+        { ticker: 'ZS=F', symbols: ['ZS', 'ZS FUT'] },
       ];
 
       await Promise.allSettled(distinctTickers.map(async ({ ticker, symbols }) => {

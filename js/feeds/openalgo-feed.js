@@ -5,6 +5,7 @@
  */
 
 import { generateBars } from '../../lib/openalgo-charts.mjs';
+import { findInstrument } from '../watchlist-data.js';
 
 function getStoredItem(key, fallback = '') {
   try {
@@ -346,9 +347,11 @@ export class OpenAlgoLiveFeed {
       USDINR: 83.65,
     };
 
-    const basePrice = MARKET_BASE_PRICES[symKey] || 1500;
+    const inst = findInstrument(symbol) || findInstrument(symKey);
+    const instBasePrice = inst?.basePrice;
+    const basePrice = (typeof instBasePrice === 'number' && instBasePrice > 0) ? instBasePrice : (MARKET_BASE_PRICES[symKey] || 1500);
     const isFx = symKey === 'EURUSD' || symKey === 'USDINR';
-    const decimals = isFx ? 4 : isMcxSym ? 2 : 2;
+    const decimals = typeof inst?.precision === 'number' ? inst.precision : (isFx ? 4 : isMcxSym ? 2 : 2);
 
     const intervalSecs = getIntervalSeconds(interval);
     const nowSec = Math.floor(Date.now() / 1000);
