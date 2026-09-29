@@ -3874,6 +3874,7 @@ class ZeroChartApp {
   initMobileUI() {
     const mobNavChart = document.getElementById('mob-nav-chart');
     const mobNavWatchlist = document.getElementById('mob-nav-watchlist');
+    const mobNavOI = document.getElementById('mob-nav-oi');
     const mobNavInstitutional = document.getElementById('mob-nav-institutional');
     const mobNavNews = document.getElementById('mob-nav-news');
     const drawToggleBtn = document.getElementById('btn-toggle-drawing-toolbar');
@@ -3899,6 +3900,13 @@ class ZeroChartApp {
       mobNavWatchlist.onclick = () => {
         this.openMobileDrawer('watchlist', false);
         updateMobNav('mob-nav-watchlist');
+      };
+    }
+
+    if (mobNavOI) {
+      mobNavOI.onclick = () => {
+        this.openOIDashboard();
+        updateMobNav('mob-nav-oi');
       };
     }
 
@@ -5270,7 +5278,28 @@ class ZeroChartApp {
     }
   }
 
+  async fetchOptionChainData(sym = this.oiActiveSymbol, expiry = this.oiSelectedExpiry) {
+    const activeSym = sym || this.currentInstrument?.symbol || 'NIFTY';
+    const cleanSym = (activeSym || '').replace(/\s*FUT$|\s*1!$/i, '').trim();
+    try {
+      const url = `/api/market/option-chain?symbol=${encodeURIComponent(cleanSym)}${expiry ? `&expiry=${encodeURIComponent(expiry)}` : ''}`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && json.status === 'success') {
+          this._cachedOIData = json;
+          if (json.expiry) this.oiSelectedExpiry = json.expiry;
+          return json;
+        }
+      }
+    } catch (err) {
+      console.warn('[Option Chain] Fetch error:', err);
+    }
+    return this._cachedOIData || null;
+  }
+
   getOIOptionChainData(sym = this.oiActiveSymbol, timeIndex = this.oiTimeSliderIndex, isTotalOI = this.oiShowTotal, atmFilter = this.oiATMFilter) {
+    const rawData = this._cachedOIData;
     const inst = findInstrument(sym) || this.currentInstrument || {
       symbol: 'NIFTY 50',
       displaySymbol: 'NIFTY',
@@ -5280,10 +5309,87 @@ class ZeroChartApp {
     };
 
     const q = this.livePrices.get(inst.symbol);
-    const spot = q?.last || inst.basePrice || 22716.20;
+    const spot = rawData?.spot || q?.last || inst.basePrice || 22716.20;
     const isIndian = inst.category === 'india' || !inst.category || inst.symbol.includes('NIFTY') || inst.symbol.includes('BANKNIFTY');
 
-    // Strike step resolution
+    if (rawData && rawData.strikeRows && rawData.strikeRows.length > 0) {
+      const progress = Math.min(1.0, Math.max(0.05, timeIndex / 75));
+      const dayOpenPrice = +(spot * 1.0028).toFixed(inst.precision || 2);
+      const interpolatedSpot = +(dayOpenPrice + (spot - dayOpenPrice) * progress).toFixed(inst.precision || 2);
+
+      let allRows = rawData.strikeRows;
+      const centerStrike = rawData.maxPainStrike || spot;
+
+      // Apply ATM Pill Filter (e.g. 5, 10, 15, 20, 25, 'all')
+      if (typeof atmFilter === 'number') {
+        let centerIdx = allRows.findIndex((r) => r.isATM);
+        if (centerIdx === -1) centerIdx = Math.floor(allRows.length / 2);
+        const minIdx = Math.max(0, centerIdx - atmFilter);
+        const maxIdx = Math.min(allRows.length - 1, centerIdx + atmFilter);
+        allRows = allRows.slice(minIdx, maxIdx + 1);
+      }
+
+      // Apply Custom Strike Range Min/Max
+      if (this.oiCustomMin != null) {
+        allRows = allRows.filter((r) => r.strike >= this.oiCustomMin);
+      }
+      if (this.oiCustomMax != null) {
+        allRows = allRows.filter((r) => r.strike <= this.oiCustomMax);
+      }
+
+      const minStrike = allRows.length > 0 ? allRows[0].strike : spot - 1000;
+      const maxStrike = allRows.length > 0 ? allRows[allRows.length - 1].strike : spot + 1000;
+
+      let totalCallOI = 0, totalPutOI = 0;
+      let netCallOIChg = 0, netPutOIChg = 0;
+
+      const strikeRows = allRows.map((r) => {
+        const scaledCallChg = Math.round((r.callChg || 0) * progress);
+        const scaledPutChg = Math.round((r.putChg || 0) * progress);
+        const callOI = r.callOI || 0;
+        const putOI = r.putOI || 0;
+
+        totalCallOI += callOI;
+        totalPutOI += putOI;
+        netCallOIChg += scaledCallChg;
+        netPutOIChg += scaledPutChg;
+
+        return {
+          ...r,
+          callChg: scaledCallChg,
+          putChg: scaledPutChg,
+          netDiff: scaledPutChg - scaledCallChg,
+          strikePCR: callOI > 0 ? +(putOI / callOI).toFixed(2) : 1.0,
+          isIndian: true,
+        };
+      });
+
+      const pcr = totalCallOI > 0 ? +(totalPutOI / totalCallOI).toFixed(2) : (rawData.pcr || 1.0);
+
+      return {
+        inst,
+        spot,
+        dayOpenPrice,
+        interpolatedSpot,
+        minStrike,
+        maxStrike,
+        centerStrike,
+        isIndian: true,
+        pcr,
+        maxPainStrike: rawData.maxPainStrike || centerStrike,
+        indiaVIX: rawData.indiaVIX || 12.85,
+        totalCallOI,
+        totalPutOI,
+        netCallOIChg,
+        netPutOIChg,
+        strikeRows,
+        availableExpiries: rawData.availableExpiries || [],
+        expiry: rawData.expiry || 'Current',
+        source: rawData.source || 'AngelOne Live Feed',
+      };
+    }
+
+    // Fallback baseline modeling if network fetch pending
     let strikeStep = 50;
     if (inst.symbol.includes('BANKNIFTY') || inst.symbol.includes('SENSEX')) strikeStep = 100;
     else if (inst.symbol.includes('NIFTY') || inst.symbol.includes('FINNIFTY')) strikeStep = 50;
@@ -5291,9 +5397,7 @@ class ZeroChartApp {
     else if (spot > 10000) strikeStep = 100;
     else if (spot > 2500) strikeStep = 50;
     else if (spot > 1000) strikeStep = 20;
-    else if (spot > 300) strikeStep = 10;
-    else if (spot > 50) strikeStep = 2.5;
-    else strikeStep = 0.5;
+    else strikeStep = 5;
 
     const centerStrike = Math.round(spot / strikeStep) * strikeStep;
     const filterCount = typeof atmFilter === 'number' ? atmFilter : (atmFilter === 'all' ? 30 : 20);
@@ -5309,7 +5413,6 @@ class ZeroChartApp {
       strikes.push(Math.round(k / (strikeStep >= 1 ? 1 : 0.1)) * (strikeStep >= 1 ? 1 : 0.1));
     }
 
-    // Intraday progression factor: 0.0 (9:15 AM) to 1.0 (3:30 PM)
     const progress = Math.min(1.0, Math.max(0.05, timeIndex / 75));
     const dayOpenPrice = +(spot * 1.0028).toFixed(inst.precision || 2);
     const interpolatedSpot = +(dayOpenPrice + (spot - dayOpenPrice) * progress).toFixed(inst.precision || 2);
@@ -5320,24 +5423,17 @@ class ZeroChartApp {
 
     strikes.forEach((k) => {
       const distFromSpot = (k - spot) / spot;
-      const gaussian = Math.exp(-0.5 * Math.pow(distFromSpot / 0.035, 2));
-
-      // Base Cumulative Open Interest Modeling
       const baseCallOI = Math.round((1800000 + 12000000 * Math.exp(-0.5 * Math.pow((k - (spot * 1.015)) / (spot * 0.04), 2))) * (spot > 10000 ? 1 : 0.2));
       const basePutOI = Math.round((1600000 + 11500000 * Math.exp(-0.5 * Math.pow((k - (spot * 0.985)) / (spot * 0.04), 2))) * (spot > 10000 ? 1 : 0.2));
 
-      // Daily OI Change Modeling (Green Puts build support below ATM, Red Calls build resistance above ATM)
       let rawCallChg = 0, rawPutChg = 0;
       if (k > centerStrike) {
-        // Resistance above ATM: Heavy Call addition, Put unwinding
         rawCallChg = Math.round((8500000 * Math.exp(-0.5 * Math.pow((k - (spot * 1.008)) / (spot * 0.025), 2)) + 1500000) * progress * (spot > 10000 ? 1 : 0.2));
         rawPutChg = Math.round((-4500000 * Math.exp(-0.5 * Math.pow((k - (spot * 1.005)) / (spot * 0.02), 2)) - 500000) * progress * (spot > 10000 ? 1 : 0.2));
       } else if (k < centerStrike) {
-        // Support below ATM: Heavy Put addition, Call unwinding
         rawPutChg = Math.round((8200000 * Math.exp(-0.5 * Math.pow((k - (spot * 0.992)) / (spot * 0.025), 2)) + 1200000) * progress * (spot > 10000 ? 1 : 0.2));
         rawCallChg = Math.round((-3800000 * Math.exp(-0.5 * Math.pow((k - (spot * 0.995)) / (spot * 0.02), 2)) - 400000) * progress * (spot > 10000 ? 1 : 0.2));
       } else {
-        // ATM battleground
         rawCallChg = Math.round(14500000 * progress * (spot > 10000 ? 1 : 0.2));
         rawPutChg = Math.round(11800000 * progress * (spot > 10000 ? 1 : 0.2));
       }
@@ -5392,14 +5488,18 @@ class ZeroChartApp {
       netCallOIChg,
       netPutOIChg,
       strikeRows,
+      availableExpiries: [],
+      expiry: 'Current',
     };
   }
 
-  renderOIDashboard() {
+  async renderOIDashboard() {
+    // 1. Fetch Real Live Data from Server Endpoint
+    await this.fetchOptionChainData();
     const data = this.getOIOptionChainData();
     this._lastOIData = data;
 
-    // 1. Update Left Panel Info
+    // 2. Update Left Panel Info
     const titleEl = document.getElementById('oi-active-symbol-title');
     const priceEl = document.getElementById('oi-active-symbol-price');
     const pctEl = document.getElementById('oi-active-symbol-pct');
@@ -5417,49 +5517,59 @@ class ZeroChartApp {
     if (minValEl) minValEl.textContent = data.minStrike.toLocaleString();
     if (maxValEl) maxValEl.textContent = data.maxStrike.toLocaleString();
 
-    // 2. Expiries List with today & upcoming weekly expiries
+    // 3. Dynamic Expiries List with Real Exchange Expiries
     const expiriesContainer = document.getElementById('oi-expiries-list');
     if (expiriesContainer) {
-      const now = new Date();
-      const expiries = [
-        { dateStr: '29 Sep (Today)', days: 0, tag: 'Current', checked: true },
-        { dateStr: '06 Oct (7 days)', days: 7, tag: 'W', checked: false },
-        { dateStr: '13 Oct (14 days)', days: 14, tag: 'W', checked: false },
-        { dateStr: '19 Oct (20 days)', days: 20, tag: 'W', checked: false },
-        { dateStr: '27 Oct (28 days)', days: 28, tag: 'M', checked: false },
-        { dateStr: '03 Nov (35 days)', days: 35, tag: 'W', checked: false },
-      ];
+      const exps = data.availableExpiries && data.availableExpiries.length > 0
+        ? data.availableExpiries
+        : ['29SEP2026', '06OCT2026', '13OCT2026', '19OCT2026', '27OCT2026'];
 
-      expiriesContainer.innerHTML = expiries.map((exp, idx) => `
-        <label class="tv-oi-expiry-item">
-          <input type="checkbox" name="oi-expiry" value="${exp.dateStr}" ${exp.checked ? 'checked' : ''} />
-          <span>${exp.dateStr}</span>
-          <span class="tv-oi-exp-tag">${exp.tag}</span>
-        </label>
-      `).join('');
+      expiriesContainer.innerHTML = exps.map((exp, idx) => {
+        const isChecked = exp === data.expiry || (idx === 0 && !this.oiSelectedExpiry);
+        const tag = idx === 0 ? 'Current' : (idx < 4 ? 'W' : 'M');
+        return `
+          <label class="tv-oi-expiry-item" style="cursor:pointer;">
+            <input type="radio" name="oi-expiry" value="${exp}" ${isChecked ? 'checked' : ''} />
+            <span style="font-weight:600;">${exp}</span>
+            <span class="tv-oi-exp-tag">${tag}</span>
+          </label>
+        `;
+      }).join('');
+
+      expiriesContainer.querySelectorAll('input[name="oi-expiry"]').forEach((radio) => {
+        radio.onchange = (e) => {
+          if (e.target.checked) {
+            this.oiSelectedExpiry = e.target.value;
+            this.renderOIDashboard();
+          }
+        };
+      });
     }
 
-    // 3. Top Metrics
+    // 4. Top Metrics
     const pcrValEl = document.getElementById('oi-top-pcr-val');
     const maxPainEl = document.getElementById('oi-top-maxpain-val');
+    const vixValEl = document.getElementById('oi-top-vix-val');
     if (pcrValEl) pcrValEl.textContent = data.pcr.toFixed(2);
     if (maxPainEl) maxPainEl.textContent = data.maxPainStrike.toLocaleString();
+    if (vixValEl) vixValEl.textContent = data.indiaVIX.toFixed(2);
 
     const sidebarPcr = document.getElementById('sidebar-oi-pcr-badge');
     if (sidebarPcr) sidebarPcr.textContent = `PCR ${data.pcr.toFixed(2)}`;
 
-    // 4. Chart Title & Legend Labels
+    // 5. Chart Title & Legend Labels
     const chartTitle = document.getElementById('oi-chart-title');
     const putLegend = document.getElementById('lbl-put-legend');
     const callLegend = document.getElementById('lbl-call-legend');
 
     if (chartTitle) {
-      chartTitle.textContent = this.oiShowTotal ? `Total Open Interest on ${data.inst.displaySymbol || data.inst.symbol}` : `OI Change on Tue, 29 Sep`;
+      const symName = data.inst.displaySymbol || data.inst.symbol;
+      chartTitle.textContent = this.oiShowTotal ? `Total Open Interest on ${symName} (${data.expiry})` : `OI Change on ${symName} (${data.expiry})`;
     }
     if (putLegend) putLegend.textContent = this.oiShowTotal ? 'Put OI' : 'Put OI chg';
     if (callLegend) callLegend.textContent = this.oiShowTotal ? 'Call OI' : 'Call OI chg';
 
-    // 5. Summary Footer Card
+    // 6. Summary Footer Card
     const sumCallEl = document.getElementById('oi-sum-call-chg');
     const sumPutEl = document.getElementById('oi-sum-put-chg');
     const sumOpenPriceEl = document.getElementById('oi-sum-open-price');
@@ -5480,9 +5590,9 @@ class ZeroChartApp {
     if (sumOpenPriceEl) sumOpenPriceEl.textContent = data.dayOpenPrice.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
     if (sumClosePriceEl) sumClosePriceEl.textContent = data.interpolatedSpot.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
     if (sumOpenLbl) sumOpenLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 9:15 AM:`;
-    if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 3:30 PM:`;
+    if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} Live Spot:`;
 
-    // 6. Draw Canvas Histogram
+    // 7. Draw Canvas Histogram
     this.drawOIHistogramCanvas(data);
   }
 

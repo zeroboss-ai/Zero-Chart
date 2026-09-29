@@ -4115,7 +4115,7 @@ html, body {
 /* Main 2-Column Layout */
 .tv-oi-main-layout {
   display: grid;
-  grid-template-columns: 270px 1fr;
+  grid-template-columns: 290px 1fr;
   flex: 1;
   min-height: 0;
   background: var(--bg);
@@ -4137,12 +4137,14 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 8px 10px;
   background: var(--panel-elev);
   border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.12s ease;
+  min-width: 0;
 }
 
 .tv-oi-sym-box:hover {
@@ -4151,8 +4153,9 @@ html, body {
 
 .tv-oi-sym-name {
   font-weight: 800;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-bright);
+  white-space: nowrap;
 }
 
 .tv-oi-sym-price {
@@ -4160,12 +4163,14 @@ html, body {
   font-size: 12px;
   font-family: var(--mono);
   color: var(--text);
+  white-space: nowrap;
 }
 
 .tv-oi-sym-pct {
   font-size: 11px;
   font-weight: 700;
   font-family: var(--mono);
+  white-space: nowrap;
 }
 
 .tv-oi-sym-pct.up { color: #00e676; }
@@ -4180,6 +4185,7 @@ html, body {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .tv-oi-info-pill:hover {
