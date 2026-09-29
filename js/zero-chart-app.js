@@ -1256,8 +1256,8 @@ class ZeroChartApp {
       const badgeContent = getInstrumentBadgeHtml(inst);
 
       row.innerHTML = `
-        <div class="tv-wl-drag-handle" title="Drag to reorder symbol">⋮⋮</div>
         <div class="tv-wl-cell-sym">
+          <div class="tv-wl-drag-handle" title="Drag to reorder symbol">⋮⋮</div>
           <div class="tv-symbol-circle" style="background:${inst.badgeColor || '#2962ff'};">${badgeContent}</div>
           <div class="tv-symbol-meta">
             <div class="tv-sym-name">${inst.displaySymbol} <span class="tv-sym-dash">-</span></div>

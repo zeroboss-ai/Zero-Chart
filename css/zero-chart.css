@@ -583,8 +583,8 @@ html, body {
 }
 
 .tv-right-content {
-  width: 320px;
-  min-width: 220px;
+  width: 330px;
+  min-width: 240px;
   max-width: 80vw;
   height: 100%;
   display: flex;
@@ -750,8 +750,9 @@ html, body {
 /* 3-Column Table Headers */
 .tv-wl-cols {
   display: grid;
-  grid-template-columns: 1fr 74px 56px 54px 18px;
-  padding: 4px 10px;
+  grid-template-columns: minmax(0, 1fr) 70px 48px 50px 16px;
+  padding: 4px 8px;
+  gap: 2px;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.4px;
@@ -759,6 +760,7 @@ html, body {
   border-bottom: 1px solid var(--border);
   background: var(--panel-bg);
   text-transform: uppercase;
+  align-items: center;
 }
 
 .tv-col-sym { text-align: left; }
@@ -776,9 +778,10 @@ html, body {
 /* Watchlist Item Row (Exact TradingView 3-Column Item) */
 .tv-wl-row {
   display: grid;
-  grid-template-columns: 1fr 74px 56px 54px 18px;
+  grid-template-columns: minmax(0, 1fr) 70px 48px 50px 16px;
   align-items: center;
-  padding: 4px 10px;
+  padding: 4px 8px;
+  gap: 2px;
   cursor: pointer;
   border-bottom: 1px solid var(--border-subtle);
   transition: background 0.1s ease;
@@ -807,10 +810,9 @@ html, body {
   color: var(--text-muted);
   opacity: 0;
   cursor: grab;
-  width: 14px;
+  width: 12px;
   height: 100%;
-  margin-right: 2px;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
   transition: opacity 0.15s ease, color 0.15s ease;
   flex-shrink: 0;
@@ -841,17 +843,18 @@ html, body {
 .tv-wl-cell-sym {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
   overflow: hidden;
 }
 
 .tv-symbol-circle {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   color: #ffffff;
   font-weight: 800;
-  font-size: 10px;
+  font-size: 9.5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -866,6 +869,8 @@ html, body {
 }
 
 .tv-symbol-meta {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -875,6 +880,9 @@ html, body {
   font-size: 12px;
   color: var(--text-bright);
   line-height: 1.2;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .tv-sym-dash {
@@ -887,6 +895,7 @@ html, body {
   color: var(--text-muted);
   text-overflow: ellipsis;
   overflow: hidden;
+  white-space: nowrap;
   line-height: 1.2;
 }
 
@@ -904,6 +913,9 @@ html, body {
   font-size: 11.5px;
   text-align: right;
   color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background 0.3s ease;
 }
 
@@ -912,6 +924,9 @@ html, body {
   font-size: 11px;
   font-weight: 500;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tv-wl-cell-pct {
@@ -919,6 +934,9 @@ html, body {
   font-size: 11px;
   font-weight: 500;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Real-Time Price Tick Flash Animation */
@@ -970,6 +988,9 @@ html, body {
   font-size: 11px;
   padding: 2px;
   border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tv-btn-del-sym:hover {
