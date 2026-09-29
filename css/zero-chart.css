@@ -4653,13 +4653,22 @@ html, body {
 }
 
 @media (max-width: 768px) {
+  .tv-mobile-nav {
+    z-index: 12000 !important;
+  }
+
+  .tv-oi-full-backdrop {
+    z-index: 10000 !important;
+  }
+
   .tv-oi-dashboard-container {
     width: 100vw;
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
     border-radius: 0;
     max-width: 100vw;
-    max-height: 100dvh;
+    max-height: calc(100dvh - 56px);
+    margin-bottom: 56px;
   }
 
   .tv-oi-main-layout {

@@ -4002,11 +4002,16 @@ class ZeroChartApp {
     const searchModal = document.getElementById('search-modal');
     const alertModal = document.getElementById('alert-modal');
     const pwaModal = document.getElementById('pwa-modal');
+    const oiModal = document.getElementById('oi-analytics-modal');
     const layoutMenu = document.getElementById('layout-grid-menu');
     const chartTypeMenu = document.getElementById('chart-type-menu');
     const speedMenu = document.getElementById('replay-speed-menu');
     const widgetDialogs = document.querySelectorAll('.oac-dialog, .oac-overlay');
 
+    if (oiModal?.classList.contains('show')) {
+      this.closeOIDashboard();
+      return;
+    }
     if (searchModal?.classList.contains('show')) {
       this.closeModal('search-modal');
       return;
@@ -4077,6 +4082,7 @@ class ZeroChartApp {
   }
 
   openMobileDrawer(tabName, pushState = true) {
+    this.closeOIDashboard();
     const sidebar = document.querySelector('.tv-right-sidebar');
     const rightPanel = document.getElementById('right-panel');
     const tabPanes = document.querySelectorAll('.tv-right-content .tv-tab-pane');
@@ -5261,6 +5267,16 @@ class ZeroChartApp {
       modal.classList.add('show');
       this.renderOIDashboard();
     }
+    if (window.innerWidth <= 768) {
+      document.body.classList.remove('mobile-drawer-open');
+      const sidebar = document.querySelector('.tv-right-sidebar');
+      if (sidebar) sidebar.classList.remove('mobile-open');
+      document.querySelectorAll('.tv-mob-nav-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.id === 'mob-nav-oi');
+      });
+      this.currentViewState = 'oi';
+      this.pushHistoryState({ view: 'oi' });
+    }
   }
 
   closeOIDashboard() {
@@ -5546,7 +5562,7 @@ class ZeroChartApp {
 
   async renderOIDashboard() {
     // 1. Fetch Real Live Data from Server Endpoint
-    await this.fetchOptionChainData();
+    await this.fetchOptionChainData(this.oiActiveSymbol, this.oiSelectedExpiry);
     const data = this.getOIOptionChainData();
     this._lastOIData = data;
 
@@ -5588,10 +5604,11 @@ class ZeroChartApp {
       }).join('');
 
       expiriesContainer.querySelectorAll('input[name="oi-expiry"]').forEach((radio) => {
-        radio.onchange = (e) => {
+        radio.onchange = async (e) => {
           if (e.target.checked) {
             this.oiSelectedExpiry = e.target.value;
-            this.renderOIDashboard();
+            this._cachedOIData = null;
+            await this.renderOIDashboard();
           }
         };
       });

@@ -2055,7 +2055,7 @@ async function fetchGrowwOptionChain(symbol = 'NIFTY', expiry = null, limit = 25
   let isoExp = null;
   if (expiry) {
     isoExp = convertExpiryToIso(expiry);
-    if (isoExp) url += `?selectedExpiry=${encodeURIComponent(isoExp)}`;
+    if (isoExp) url += `?expiry=${encodeURIComponent(isoExp)}`;
   }
   
   const resp = await fetch(url, {
