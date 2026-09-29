@@ -1240,6 +1240,8 @@ class ZeroChartApp {
     instruments.forEach((inst) => {
       const row = document.createElement('div');
       row.className = `tv-wl-row ${inst.symbol === this.currentInstrument?.symbol ? 'selected' : ''}`;
+      row.draggable = true;
+      row.dataset.sym = inst.symbol;
       const cleanId = inst.symbol.replace(/[^A-Za-z0-9]/g, '_');
       row.id = `wl-row-${cleanId}`;
 
@@ -1254,6 +1256,7 @@ class ZeroChartApp {
       const badgeContent = getInstrumentBadgeHtml(inst);
 
       row.innerHTML = `
+        <div class="tv-wl-drag-handle" title="Drag to reorder symbol">⋮⋮</div>
         <div class="tv-wl-cell-sym">
           <div class="tv-symbol-circle" style="background:${inst.badgeColor || '#2962ff'};">${badgeContent}</div>
           <div class="tv-symbol-meta">
@@ -1281,7 +1284,7 @@ class ZeroChartApp {
 
       // Click to switch active pane instrument
       row.onclick = (e) => {
-        if (e.target.closest('.tv-btn-del-sym')) return;
+        if (e.target.closest('.tv-btn-del-sym') || e.target.closest('.tv-wl-drag-handle')) return;
         this.switchInstrument(inst);
       };
 
@@ -1294,8 +1297,128 @@ class ZeroChartApp {
         };
       }
 
+      // Drag and Drop (Desktop HTML5 Drag & Drop)
+      row.addEventListener('dragstart', (e) => {
+        this._draggedSymbol = inst.symbol;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', inst.symbol);
+      });
+
+      row.addEventListener('dragend', () => {
+        this._draggedSymbol = null;
+        document.querySelectorAll('.tv-wl-row').forEach((r) => {
+          r.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
+        });
+      });
+
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!this._draggedSymbol || this._draggedSymbol === inst.symbol) return;
+        const rect = row.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+          row.classList.add('drag-over-top');
+          row.classList.remove('drag-over-bottom');
+        } else {
+          row.classList.add('drag-over-bottom');
+          row.classList.remove('drag-over-top');
+        }
+      });
+
+      row.addEventListener('dragleave', () => {
+        row.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over-top', 'drag-over-bottom');
+        const srcSym = e.dataTransfer.getData('text/plain') || this._draggedSymbol;
+        if (!srcSym || srcSym === inst.symbol) return;
+        const rect = row.getBoundingClientRect();
+        const isBefore = e.clientY < rect.top + rect.height / 2;
+        this.reorderWatchlistSymbol(srcSym, inst.symbol, isBefore);
+      });
+
+      // Touch Drag & Drop (Mobile Pointer / Touch Dragging)
+      const dragHandle = row.querySelector('.tv-wl-drag-handle');
+      if (dragHandle) {
+        let isTouchDragging = false;
+        let currentOverRow = null;
+
+        dragHandle.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          isTouchDragging = true;
+          this._draggedSymbol = inst.symbol;
+          row.classList.add('dragging');
+        }, { passive: false });
+
+        dragHandle.addEventListener('touchmove', (e) => {
+          if (!isTouchDragging) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const touch = e.touches[0];
+          const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+          const targetRow = elem?.closest('.tv-wl-row');
+          document.querySelectorAll('.tv-wl-row').forEach((r) => {
+            if (r !== targetRow) r.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+          if (targetRow && targetRow !== row) {
+            currentOverRow = targetRow;
+            const rect = targetRow.getBoundingClientRect();
+            if (touch.clientY < rect.top + rect.height / 2) {
+              targetRow.classList.add('drag-over-top');
+              targetRow.classList.remove('drag-over-bottom');
+            } else {
+              targetRow.classList.add('drag-over-bottom');
+              targetRow.classList.remove('drag-over-top');
+            }
+          }
+        }, { passive: false });
+
+        const handleTouchEnd = () => {
+          if (!isTouchDragging) return;
+          isTouchDragging = false;
+          row.classList.remove('dragging');
+          if (currentOverRow && currentOverRow.dataset.sym && currentOverRow.dataset.sym !== inst.symbol) {
+            const isBefore = currentOverRow.classList.contains('drag-over-top');
+            this.reorderWatchlistSymbol(inst.symbol, currentOverRow.dataset.sym, isBefore);
+          }
+          document.querySelectorAll('.tv-wl-row').forEach((r) => {
+            r.classList.remove('drag-over-top', 'drag-over-bottom', 'dragging');
+          });
+          currentOverRow = null;
+        };
+
+        dragHandle.addEventListener('touchend', handleTouchEnd);
+        dragHandle.addEventListener('touchcancel', handleTouchEnd);
+      }
+
       container.appendChild(row);
     });
+  }
+
+  reorderWatchlistSymbol(srcSym, targetSym, placeBefore = true) {
+    const wl = this.getActiveWatchlist();
+    if (!wl || !Array.isArray(wl.symbols)) return;
+    const srcNorm = (srcSym || '').toUpperCase().trim();
+    const targetNorm = (targetSym || '').toUpperCase().trim();
+    if (!srcNorm || !targetNorm || srcNorm === targetNorm) return;
+
+    const fromIdx = wl.symbols.findIndex((s) => s.toUpperCase().trim() === srcNorm);
+    if (fromIdx === -1) return;
+
+    wl.symbols.splice(fromIdx, 1);
+    let toIdx = wl.symbols.findIndex((s) => s.toUpperCase().trim() === targetNorm);
+    if (toIdx === -1) {
+      wl.symbols.push(srcNorm);
+    } else {
+      if (!placeBefore) toIdx += 1;
+      wl.symbols.splice(toIdx, 0, srcNorm);
+    }
+
+    this.saveWatchlists();
+    this.renderWatchlist();
   }
 
   switchInstrument(inst) {
@@ -3043,12 +3166,37 @@ class ZeroChartApp {
           tabPanes.forEach((p) => (p.style.display = 'none'));
           const targetPane = document.getElementById(`panel-${target}`);
           if (targetPane) targetPane.style.display = 'flex';
-          if (target === 'calendar') this.loadEconomicCalendar();
           if (target === 'news') this.loadMarketNews();
           if (target === 'institutional') this.loadInstitutionalPanel();
+          if (target === 'alerts') this.renderAlertsList();
         }
       };
     });
+
+    // Subtabs for unified News & Calendar
+    const subtabNews = document.getElementById('subtab-btn-news');
+    const subtabCal = document.getElementById('subtab-btn-calendar');
+    const wrapNews = document.getElementById('subview-news-wrap');
+    const wrapCal = document.getElementById('subview-calendar-wrap');
+
+    const switchEventsSubtab = (activeSub) => {
+      if (activeSub === 'calendar') {
+        if (subtabCal) subtabCal.classList.add('active');
+        if (subtabNews) subtabNews.classList.remove('active');
+        if (wrapCal) wrapCal.style.display = 'flex';
+        if (wrapNews) wrapNews.style.display = 'none';
+        this.loadEconomicCalendar();
+      } else {
+        if (subtabNews) subtabNews.classList.add('active');
+        if (subtabCal) subtabCal.classList.remove('active');
+        if (wrapNews) wrapNews.style.display = 'flex';
+        if (wrapCal) wrapCal.style.display = 'none';
+        this.loadMarketNews();
+      }
+    };
+
+    if (subtabNews) subtabNews.onclick = () => switchEventsSubtab('news');
+    if (subtabCal) subtabCal.onclick = () => switchEventsSubtab('calendar');
 
     // Institutional Panel Controls
     const btnRefInst = document.getElementById('btn-refresh-institutional');
@@ -3070,18 +3218,6 @@ class ZeroChartApp {
       };
     });
 
-    // Calendar Refresh
-    const btnRefCal = document.getElementById('btn-refresh-calendar');
-    if (btnRefCal) {
-      btnRefCal.onclick = () => this.loadEconomicCalendar(this._currentCalFilter || 'all', true);
-    }
-
-    // Calendar Mobile Close
-    const btnMobCloseCal = document.getElementById('btn-mob-close-calendar');
-    if (btnMobCloseCal) {
-      btnMobCloseCal.onclick = () => this.closeSidebarDrawer();
-    }
-
     // News Filter Buttons
     const newsFilters = document.querySelectorAll('#news-filter-bar .tv-news-filter-btn');
     newsFilters.forEach((btn) => {
@@ -3092,13 +3228,19 @@ class ZeroChartApp {
       };
     });
 
-    // News Refresh
+    // News & Calendar Refresh Button
     const btnRefNews = document.getElementById('btn-refresh-news');
     if (btnRefNews) {
-      btnRefNews.onclick = () => this.loadMarketNews(this._currentNewsCategory || 'all', true);
+      btnRefNews.onclick = () => {
+        if (wrapCal && wrapCal.style.display !== 'none') {
+          this.loadEconomicCalendar(this._currentCalFilter || 'all', true);
+        } else {
+          this.loadMarketNews(this._currentNewsCategory || 'all', true);
+        }
+      };
     }
 
-    // News Mobile Close
+    // News Mobile Close Button
     const btnMobCloseNews = document.getElementById('btn-mob-close-news');
     if (btnMobCloseNews) {
       btnMobCloseNews.onclick = () => this.closeSidebarDrawer();
@@ -3117,20 +3259,26 @@ class ZeroChartApp {
     const vIcons = document.querySelectorAll('.tv-vertical-rail .tv-v-icon');
     const tabPanes = document.querySelectorAll('.tv-right-content .tv-tab-pane');
 
-    vIcons.forEach((i) => i.classList.toggle('active', i.dataset.tab === tabName));
+    const normTab = tabName === 'calendar' ? 'news' : tabName;
+    vIcons.forEach((i) => i.classList.toggle('active', i.dataset.tab === normTab));
     if (rightPanel) rightPanel.classList.remove('collapsed');
     if (sidebar && window.innerWidth <= 768) {
       sidebar.classList.add('mobile-open');
-      const mobBtn = document.getElementById(`mob-nav-${tabName}`);
+      const mobBtn = document.getElementById(`mob-nav-${normTab}`);
       if (mobBtn) {
         document.querySelectorAll('.tv-mob-nav-btn').forEach((btn) => btn.classList.toggle('active', btn === mobBtn));
       }
     }
     tabPanes.forEach((p) => (p.style.display = 'none'));
-    const targetPane = document.getElementById(`panel-${tabName}`);
+    const targetPane = document.getElementById(`panel-${normTab}`);
     if (targetPane) targetPane.style.display = 'flex';
-    if (tabName === 'calendar') this.loadEconomicCalendar();
-    if (tabName === 'news') this.loadMarketNews();
+    if (tabName === 'calendar') {
+      const subtabCal = document.getElementById('subtab-btn-calendar');
+      if (subtabCal) subtabCal.click();
+    } else if (normTab === 'news') {
+      const subtabNews = document.getElementById('subtab-btn-news');
+      if (subtabNews) subtabNews.click();
+    }
   }
 
   // ─── ECONOMIC CALENDAR & MARKET NEWS IMPLEMENTATION ───
@@ -3709,12 +3857,11 @@ class ZeroChartApp {
   initMobileUI() {
     const mobNavChart = document.getElementById('mob-nav-chart');
     const mobNavWatchlist = document.getElementById('mob-nav-watchlist');
-    const mobNavAlerts = document.getElementById('mob-nav-alerts');
     const mobNavInstitutional = document.getElementById('mob-nav-institutional');
     const mobNavNews = document.getElementById('mob-nav-news');
-    const mobNavCalendar = document.getElementById('mob-nav-calendar');
     const drawToggleBtn = document.getElementById('btn-toggle-drawing-toolbar');
     const topbarWlBtn = document.getElementById('btn-topbar-watchlist');
+    const topbarAlertBtn = document.getElementById('btn-open-alert') || document.getElementById('btn-topbar-alert');
     const sidebar = document.querySelector('.tv-right-sidebar');
     const mobCloseBtns = document.querySelectorAll('.tv-mob-close-drawer-btn');
 
@@ -3749,10 +3896,10 @@ class ZeroChartApp {
       };
     }
 
-    if (mobNavAlerts) {
-      mobNavAlerts.onclick = () => {
-        this.openMobileDrawer('alerts', true);
-        updateMobNav('mob-nav-alerts');
+    if (topbarAlertBtn) {
+      topbarAlertBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.openAlertModal();
       };
     }
 
@@ -3767,13 +3914,6 @@ class ZeroChartApp {
       mobNavNews.onclick = () => {
         this.openMobileDrawer('news', true);
         updateMobNav('mob-nav-news');
-      };
-    }
-
-    if (mobNavCalendar) {
-      mobNavCalendar.onclick = () => {
-        this.openMobileDrawer('calendar', true);
-        updateMobNav('mob-nav-calendar');
       };
     }
 
@@ -3954,17 +4094,19 @@ class ZeroChartApp {
       if (pushState && window.innerWidth <= 768) {
         this.pushHistoryState({ view: 'institutional' });
       }
-    } else if (tabName === 'news') {
-      this.loadMarketNews();
+    } else if (tabName === 'news' || tabName === 'calendar') {
+      const targetPane = document.getElementById('panel-news');
+      if (targetPane) targetPane.style.display = 'flex';
+      if (tabName === 'calendar') {
+        const subtabCal = document.getElementById('subtab-btn-calendar');
+        if (subtabCal) subtabCal.click();
+      } else {
+        const subtabNews = document.getElementById('subtab-btn-news');
+        if (subtabNews) subtabNews.click();
+      }
       this.currentViewState = 'news';
       if (pushState && window.innerWidth <= 768) {
         this.pushHistoryState({ view: 'news' });
-      }
-    } else if (tabName === 'calendar') {
-      this.loadEconomicCalendar();
-      this.currentViewState = 'calendar';
-      if (pushState && window.innerWidth <= 768) {
-        this.pushHistoryState({ view: 'calendar' });
       }
     }
   }
