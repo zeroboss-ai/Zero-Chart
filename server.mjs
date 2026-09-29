@@ -2002,6 +2002,208 @@ async function fetchCryptoFuturesOI(symbol) {
   }
 }
 
+// ─── 4.7. GROWW DERIVATIVES REAL-TIME OPTION CHAIN FETCHER ───
+const GROWW_DERIVATIVES_MAP = {
+  'NIFTY': 'nifty',
+  'NIFTY50': 'nifty',
+  'NIFTY 50': 'nifty',
+  'BANKNIFTY': 'nifty-bank',
+  'BANK NIFTY': 'nifty-bank',
+  'SENSEX': 'sp-bse-sensex',
+  'BSE SENSEX': 'sp-bse-sensex',
+  'FINNIFTY': 'nifty-financial-services',
+  'FIN NIFTY': 'nifty-financial-services',
+  'MIDCPNIFTY': 'nifty-midcap-select',
+  'NIFTYMIDCAP': 'nifty-midcap-select',
+  'RELIANCE': 'reliance-industries-ltd',
+  'TCS': 'tata-consultancy-services-ltd',
+  'INFY': 'infosys-ltd',
+  'HDFCBANK': 'hdfc-bank-ltd',
+  'ICICIBANK': 'icici-bank-ltd',
+  'SBIN': 'state-bank-of-india',
+  'TATAMOTORS': 'tata-motors-ltd',
+  'BHARTIARTL': 'bharti-airtel-ltd',
+  'ITC': 'itc-ltd',
+  'LT': 'larsen-and-toubro-ltd',
+  'KOTAKBANK': 'kotak-mahindra-bank-ltd',
+  'AXISBANK': 'axis-bank-ltd',
+  'MARUTI': 'maruti-suzuki-india-ltd',
+  'BAJFINANCE': 'bajaj-finance-ltd',
+  'HINDUNILVR': 'hindustan-unilever-ltd',
+};
+
+function convertExpiryToIso(expStr) {
+  if (!expStr) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(expStr)) return expStr;
+  const match = expStr.match(/^(\d{2})([A-Z]{3})(\d{4})$/i);
+  if (match) {
+    const months = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
+    const day = match[1];
+    const mon = months[match[2].toUpperCase()];
+    const yr = match[3];
+    if (mon) return `${yr}-${mon}-${day}`;
+  }
+  return expStr;
+}
+
+async function fetchGrowwOptionChain(symbol = 'NIFTY', expiry = null, limit = 25) {
+  const normSym = (symbol || 'NIFTY').toUpperCase().trim();
+  const cleanSym = normSym.replace(/[^A-Z0-9]/g, '');
+  const slug = GROWW_DERIVATIVES_MAP[normSym] || GROWW_DERIVATIVES_MAP[cleanSym] || normSym.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  
+  let url = `https://groww.in/v1/api/option_chain_service/v1/option_chain/derivatives/${slug}`;
+  let isoExp = null;
+  if (expiry) {
+    isoExp = convertExpiryToIso(expiry);
+    if (isoExp) url += `?selectedExpiry=${encodeURIComponent(isoExp)}`;
+  }
+  
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+    },
+    signal: AbortSignal.timeout(5000),
+  });
+  
+  if (!resp.ok) {
+    throw new Error(`Groww option chain returned HTTP ${resp.status}`);
+  }
+  
+  const data = await resp.json();
+  const live = data.livePrice || {};
+  const expDto = data.optionChain?.expiryDetailsDto || {};
+  const chains = data.optionChain?.optionChains || [];
+  
+  if (!chains || chains.length === 0) {
+    throw new Error(`No option chain records returned from Groww for ${symbol}`);
+  }
+  
+  let spot = live.value || live.indexIndicativePrice || live.close || 0;
+  if (!spot || spot <= 0) {
+    const cached = quoteCache.get(symbol) || quoteCache.get(normSym);
+    spot = cached?.ltp || cached?.close || 0;
+  }
+  const dayOpenPrice = live.open || spot;
+  const availableExpiries = expDto.expiryDates || [];
+  const currentExpiry = expDto.currentExpiry || availableExpiries[0] || expiry;
+  
+  let allRows = [];
+  let totalCallOI = 0;
+  let totalPutOI = 0;
+  let netCallOIChg = 0;
+  let netPutOIChg = 0;
+  
+  for (const row of chains) {
+    const strike = row.strikePrice / 100;
+    if (!strike || isNaN(strike)) continue;
+    const ce = row.callOption || {};
+    const pe = row.putOption || {};
+    const lot = ce.marketLot || pe.marketLot || 1;
+    
+    const callOI = (ce.openInterest || 0) * lot;
+    const putOI = (pe.openInterest || 0) * lot;
+    const callPrevOI = (ce.prevOpenInterest || 0) * lot;
+    const putPrevOI = (pe.prevOpenInterest || 0) * lot;
+    
+    const callChg = callOI - callPrevOI;
+    const putChg = putOI - putPrevOI;
+    
+    totalCallOI += callOI;
+    totalPutOI += putOI;
+    netCallOIChg += callChg;
+    netPutOIChg += putChg;
+    
+    allRows.push({
+      strike,
+      callOI,
+      putOI,
+      callChg,
+      putChg,
+      netDiff: putChg - callChg,
+      strikePCR: callOI > 0 ? +(putOI / callOI).toFixed(2) : 1.0,
+      callLtp: ce.ltp || 0,
+      putLtp: pe.ltp || 0,
+      callVol: (ce.volume || 0) * lot,
+      putVol: (pe.volume || 0) * lot,
+      callIV: 0,
+      putIV: 0,
+      lotsize: lot,
+      isIndian: true,
+    });
+  }
+  
+  allRows.sort((a, b) => a.strike - b.strike);
+  
+  if (!spot || spot <= 0) {
+    spot = allRows[Math.floor(allRows.length / 2)]?.strike || 22700;
+  }
+  
+  // Calculate true Max Pain Strike
+  let minLoss = Infinity;
+  let maxPainStrike = allRows[0]?.strike || spot;
+  for (const target of allRows) {
+    let totalLoss = 0;
+    for (const r of allRows) {
+      if (target.strike > r.strike) {
+        totalLoss += (target.strike - r.strike) * r.callOI;
+      } else if (target.strike < r.strike) {
+        totalLoss += (r.strike - target.strike) * r.putOI;
+      }
+    }
+    if (totalLoss < minLoss) {
+      minLoss = totalLoss;
+      maxPainStrike = target.strike;
+    }
+  }
+  
+  // Find ATM strike index
+  let atmIdx = 0;
+  let minDiff = Infinity;
+  allRows.forEach((r, idx) => {
+    const diff = Math.abs(r.strike - spot);
+    if (diff < minDiff) {
+      minDiff = diff;
+      atmIdx = idx;
+    }
+  });
+  
+  // Slice around ATM strike
+  const numStrikes = Math.min(limit, 25);
+  const startIdx = Math.max(0, atmIdx - numStrikes);
+  const endIdx = Math.min(allRows.length - 1, atmIdx + numStrikes);
+  const strikeRows = allRows.slice(startIdx, endIdx + 1).map((r) => ({
+    ...r,
+    isATM: r.strike === allRows[atmIdx]?.strike,
+  }));
+  
+  const pcr = totalCallOI > 0 ? +(totalPutOI / totalCallOI).toFixed(2) : 1.0;
+  const vixQuote = quoteCache.get('INDIA VIX') || quoteCache.get('INDIAVIX') || quoteCache.get('^INDIAVIX');
+  const indiaVIX = vixQuote?.ltp || vixQuote?.close || 13.41;
+  
+  return {
+    status: 'success',
+    symbol,
+    displaySymbol: symbol,
+    name: symbol,
+    spot,
+    dayOpenPrice,
+    expiry: currentExpiry,
+    availableExpiries,
+    pcr,
+    maxPainStrike,
+    indiaVIX,
+    totalCallOI,
+    totalPutOI,
+    netCallOIChg,
+    netPutOIChg,
+    strikeRows,
+    isIndian: true,
+    source: 'Groww Public Derivatives Real Feed',
+    timestamp: Date.now(),
+  };
+}
+
 async function fetchLiveOptionChain(symbol = 'NIFTY', expiry = null, limit = 25) {
   const baseName = normalizeOptionBaseSymbol(symbol);
   const cacheKey = `${baseName}_${expiry || 'default'}_${limit}`;
@@ -2021,6 +2223,17 @@ async function fetchLiveOptionChain(symbol = 'NIFTY', expiry = null, limit = 25)
       optionChainCache.set(cacheKey, { timestamp: now, data: cryptoRes });
       return cryptoRes;
     }
+  }
+
+  // 1. Primary: Real Public Indian Market Derivatives Feed (Groww)
+  try {
+    const growwData = await fetchGrowwOptionChain(baseName, expiry, limit);
+    if (growwData && growwData.strikeRows?.length > 0) {
+      optionChainCache.set(cacheKey, { timestamp: now, data: growwData });
+      return growwData;
+    }
+  } catch (err) {
+    console.warn(`[Groww OI] Fallback for ${baseName}:`, err.message);
   }
 
   const entry = optionsMap.get(baseName);

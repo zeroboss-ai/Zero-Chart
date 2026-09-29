@@ -5319,11 +5319,11 @@ class ZeroChartApp {
 
     const q = this.livePrices.get(inst.symbol);
     const spot = rawData?.spot || q?.last || inst.basePrice || 22716.20;
-    const isIndian = inst.category === 'india' || !inst.category || inst.symbol.includes('NIFTY') || inst.symbol.includes('BANKNIFTY');
+    const isIndian = inst.category === 'india' || !inst.category || inst.symbol.includes('NIFTY') || inst.symbol.includes('BANKNIFTY') || inst.symbol.includes('SENSEX');
 
     if (rawData && rawData.strikeRows && rawData.strikeRows.length > 0) {
       const progress = Math.min(1.0, Math.max(0.05, timeIndex / 75));
-      const dayOpenPrice = +(spot * 1.0028).toFixed(inst.precision || 2);
+      const dayOpenPrice = rawData.dayOpenPrice || +(spot * 1.0028).toFixed(inst.precision || 2);
       const interpolatedSpot = +(dayOpenPrice + (spot - dayOpenPrice) * progress).toFixed(inst.precision || 2);
 
       let allRows = rawData.strikeRows;
@@ -5332,6 +5332,13 @@ class ZeroChartApp {
       // Apply ATM Pill Filter (e.g. 5, 10, 15, 20, 25, 'all')
       if (typeof atmFilter === 'number') {
         let centerIdx = allRows.findIndex((r) => r.isATM);
+        if (centerIdx === -1) {
+          let minD = Infinity;
+          allRows.forEach((r, idx) => {
+            const d = Math.abs(r.strike - spot);
+            if (d < minD) { minD = d; centerIdx = idx; }
+          });
+        }
         if (centerIdx === -1) centerIdx = Math.floor(allRows.length / 2);
         const minIdx = Math.max(0, centerIdx - atmFilter);
         const maxIdx = Math.min(allRows.length - 1, centerIdx + atmFilter);
@@ -5386,7 +5393,7 @@ class ZeroChartApp {
         isIndian: true,
         pcr,
         maxPainStrike: rawData.maxPainStrike || centerStrike,
-        indiaVIX: rawData.indiaVIX || 12.85,
+        indiaVIX: rawData.indiaVIX || 13.41,
         totalCallOI,
         totalPutOI,
         netCallOIChg,
@@ -5394,7 +5401,7 @@ class ZeroChartApp {
         strikeRows,
         availableExpiries: rawData.availableExpiries || [],
         expiry: rawData.expiry || 'Current',
-        source: rawData.source || 'AngelOne Live Feed',
+        source: rawData.source || 'Groww Real Market Feed',
       };
     }
 
@@ -5477,7 +5484,7 @@ class ZeroChartApp {
 
     const pcr = totalCallOI > 0 ? +(totalPutOI / totalCallOI).toFixed(2) : 0.92;
     const maxPainStrike = centerStrike;
-    const indiaVIX = 13.4;
+    const indiaVIX = 13.41;
 
     return {
       inst,
@@ -5499,6 +5506,41 @@ class ZeroChartApp {
       strikeRows,
       availableExpiries: [],
       expiry: 'Current',
+    };
+  }
+
+  formatExpiryItem(expStr) {
+    if (!expStr) return { raw: '', label: '', tag: 'W' };
+    let d = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(expStr)) {
+      d = new Date(expStr + 'T00:00:00Z');
+    } else {
+      const match = expStr.match(/^(\d{2})([A-Z]{3})(\d{4})$/i);
+      if (match) {
+        const months = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+        const m = months[match[2].toUpperCase()];
+        if (m !== undefined) {
+          d = new Date(Date.UTC(+match[3], m, +match[1]));
+        }
+      }
+    }
+    if (!d || isNaN(d.getTime())) return { raw: expStr, label: expStr, tag: 'W' };
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dayStr = String(d.getUTCDate()).padStart(2, '0');
+    const monStr = monthNames[d.getUTCMonth()];
+
+    const now = new Date();
+    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const diffMs = d.getTime() - todayUtc;
+    const days = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+
+    const tag = days <= 23 ? 'w' : 'm';
+    return {
+      raw: expStr,
+      label: `${dayStr} ${monStr} (${days} days)`,
+      tag: tag,
+      days: days,
     };
   }
 
@@ -5531,16 +5573,16 @@ class ZeroChartApp {
     if (expiriesContainer) {
       const exps = data.availableExpiries && data.availableExpiries.length > 0
         ? data.availableExpiries
-        : ['29SEP2026', '06OCT2026', '13OCT2026', '19OCT2026', '27OCT2026'];
+        : ['2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-26'];
 
       expiriesContainer.innerHTML = exps.map((exp, idx) => {
         const isChecked = exp === data.expiry || (idx === 0 && !this.oiSelectedExpiry);
-        const tag = idx === 0 ? 'Current' : (idx < 4 ? 'W' : 'M');
+        const meta = this.formatExpiryItem(exp);
         return `
           <label class="tv-oi-expiry-item" style="cursor:pointer;">
             <input type="radio" name="oi-expiry" value="${exp}" ${isChecked ? 'checked' : ''} />
-            <span style="font-weight:600;">${exp}</span>
-            <span class="tv-oi-exp-tag">${tag}</span>
+            <span style="font-weight:600;">${meta.label}</span>
+            <span class="tv-oi-exp-tag">${meta.tag}</span>
           </label>
         `;
       }).join('');
@@ -5559,21 +5601,24 @@ class ZeroChartApp {
     const pcrValEl = document.getElementById('oi-top-pcr-val');
     const maxPainEl = document.getElementById('oi-top-maxpain-val');
     const vixValEl = document.getElementById('oi-top-vix-val');
-    if (pcrValEl) pcrValEl.textContent = data.pcr.toFixed(2);
+    if (pcrValEl) pcrValEl.textContent = data.pcr.toFixed(1);
     if (maxPainEl) maxPainEl.textContent = data.maxPainStrike.toLocaleString();
-    if (vixValEl) vixValEl.textContent = data.indiaVIX.toFixed(2);
+    if (vixValEl) vixValEl.textContent = data.indiaVIX.toFixed(1);
 
     const sidebarPcr = document.getElementById('sidebar-oi-pcr-badge');
-    if (sidebarPcr) sidebarPcr.textContent = `PCR ${data.pcr.toFixed(2)}`;
+    if (sidebarPcr) sidebarPcr.textContent = `PCR ${data.pcr.toFixed(1)}`;
 
     // 5. Chart Title & Legend Labels
     const chartTitle = document.getElementById('oi-chart-title');
     const putLegend = document.getElementById('lbl-put-legend');
     const callLegend = document.getElementById('lbl-call-legend');
 
+    const expMeta = this.formatExpiryItem(data.expiry);
+    const expDisplay = expMeta.label ? expMeta.label.split(' (')[0] : data.expiry;
+
     if (chartTitle) {
       const symName = data.inst.displaySymbol || data.inst.symbol;
-      chartTitle.textContent = this.oiShowTotal ? `Total Open Interest on ${symName} (${data.expiry})` : `OI Change on ${symName} (${data.expiry})`;
+      chartTitle.textContent = this.oiShowTotal ? `Total Open Interest on ${symName} (${expDisplay})` : `OI Change on Tue, 29 Sep (${symName} ${expDisplay})`;
     }
     if (putLegend) putLegend.textContent = this.oiShowTotal ? 'Put OI' : 'Put OI chg';
     if (callLegend) callLegend.textContent = this.oiShowTotal ? 'Call OI' : 'Call OI chg';
@@ -5599,10 +5644,10 @@ class ZeroChartApp {
     if (sumOpenPriceEl) sumOpenPriceEl.textContent = data.dayOpenPrice.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
     if (sumClosePriceEl) sumClosePriceEl.textContent = data.interpolatedSpot.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
     if (sumOpenLbl) sumOpenLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 9:15 AM:`;
-    if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} Live Spot:`;
+    if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 3:40 PM:`;
 
     // 7. Draw Canvas Histogram
-    this.drawOIHistogramCanvas(data);
+    requestAnimationFrame(() => this.drawOIHistogramCanvas(data));
   }
 
   drawOIHistogramCanvas(data) {
@@ -5621,32 +5666,42 @@ class ZeroChartApp {
 
     ctx.clearRect(0, 0, width, height);
 
-    const padLeft = 60;
-    const padRight = 30;
-    const padTop = 30;
-    const padBottom = 40;
+    const padLeft = 65;
+    const padRight = 35;
+    const padTop = 32;
+    const padBottom = 42;
     const chartW = width - padLeft - padRight;
     const chartH = height - padTop - padBottom;
 
     const rows = data.strikeRows;
     if (!rows || rows.length === 0) return;
 
-    // Find Max Value for Y-axis scaling
-    let maxVal = 100000;
-    rows.forEach((r) => {
-      const putV = this.oiShowTotal ? r.putOI : Math.abs(r.putChg);
-      const callV = this.oiShowTotal ? r.callOI : Math.abs(r.callChg);
-      if (putV > maxVal) maxVal = putV;
-      if (callV > maxVal) maxVal = callV;
-    });
-
-    maxVal = maxVal * 1.15; // 15% top padding
-
     const isTotal = this.oiShowTotal;
-    const zeroY = isTotal ? padTop + chartH : padTop + chartH / 2;
+    let maxPos = 10000;
+    let maxNeg = 10000;
+
+    if (isTotal) {
+      rows.forEach((r) => {
+        if (r.putOI > maxPos) maxPos = r.putOI;
+        if (r.callOI > maxPos) maxPos = r.callOI;
+      });
+      maxPos = maxPos * 1.15;
+    } else {
+      rows.forEach((r) => {
+        if (r.putChg > maxPos) maxPos = r.putChg;
+        if (r.callChg > maxPos) maxPos = r.callChg;
+        if (r.putChg < -maxNeg) maxNeg = -r.putChg;
+        if (r.callChg < -maxNeg) maxNeg = -r.callChg;
+      });
+      maxPos = Math.max(maxPos * 1.15, 10000);
+      maxNeg = Math.max(maxNeg * 1.15, 5000);
+    }
+
+    const totalRange = isTotal ? maxPos : (maxPos + maxNeg);
+    const zeroY = isTotal ? (padTop + chartH) : (padTop + (maxPos / totalRange) * chartH);
 
     // 1. Draw Background Grid Lines & Y-Axis Ticks
-    const numGridLines = isTotal ? 5 : 6;
+    const numGridLines = 6;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     ctx.fillStyle = '#787b86';
@@ -5665,26 +5720,36 @@ class ZeroChartApp {
 
       let tickVal = 0;
       if (isTotal) {
-        tickVal = maxVal * (1 - ratio);
+        tickVal = maxPos * (1 - ratio);
       } else {
-        tickVal = maxVal * (1 - 2 * ratio);
+        tickVal = maxPos - ratio * totalRange;
       }
 
       const formattedTick = this.formatOINumber(tickVal, data.isIndian);
       ctx.fillText(formattedTick, padLeft - 8, y);
     }
 
-    // Zero Baseline
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    // Y-Axis Title
+    ctx.save();
+    ctx.translate(14, padTop + chartH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#787b86';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(isTotal ? 'Total Open Interest' : 'Call / Put OI Change', 0, 0);
+    ctx.restore();
+
+    // Zero Baseline Line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(padLeft, zeroY);
     ctx.lineTo(width - padRight, zeroY);
     ctx.stroke();
 
-    // 2. Draw Bars per Strike
+    // 2. Draw Side-by-Side Bars per Strike
     const slotW = chartW / rows.length;
-    const barW = Math.max(3, Math.min(18, slotW * 0.36));
+    const barW = Math.max(3, Math.min(16, slotW * 0.38));
     const gap = 2;
     const barMeta = [];
 
@@ -5697,16 +5762,20 @@ class ZeroChartApp {
       const callVal = isTotal ? r.callOI : r.callChg;
 
       // Put Bar (Green)
-      const putHeight = (Math.abs(putVal) / maxVal) * (isTotal ? chartH : chartH / 2);
-      const putY = isTotal ? zeroY - putHeight : (putVal >= 0 ? zeroY - putHeight : zeroY);
-
+      let putHeight = (Math.abs(putVal) / totalRange) * chartH;
+      let putY = zeroY - putHeight;
+      if (!isTotal && putVal < 0) {
+        putY = zeroY;
+      }
       ctx.fillStyle = r.strike === this.oiHoveredStrike ? '#00ff88' : '#00e676';
       ctx.fillRect(slotCenterX - barW - gap / 2, putY, barW, Math.max(1, putHeight));
 
       // Call Bar (Red)
-      const callHeight = (Math.abs(callVal) / maxVal) * (isTotal ? chartH : chartH / 2);
-      const callY = isTotal ? zeroY - callHeight : (callVal >= 0 ? zeroY - callHeight : zeroY);
-
+      let callHeight = (Math.abs(callVal) / totalRange) * chartH;
+      let callY = zeroY - callHeight;
+      if (!isTotal && callVal < 0) {
+        callY = zeroY;
+      }
       ctx.fillStyle = r.strike === this.oiHoveredStrike ? '#ff3b4b' : '#ff1744';
       ctx.fillRect(slotCenterX + gap / 2, callY, barW, Math.max(1, callHeight));
 
@@ -5716,7 +5785,6 @@ class ZeroChartApp {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
-      // Angle label slightly or show every N strikes on small screens
       const stepInterval = rows.length > 25 ? 2 : 1;
       if (idx % stepInterval === 0 || r.isATM) {
         ctx.save();
@@ -5768,7 +5836,7 @@ class ZeroChartApp {
       // Floating Spot Price Badge at Top
       const tagText = `${data.inst.displaySymbol || data.inst.symbol} ${spot.toLocaleString()}`;
       ctx.font = 'bold 11px sans-serif';
-      const textW = ctx.measureText(tagText).width + 12;
+      const textW = ctx.measureText(tagText).width + 14;
 
       ctx.fillStyle = 'rgba(41, 182, 246, 0.95)';
       ctx.beginPath();
