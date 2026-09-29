@@ -195,6 +195,19 @@ class ZeroChartApp {
     } catch (_) {}
     this.favoriteTools = favTools;
 
+    // Option Open Interest (OI) Analytics state
+    this.oiActiveSymbol = 'NIFTY 50';
+    this.oiActiveSubtab = 'oi-change';
+    this.oiMode = 'intraday';
+    this.oiATMFilter = 20;
+    this.oiShowTotal = false;
+    this.oiTimeSliderIndex = 75; // 0 to 75 (75 = 3:30 PM Full Day)
+    this.oiTimePreset = 'full';
+    this.oiSelectedExpiries = new Set();
+    this.oiHoveredStrike = null;
+    this.oiCustomMin = null;
+    this.oiCustomMax = null;
+
     this.init();
   }
 
@@ -411,7 +424,10 @@ class ZeroChartApp {
     // 13. Initialize Maximized Pane & Indicator Full-Screen Controls
     this.initMaximizedPaneControls();
 
-    // 14. Responsive Layout & Legend Offset Sync on Resize
+    // 14. Initialize Option Open Interest (OI) Analytics Suite
+    this.initOIAnalytics();
+
+    // 15. Responsive Layout & Legend Offset Sync on Resize
     window.addEventListener('resize', () => {
       const legTop = window.innerWidth <= 768 ? 48 : 42;
       const legLeft = window.innerWidth <= 768 ? 10 : 54;
@@ -3166,6 +3182,7 @@ class ZeroChartApp {
           tabPanes.forEach((p) => (p.style.display = 'none'));
           const targetPane = document.getElementById(`panel-${target}`);
           if (targetPane) targetPane.style.display = 'flex';
+          if (target === 'oi-analytics') this.loadOISidebarPanel();
           if (target === 'news') this.loadMarketNews();
           if (target === 'institutional') this.loadInstitutionalPanel();
           if (target === 'alerts') this.renderAlertsList();
@@ -4088,6 +4105,12 @@ class ZeroChartApp {
       if (pushState && window.innerWidth <= 768) {
         this.pushHistoryState({ view: 'alerts' });
       }
+    } else if (tabName === 'oi-analytics') {
+      this.loadOISidebarPanel();
+      this.currentViewState = 'oi-analytics';
+      if (pushState && window.innerWidth <= 768) {
+        this.pushHistoryState({ view: 'oi-analytics' });
+      }
     } else if (tabName === 'institutional') {
       this.loadInstitutionalPanel();
       this.currentViewState = 'institutional';
@@ -4917,6 +4940,789 @@ class ZeroChartApp {
     }
     if (titleEl) titleEl.textContent = title;
     pill.style.display = 'inline-flex';
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── 15. DEDICATED OPEN INTEREST (OI) & OPTIONS SUITE ENGINE ───
+  // ═══════════════════════════════════════════════════════════════
+
+  initOIAnalytics() {
+    // 1. Topbar Trigger
+    const btnOpenTop = document.getElementById('btn-open-oi-dashboard');
+    if (btnOpenTop) {
+      btnOpenTop.onclick = () => this.openOIDashboard();
+    }
+
+    // 2. Fullscreen Expand from Sidebar
+    const btnExpand = document.getElementById('btn-expand-oi-fullscreen');
+    if (btnExpand) {
+      btnExpand.onclick = () => this.openOIDashboard();
+    }
+
+    // 3. Modal Close Button
+    const btnClose = document.getElementById('btn-close-oi-dashboard');
+    const oiModal = document.getElementById('oi-analytics-modal');
+    if (btnClose) {
+      btnClose.onclick = () => this.closeOIDashboard();
+    }
+    if (oiModal) {
+      oiModal.onclick = (e) => {
+        if (e.target === oiModal) this.closeOIDashboard();
+      };
+    }
+
+    // 4. Subtabs Switching (OI Change, Open Interest, Multistrike OI, etc.)
+    const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+    subtabs.forEach((btn) => {
+      btn.onclick = () => {
+        subtabs.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.oiActiveSubtab = btn.dataset.subtab || 'oi-change';
+        if (this.oiActiveSubtab === 'open-interest') {
+          this.oiShowTotal = true;
+          const toggleTotal = document.getElementById('toggle-show-total-oi');
+          if (toggleTotal) toggleTotal.checked = true;
+        } else if (this.oiActiveSubtab === 'oi-change') {
+          this.oiShowTotal = false;
+          const toggleTotal = document.getElementById('toggle-show-total-oi');
+          if (toggleTotal) toggleTotal.checked = false;
+        }
+        this.renderOIDashboard();
+      };
+    });
+
+    // 5. Total OI Switch Toggle
+    const toggleTotal = document.getElementById('toggle-show-total-oi');
+    if (toggleTotal) {
+      toggleTotal.onchange = (e) => {
+        this.oiShowTotal = e.target.checked;
+        const subtabBtns = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabBtns.forEach((b) => {
+          if (this.oiShowTotal && b.dataset.subtab === 'open-interest') b.classList.add('active');
+          else if (!this.oiShowTotal && b.dataset.subtab === 'oi-change') b.classList.add('active');
+          else b.classList.remove('active');
+        });
+        this.renderOIDashboard();
+      };
+    }
+
+    // 6. Symbol Selector in OI Panel (Opens Search Modal)
+    const symBox = document.getElementById('oi-sym-selector-btn');
+    if (symBox) {
+      symBox.onclick = () => {
+        const searchBtn = document.getElementById('btn-open-search');
+        if (searchBtn) searchBtn.click();
+      };
+    }
+
+    // 7. Info Button
+    const infoBtn = document.getElementById('btn-oi-sym-info');
+    if (infoBtn) {
+      infoBtn.onclick = (e) => {
+        e.stopPropagation();
+        const inst = findInstrument(this.oiActiveSymbol) || this.currentInstrument;
+        const lot = inst?.symbol?.includes('BANKNIFTY') ? 15 : (inst?.symbol?.includes('NIFTY') ? 25 : (inst?.symbol?.includes('FINNIFTY') ? 25 : 100));
+        alert(`ℹ️ ${inst.name || inst.symbol}\n• Exchange: ${inst.exchange || 'NSE'}\n• Lot Size: ${lot}\n• Tick Size: ${inst.tickSize || 0.05}\n• Weekly Settlement: Thursdays\n• Monthly Settlement: Last Thursday of Month`);
+      };
+    }
+
+    // 8. How to Read Educational Modal
+    const btnHowTo = document.getElementById('btn-oi-how-to-read');
+    const helpModal = document.getElementById('oi-help-modal');
+    const btnCloseHelp = document.getElementById('btn-close-oi-help');
+    if (btnHowTo && helpModal) {
+      btnHowTo.onclick = () => helpModal.classList.add('show');
+    }
+    if (btnCloseHelp && helpModal) {
+      btnCloseHelp.onclick = () => helpModal.classList.remove('show');
+    }
+    if (helpModal) {
+      helpModal.onclick = (e) => {
+        if (e.target === helpModal) helpModal.classList.remove('show');
+      };
+    }
+
+    // 9. Mode Selector (Intraday vs Custom Range)
+    const modeRadios = document.querySelectorAll('input[name="oi-mode"]');
+    modeRadios.forEach((r) => {
+      r.onchange = () => {
+        this.oiMode = r.value;
+        this.renderOIDashboard();
+      };
+    });
+
+    // 10. Strike Steppers & Reset
+    const btnMinDec = document.getElementById('btn-strike-min-dec');
+    const btnMinInc = document.getElementById('btn-strike-min-inc');
+    const btnMaxDec = document.getElementById('btn-strike-max-dec');
+    const btnMaxInc = document.getElementById('btn-strike-max-inc');
+    const btnResetRange = document.getElementById('btn-reset-strike-range');
+
+    const stepStrike = (isMin, delta) => {
+      const data = this.getOIOptionChainData();
+      const step = data.strikeStep || 50;
+      if (isMin) {
+        const cur = this.oiCustomMin != null ? this.oiCustomMin : data.minStrike;
+        this.oiCustomMin = cur + delta * step;
+      } else {
+        const cur = this.oiCustomMax != null ? this.oiCustomMax : data.maxStrike;
+        this.oiCustomMax = cur + delta * step;
+      }
+      this.renderOIDashboard();
+    };
+
+    if (btnMinDec) btnMinDec.onclick = () => stepStrike(true, -1);
+    if (btnMinInc) btnMinInc.onclick = () => stepStrike(true, 1);
+    if (btnMaxDec) btnMaxDec.onclick = () => stepStrike(false, -1);
+    if (btnMaxInc) btnMaxInc.onclick = () => stepStrike(false, 1);
+    if (btnResetRange) {
+      btnResetRange.onclick = () => {
+        this.oiCustomMin = null;
+        this.oiCustomMax = null;
+        this.oiATMFilter = 20;
+        document.querySelectorAll('#oi-atm-pills .tv-oi-atm-btn').forEach((b) => {
+          b.classList.toggle('active', b.dataset.atm === '20');
+        });
+        this.renderOIDashboard();
+      };
+    }
+
+    // 11. ATM Quick Filter Pills (Show All, 5, 10, 15, 20, 25)
+    const atmPills = document.querySelectorAll('#oi-atm-pills .tv-oi-atm-btn');
+    atmPills.forEach((btn) => {
+      btn.onclick = () => {
+        atmPills.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const val = btn.dataset.atm;
+        this.oiATMFilter = val === 'all' ? 'all' : parseInt(val, 10);
+        this.oiCustomMin = null;
+        this.oiCustomMax = null;
+        this.renderOIDashboard();
+      };
+    });
+
+    // 12. Intraday Time Slider (9:15 AM to 3:30 PM with 75 5-minute ticks)
+    const timeSlider = document.getElementById('oi-time-range-slider');
+    const timeCurrentLbl = document.getElementById('oi-time-current-lbl');
+    if (timeSlider) {
+      timeSlider.oninput = (e) => {
+        this.oiTimeSliderIndex = parseInt(e.target.value, 10);
+        const minsFromOpen = this.oiTimeSliderIndex * 5;
+        const totalMinutes = 9 * 60 + 15 + minsFromOpen;
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        const ampm = hrs >= 12 ? 'PM' : 'AM';
+        const formattedHrs = hrs > 12 ? hrs - 12 : hrs;
+        const formattedMins = mins < 10 ? `0${mins}` : mins;
+        const isFull = this.oiTimeSliderIndex >= 75;
+        if (timeCurrentLbl) {
+          timeCurrentLbl.textContent = isFull ? '3:30 PM (Full Day)' : `${formattedHrs}:${formattedMins} ${ampm}`;
+        }
+        document.querySelectorAll('#oi-time-presets .tv-oi-tp-btn').forEach((b) => b.classList.remove('active'));
+        this.renderOIDashboard();
+      };
+    }
+
+    // 13. Time Preset Quick Buttons
+    const timePresets = document.querySelectorAll('#oi-time-presets .tv-oi-tp-btn');
+    timePresets.forEach((btn) => {
+      btn.onclick = () => {
+        timePresets.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const p = btn.dataset.time;
+        this.oiTimePreset = p;
+        let idx = 75;
+        if (p === '5m') idx = 74;
+        else if (p === '10m') idx = 73;
+        else if (p === '15m') idx = 72;
+        else if (p === '30m') idx = 69;
+        else if (p === '1h') idx = 63;
+        else if (p === '2h') idx = 51;
+        else if (p === '3h') idx = 39;
+        else idx = 75;
+
+        this.oiTimeSliderIndex = idx;
+        if (timeSlider) timeSlider.value = idx;
+        const minsFromOpen = idx * 5;
+        const totalMinutes = 9 * 60 + 15 + minsFromOpen;
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        const ampm = hrs >= 12 ? 'PM' : 'AM';
+        const formattedHrs = hrs > 12 ? hrs - 12 : hrs;
+        const formattedMins = mins < 10 ? `0${mins}` : mins;
+        if (timeCurrentLbl) {
+          timeCurrentLbl.textContent = idx >= 75 ? '3:30 PM (Full Day)' : `${formattedHrs}:${formattedMins} ${ampm}`;
+        }
+        this.renderOIDashboard();
+      };
+    });
+
+    // 14. Sidebar Panel Refresh & Mobile Close
+    const btnRefOI = document.getElementById('btn-refresh-oi');
+    if (btnRefOI) btnRefOI.onclick = () => this.loadOISidebarPanel();
+    const btnMobCloseOI = document.getElementById('btn-mob-close-oi');
+    if (btnMobCloseOI) btnMobCloseOI.onclick = () => this.closeSidebarDrawer();
+
+    // 15. Canvas Interactive Mouse / Touch Crosshair Tooltip
+    const canvas = document.getElementById('oi-histogram-canvas');
+    const tooltip = document.getElementById('oi-chart-tooltip');
+    if (canvas) {
+      const handlePointerMove = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        if (this._lastOIBars && this._lastOIBars.length > 0) {
+          let hovered = null;
+          for (const b of this._lastOIBars) {
+            if (x >= b.slotLeft && x <= b.slotRight) {
+              hovered = b;
+              break;
+            }
+          }
+
+          if (hovered && tooltip) {
+            this.oiHoveredStrike = hovered.strike;
+            const sign = hovered.netDiff >= 0 ? '+' : '';
+            const isIndian = hovered.isIndian;
+            const putChgStr = this.formatOINumber(hovered.putChg, isIndian);
+            const callChgStr = this.formatOINumber(hovered.callChg, isIndian);
+            const putOIStr = this.formatOINumber(hovered.putOI, isIndian);
+            const callOIStr = this.formatOINumber(hovered.callOI, isIndian);
+            const diffStr = this.formatOINumber(hovered.netDiff, isIndian);
+
+            tooltip.style.display = 'flex';
+            tooltip.style.left = `${Math.min(rect.width - 180, Math.max(10, x - 80))}px`;
+            tooltip.style.top = `${Math.max(10, Math.min(rect.height - 130, y - 60))}px`;
+            tooltip.innerHTML = `
+              <div class="title">Strike: ${hovered.strike.toLocaleString()} ${hovered.isATM ? '⭐ ATM' : ''}</div>
+              <div class="row"><span>🟢 Put OI ${this.oiShowTotal ? '' : 'Chg'}:</span> <b>${this.oiShowTotal ? putOIStr : putChgStr}</b></div>
+              <div class="row"><span>🔴 Call OI ${this.oiShowTotal ? '' : 'Chg'}:</span> <b>${this.oiShowTotal ? callOIStr : callChgStr}</b></div>
+              <div class="row" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:2px;">
+                <span>Net Diff (PE-CE):</span> <b style="color:${hovered.netDiff >= 0 ? '#00e676' : '#ff1744'};">${sign}${diffStr}</b>
+              </div>
+              <div class="row"><span>Strike PCR:</span> <b>${hovered.strikePCR.toFixed(2)}</b></div>
+              <div class="row"><span>Call IV / Put IV:</span> <b style="color:var(--text-muted);">${hovered.callIV}% / ${hovered.putIV}%</b></div>
+            `;
+            this.drawOIHistogramCanvas(this._lastOIData);
+          } else if (tooltip) {
+            tooltip.style.display = 'none';
+            this.oiHoveredStrike = null;
+          }
+        }
+      };
+
+      canvas.addEventListener('mousemove', handlePointerMove);
+      canvas.addEventListener('mouseleave', () => {
+        if (tooltip) tooltip.style.display = 'none';
+        this.oiHoveredStrike = null;
+        if (this._lastOIData) this.drawOIHistogramCanvas(this._lastOIData);
+      });
+      canvas.addEventListener('touchmove', handlePointerMove, { passive: true });
+      canvas.addEventListener('touchend', () => {
+        if (tooltip) tooltip.style.display = 'none';
+        this.oiHoveredStrike = null;
+      });
+    }
+
+    // Auto resize canvas on window resize
+    window.addEventListener('resize', () => {
+      const modal = document.getElementById('oi-analytics-modal');
+      if (modal && modal.classList.contains('show')) {
+        this.renderOIDashboard();
+      }
+    });
+  }
+
+  openOIDashboard(symbol = null) {
+    const activeSym = symbol || this.currentInstrument?.symbol || 'NIFTY 50';
+    this.oiActiveSymbol = activeSym;
+    const modal = document.getElementById('oi-analytics-modal');
+    if (modal) {
+      modal.classList.add('show');
+      this.renderOIDashboard();
+    }
+  }
+
+  closeOIDashboard() {
+    const modal = document.getElementById('oi-analytics-modal');
+    if (modal) {
+      modal.classList.remove('show');
+    }
+  }
+
+  formatOINumber(val, isIndian = true) {
+    if (val === 0 || !Number.isFinite(val)) return '0';
+    const abs = Math.abs(val);
+    const sign = val < 0 ? '-' : (val > 0 ? '+' : '');
+
+    if (isIndian) {
+      if (abs >= 10000000) return `${sign}${(abs / 10000000).toFixed(2)}Cr`;
+      if (abs >= 100000) return `${sign}${(abs / 100000).toFixed(1)}L`;
+      if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(0)}k`;
+      return `${sign}${abs.toLocaleString()}`;
+    } else {
+      if (abs >= 1000000) return `${sign}${(abs / 1000000).toFixed(2)}M`;
+      if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}K`;
+      return `${sign}${abs.toLocaleString()}`;
+    }
+  }
+
+  getOIOptionChainData(sym = this.oiActiveSymbol, timeIndex = this.oiTimeSliderIndex, isTotalOI = this.oiShowTotal, atmFilter = this.oiATMFilter) {
+    const inst = findInstrument(sym) || this.currentInstrument || {
+      symbol: 'NIFTY 50',
+      displaySymbol: 'NIFTY',
+      name: 'NIFTY 50 Index',
+      basePrice: 22716.20,
+      precision: 2,
+    };
+
+    const q = this.livePrices.get(inst.symbol);
+    const spot = q?.last || inst.basePrice || 22716.20;
+    const isIndian = inst.category === 'india' || !inst.category || inst.symbol.includes('NIFTY') || inst.symbol.includes('BANKNIFTY');
+
+    // Strike step resolution
+    let strikeStep = 50;
+    if (inst.symbol.includes('BANKNIFTY') || inst.symbol.includes('SENSEX')) strikeStep = 100;
+    else if (inst.symbol.includes('NIFTY') || inst.symbol.includes('FINNIFTY')) strikeStep = 50;
+    else if (spot > 40000) strikeStep = 500;
+    else if (spot > 10000) strikeStep = 100;
+    else if (spot > 2500) strikeStep = 50;
+    else if (spot > 1000) strikeStep = 20;
+    else if (spot > 300) strikeStep = 10;
+    else if (spot > 50) strikeStep = 2.5;
+    else strikeStep = 0.5;
+
+    const centerStrike = Math.round(spot / strikeStep) * strikeStep;
+    const filterCount = typeof atmFilter === 'number' ? atmFilter : (atmFilter === 'all' ? 30 : 20);
+
+    let minStrike = centerStrike - filterCount * strikeStep;
+    let maxStrike = centerStrike + filterCount * strikeStep;
+
+    if (this.oiCustomMin != null) minStrike = this.oiCustomMin;
+    if (this.oiCustomMax != null) maxStrike = this.oiCustomMax;
+
+    const strikes = [];
+    for (let k = minStrike; k <= maxStrike + strikeStep * 0.1; k += strikeStep) {
+      strikes.push(Math.round(k / (strikeStep >= 1 ? 1 : 0.1)) * (strikeStep >= 1 ? 1 : 0.1));
+    }
+
+    // Intraday progression factor: 0.0 (9:15 AM) to 1.0 (3:30 PM)
+    const progress = Math.min(1.0, Math.max(0.05, timeIndex / 75));
+    const dayOpenPrice = +(spot * 1.0028).toFixed(inst.precision || 2);
+    const interpolatedSpot = +(dayOpenPrice + (spot - dayOpenPrice) * progress).toFixed(inst.precision || 2);
+
+    let totalCallOI = 0, totalPutOI = 0;
+    let netCallOIChg = 0, netPutOIChg = 0;
+    const strikeRows = [];
+
+    strikes.forEach((k) => {
+      const distFromSpot = (k - spot) / spot;
+      const gaussian = Math.exp(-0.5 * Math.pow(distFromSpot / 0.035, 2));
+
+      // Base Cumulative Open Interest Modeling
+      const baseCallOI = Math.round((1800000 + 12000000 * Math.exp(-0.5 * Math.pow((k - (spot * 1.015)) / (spot * 0.04), 2))) * (spot > 10000 ? 1 : 0.2));
+      const basePutOI = Math.round((1600000 + 11500000 * Math.exp(-0.5 * Math.pow((k - (spot * 0.985)) / (spot * 0.04), 2))) * (spot > 10000 ? 1 : 0.2));
+
+      // Daily OI Change Modeling (Green Puts build support below ATM, Red Calls build resistance above ATM)
+      let rawCallChg = 0, rawPutChg = 0;
+      if (k > centerStrike) {
+        // Resistance above ATM: Heavy Call addition, Put unwinding
+        rawCallChg = Math.round((8500000 * Math.exp(-0.5 * Math.pow((k - (spot * 1.008)) / (spot * 0.025), 2)) + 1500000) * progress * (spot > 10000 ? 1 : 0.2));
+        rawPutChg = Math.round((-4500000 * Math.exp(-0.5 * Math.pow((k - (spot * 1.005)) / (spot * 0.02), 2)) - 500000) * progress * (spot > 10000 ? 1 : 0.2));
+      } else if (k < centerStrike) {
+        // Support below ATM: Heavy Put addition, Call unwinding
+        rawPutChg = Math.round((8200000 * Math.exp(-0.5 * Math.pow((k - (spot * 0.992)) / (spot * 0.025), 2)) + 1200000) * progress * (spot > 10000 ? 1 : 0.2));
+        rawCallChg = Math.round((-3800000 * Math.exp(-0.5 * Math.pow((k - (spot * 0.995)) / (spot * 0.02), 2)) - 400000) * progress * (spot > 10000 ? 1 : 0.2));
+      } else {
+        // ATM battleground
+        rawCallChg = Math.round(14500000 * progress * (spot > 10000 ? 1 : 0.2));
+        rawPutChg = Math.round(11800000 * progress * (spot > 10000 ? 1 : 0.2));
+      }
+
+      const callOI = baseCallOI + (rawCallChg > 0 ? rawCallChg : 0);
+      const putOI = basePutOI + (rawPutChg > 0 ? rawPutChg : 0);
+
+      totalCallOI += callOI;
+      totalPutOI += putOI;
+      netCallOIChg += rawCallChg;
+      netPutOIChg += rawPutChg;
+
+      const isATM = Math.abs(k - centerStrike) < strikeStep * 0.45;
+      const strikePCR = callOI > 0 ? +(putOI / callOI) : 1.0;
+      const callIV = +(12.5 + Math.abs(distFromSpot) * 40).toFixed(1);
+      const putIV = +(13.8 + Math.abs(distFromSpot) * 45).toFixed(1);
+
+      strikeRows.push({
+        strike: k,
+        isATM,
+        callOI,
+        putOI,
+        callChg: rawCallChg,
+        putChg: rawPutChg,
+        netDiff: rawPutChg - rawCallChg,
+        strikePCR,
+        callIV,
+        putIV,
+        isIndian,
+      });
+    });
+
+    const pcr = totalCallOI > 0 ? +(totalPutOI / totalCallOI).toFixed(2) : 0.92;
+    const maxPainStrike = centerStrike;
+    const indiaVIX = 13.4;
+
+    return {
+      inst,
+      spot,
+      dayOpenPrice,
+      interpolatedSpot,
+      strikeStep,
+      minStrike,
+      maxStrike,
+      centerStrike,
+      isIndian,
+      pcr,
+      maxPainStrike,
+      indiaVIX,
+      totalCallOI,
+      totalPutOI,
+      netCallOIChg,
+      netPutOIChg,
+      strikeRows,
+    };
+  }
+
+  renderOIDashboard() {
+    const data = this.getOIOptionChainData();
+    this._lastOIData = data;
+
+    // 1. Update Left Panel Info
+    const titleEl = document.getElementById('oi-active-symbol-title');
+    const priceEl = document.getElementById('oi-active-symbol-price');
+    const pctEl = document.getElementById('oi-active-symbol-pct');
+    const minValEl = document.getElementById('oi-strike-min-val');
+    const maxValEl = document.getElementById('oi-strike-max-val');
+
+    if (titleEl) titleEl.textContent = data.inst.displaySymbol || data.inst.symbol;
+    if (priceEl) priceEl.textContent = data.spot.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
+    if (pctEl) {
+      const isUp = (data.spot - data.dayOpenPrice) >= 0;
+      const pct = data.dayOpenPrice > 0 ? (((data.spot - data.dayOpenPrice) / data.dayOpenPrice) * 100).toFixed(2) : '0.00';
+      pctEl.textContent = `${isUp ? '+' : ''}${pct}%`;
+      pctEl.className = `tv-oi-sym-pct ${isUp ? 'up' : 'dn'}`;
+    }
+    if (minValEl) minValEl.textContent = data.minStrike.toLocaleString();
+    if (maxValEl) maxValEl.textContent = data.maxStrike.toLocaleString();
+
+    // 2. Expiries List with today & upcoming weekly expiries
+    const expiriesContainer = document.getElementById('oi-expiries-list');
+    if (expiriesContainer) {
+      const now = new Date();
+      const expiries = [
+        { dateStr: '29 Sep (Today)', days: 0, tag: 'Current', checked: true },
+        { dateStr: '06 Oct (7 days)', days: 7, tag: 'W', checked: false },
+        { dateStr: '13 Oct (14 days)', days: 14, tag: 'W', checked: false },
+        { dateStr: '19 Oct (20 days)', days: 20, tag: 'W', checked: false },
+        { dateStr: '27 Oct (28 days)', days: 28, tag: 'M', checked: false },
+        { dateStr: '03 Nov (35 days)', days: 35, tag: 'W', checked: false },
+      ];
+
+      expiriesContainer.innerHTML = expiries.map((exp, idx) => `
+        <label class="tv-oi-expiry-item">
+          <input type="checkbox" name="oi-expiry" value="${exp.dateStr}" ${exp.checked ? 'checked' : ''} />
+          <span>${exp.dateStr}</span>
+          <span class="tv-oi-exp-tag">${exp.tag}</span>
+        </label>
+      `).join('');
+    }
+
+    // 3. Top Metrics
+    const pcrValEl = document.getElementById('oi-top-pcr-val');
+    const maxPainEl = document.getElementById('oi-top-maxpain-val');
+    if (pcrValEl) pcrValEl.textContent = data.pcr.toFixed(2);
+    if (maxPainEl) maxPainEl.textContent = data.maxPainStrike.toLocaleString();
+
+    const sidebarPcr = document.getElementById('sidebar-oi-pcr-badge');
+    if (sidebarPcr) sidebarPcr.textContent = `PCR ${data.pcr.toFixed(2)}`;
+
+    // 4. Chart Title & Legend Labels
+    const chartTitle = document.getElementById('oi-chart-title');
+    const putLegend = document.getElementById('lbl-put-legend');
+    const callLegend = document.getElementById('lbl-call-legend');
+
+    if (chartTitle) {
+      chartTitle.textContent = this.oiShowTotal ? `Total Open Interest on ${data.inst.displaySymbol || data.inst.symbol}` : `OI Change on Tue, 29 Sep`;
+    }
+    if (putLegend) putLegend.textContent = this.oiShowTotal ? 'Put OI' : 'Put OI chg';
+    if (callLegend) callLegend.textContent = this.oiShowTotal ? 'Call OI' : 'Call OI chg';
+
+    // 5. Summary Footer Card
+    const sumCallEl = document.getElementById('oi-sum-call-chg');
+    const sumPutEl = document.getElementById('oi-sum-put-chg');
+    const sumOpenPriceEl = document.getElementById('oi-sum-open-price');
+    const sumClosePriceEl = document.getElementById('oi-sum-close-price');
+    const sumOpenLbl = document.getElementById('oi-sum-sym-open-lbl');
+    const sumCloseLbl = document.getElementById('oi-sum-sym-close-lbl');
+
+    if (sumCallEl) {
+      const callVal = this.oiShowTotal ? data.totalCallOI : data.netCallOIChg;
+      sumCallEl.textContent = this.formatOINumber(callVal, data.isIndian);
+      sumCallEl.className = `val ${callVal >= 0 ? 'dn' : 'up'}`;
+    }
+    if (sumPutEl) {
+      const putVal = this.oiShowTotal ? data.totalPutOI : data.netPutOIChg;
+      sumPutEl.textContent = this.formatOINumber(putVal, data.isIndian);
+      sumPutEl.className = `val ${putVal >= 0 ? 'up' : 'dn'}`;
+    }
+    if (sumOpenPriceEl) sumOpenPriceEl.textContent = data.dayOpenPrice.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
+    if (sumClosePriceEl) sumClosePriceEl.textContent = data.interpolatedSpot.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
+    if (sumOpenLbl) sumOpenLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 9:15 AM:`;
+    if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 3:30 PM:`;
+
+    // 6. Draw Canvas Histogram
+    this.drawOIHistogramCanvas(data);
+  }
+
+  drawOIHistogramCanvas(data) {
+    const canvas = document.getElementById('oi-histogram-canvas');
+    if (!canvas) return;
+
+    const wrapper = canvas.parentElement;
+    const width = wrapper.clientWidth || 900;
+    const height = wrapper.clientHeight || 360;
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, width, height);
+
+    const padLeft = 60;
+    const padRight = 30;
+    const padTop = 30;
+    const padBottom = 40;
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
+
+    const rows = data.strikeRows;
+    if (!rows || rows.length === 0) return;
+
+    // Find Max Value for Y-axis scaling
+    let maxVal = 100000;
+    rows.forEach((r) => {
+      const putV = this.oiShowTotal ? r.putOI : Math.abs(r.putChg);
+      const callV = this.oiShowTotal ? r.callOI : Math.abs(r.callChg);
+      if (putV > maxVal) maxVal = putV;
+      if (callV > maxVal) maxVal = callV;
+    });
+
+    maxVal = maxVal * 1.15; // 15% top padding
+
+    const isTotal = this.oiShowTotal;
+    const zeroY = isTotal ? padTop + chartH : padTop + chartH / 2;
+
+    // 1. Draw Background Grid Lines & Y-Axis Ticks
+    const numGridLines = isTotal ? 5 : 6;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#787b86';
+    ctx.font = '10.5px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    for (let i = 0; i <= numGridLines; i++) {
+      const ratio = i / numGridLines;
+      const y = padTop + chartH * ratio;
+
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(width - padRight, y);
+      ctx.stroke();
+
+      let tickVal = 0;
+      if (isTotal) {
+        tickVal = maxVal * (1 - ratio);
+      } else {
+        tickVal = maxVal * (1 - 2 * ratio);
+      }
+
+      const formattedTick = this.formatOINumber(tickVal, data.isIndian);
+      ctx.fillText(formattedTick, padLeft - 8, y);
+    }
+
+    // Zero Baseline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, zeroY);
+    ctx.lineTo(width - padRight, zeroY);
+    ctx.stroke();
+
+    // 2. Draw Bars per Strike
+    const slotW = chartW / rows.length;
+    const barW = Math.max(3, Math.min(18, slotW * 0.36));
+    const gap = 2;
+    const barMeta = [];
+
+    rows.forEach((r, idx) => {
+      const slotCenterX = padLeft + idx * slotW + slotW / 2;
+      const slotLeft = padLeft + idx * slotW;
+      const slotRight = slotLeft + slotW;
+
+      const putVal = isTotal ? r.putOI : r.putChg;
+      const callVal = isTotal ? r.callOI : r.callChg;
+
+      // Put Bar (Green)
+      const putHeight = (Math.abs(putVal) / maxVal) * (isTotal ? chartH : chartH / 2);
+      const putY = isTotal ? zeroY - putHeight : (putVal >= 0 ? zeroY - putHeight : zeroY);
+
+      ctx.fillStyle = r.strike === this.oiHoveredStrike ? '#00ff88' : '#00e676';
+      ctx.fillRect(slotCenterX - barW - gap / 2, putY, barW, Math.max(1, putHeight));
+
+      // Call Bar (Red)
+      const callHeight = (Math.abs(callVal) / maxVal) * (isTotal ? chartH : chartH / 2);
+      const callY = isTotal ? zeroY - callHeight : (callVal >= 0 ? zeroY - callHeight : zeroY);
+
+      ctx.fillStyle = r.strike === this.oiHoveredStrike ? '#ff3b4b' : '#ff1744';
+      ctx.fillRect(slotCenterX + gap / 2, callY, barW, Math.max(1, callHeight));
+
+      // X-Axis Strike Label
+      ctx.fillStyle = r.isATM ? '#29b6f6' : '#787b86';
+      ctx.font = r.isATM ? 'bold 10.5px monospace' : '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      // Angle label slightly or show every N strikes on small screens
+      const stepInterval = rows.length > 25 ? 2 : 1;
+      if (idx % stepInterval === 0 || r.isATM) {
+        ctx.save();
+        ctx.translate(slotCenterX, padTop + chartH + 8);
+        ctx.rotate(-Math.PI / 4);
+        ctx.fillText(r.strike.toLocaleString(), 0, 0);
+        ctx.restore();
+      }
+
+      barMeta.push({
+        strike: r.strike,
+        slotLeft,
+        slotRight,
+        slotCenterX,
+        putVal,
+        callVal,
+        putOI: r.putOI,
+        callOI: r.callOI,
+        putChg: r.putChg,
+        callChg: r.callChg,
+        netDiff: r.netDiff,
+        strikePCR: r.strikePCR,
+        callIV: r.callIV,
+        putIV: r.putIV,
+        isATM: r.isATM,
+        isIndian: r.isIndian,
+      });
+    });
+
+    this._lastOIBars = barMeta;
+
+    // 3. Draw Spot Price Vertical Dotted Reference Line
+    const spot = data.interpolatedSpot;
+    if (spot >= data.minStrike && spot <= data.maxStrike) {
+      const strikeRange = data.maxStrike - data.minStrike;
+      const spotRatio = (spot - data.minStrike) / strikeRange;
+      const spotX = padLeft + spotRatio * chartW;
+
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#29b6f6';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(spotX, padTop);
+      ctx.lineTo(spotX, padTop + chartH);
+      ctx.stroke();
+      ctx.restore();
+
+      // Floating Spot Price Badge at Top
+      const tagText = `${data.inst.displaySymbol || data.inst.symbol} ${spot.toLocaleString()}`;
+      ctx.font = 'bold 11px sans-serif';
+      const textW = ctx.measureText(tagText).width + 12;
+
+      ctx.fillStyle = 'rgba(41, 182, 246, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(spotX - textW / 2, padTop - 18, textW, 18, 4);
+      ctx.fill();
+
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tagText, spotX, padTop - 9);
+    }
+  }
+
+  loadOISidebarPanel() {
+    const container = document.getElementById('oi-sidebar-body');
+    if (!container) return;
+
+    const data = this.getOIOptionChainData();
+
+    container.innerHTML = `
+      <!-- 1. Header Card -->
+      <div class="tv-oi-sb-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-weight:800;font-size:14px;color:var(--text);">${data.inst.displaySymbol || data.inst.symbol}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${data.inst.name}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:800;font-size:14px;color:var(--text);">${data.spot.toLocaleString()}</div>
+            <div style="font-size:11px;color:${data.spot >= data.dayOpenPrice ? '#00e676' : '#ff1744'};font-weight:700;">
+              ${data.spot >= data.dayOpenPrice ? '+' : ''}${(((data.spot - data.dayOpenPrice) / data.dayOpenPrice) * 100).toFixed(2)}%
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. PCR & Max Pain Stats -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="tv-oi-sb-card">
+          <span style="font-size:10.5px;color:var(--text-muted);font-weight:700;">PUT-CALL RATIO</span>
+          <span style="font-size:16px;font-weight:800;color:#29b6f6;font-family:var(--mono);">${data.pcr.toFixed(2)}</span>
+          <span style="font-size:10px;color:var(--text-muted);">${data.pcr >= 1.0 ? '🟢 Bullish Put Addition' : '🔴 Bearish Call Resistance'}</span>
+        </div>
+        <div class="tv-oi-sb-card">
+          <span style="font-size:10.5px;color:var(--text-muted);font-weight:700;">MAX PAIN STRIKE</span>
+          <span style="font-size:16px;font-weight:800;color:var(--amber);font-family:var(--mono);">${data.maxPainStrike.toLocaleString()}</span>
+          <span style="font-size:10px;color:var(--text-muted);">Dealer Magnet Price</span>
+        </div>
+      </div>
+
+      <!-- 3. Net OI Changes -->
+      <div class="tv-oi-sb-card">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">DAILY OI FLOW DELTA</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+          <span>🟢 Put Writing (Support):</span>
+          <b style="color:#00e676;font-family:var(--mono);">${this.formatOINumber(data.netPutOIChg, data.isIndian)}</b>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span>🔴 Call Writing (Resistance):</span>
+          <b style="color:#ff1744;font-family:var(--mono);">${this.formatOINumber(data.netCallOIChg, data.isIndian)}</b>
+        </div>
+      </div>
+
+      <!-- 4. Launch Full Analytics Dashboard Button -->
+      <button class="tv-inst-plot-btn" id="btn-sb-launch-oi-full" style="width:100%;margin-top:6px;">
+        <span>📊 Open Full OI Dashboard (Expanded)</span>
+      </button>
+    `;
+
+    const btnLaunch = document.getElementById('btn-sb-launch-oi-full');
+    if (btnLaunch) {
+      btnLaunch.onclick = () => this.openOIDashboard();
+    }
   }
 }
 

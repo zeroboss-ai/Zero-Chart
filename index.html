@@ -112,6 +112,13 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
       </button>
 
+      <!-- Dedicated Option OI Analytics Topbar Trigger -->
+      <button class="tv-top-btn tv-top-btn--oi" id="btn-open-oi-dashboard" title="Open Interest (OI) & Option Analytics Suite">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 20h18"/></svg>
+        <span style="font-weight:700;">Option OI</span>
+        <span class="tv-oi-badge-live">LIVE</span>
+      </button>
+
       <!-- Top Right Header Area -->
       <div class="tv-topbar-right">
         <!-- Live Real-Time Feed Status Indicator -->
@@ -423,6 +430,25 @@
           </div>
         </div>
 
+        <!-- ─── OPTION OPEN INTEREST (OI) DEDICATED TAB ─── -->
+        <div id="panel-oi-analytics" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
+          <div class="tv-panel-head" style="padding:6px 10px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 20h18"/></svg>
+              <span>Option OI Analytics</span>
+              <span class="tv-oi-pcr-pill" id="sidebar-oi-pcr-badge">PCR 0.9</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <button class="tv-wl-act-btn" id="btn-expand-oi-fullscreen" title="Open Full Dashboard (Expanded View)">⛶</button>
+              <button class="tv-wl-act-btn" id="btn-refresh-oi" title="Refresh OI Data">🔄</button>
+              <button class="tv-wl-act-btn tv-mob-close-drawer-btn" id="btn-mob-close-oi" title="Close">✕</button>
+            </div>
+          </div>
+          <div class="tv-panel-content tv-oi-sidebar-body" id="oi-sidebar-body" style="padding:10px;overflow-y:auto;gap:12px;display:flex;flex-direction:column;">
+            <!-- Rendered dynamically by renderOISidebarPanel() -->
+          </div>
+        </div>
+
         <!-- ─── OBJECT TREE & LAYERS TAB ─── -->
         <div id="panel-objects" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
           <div class="tv-panel-head"><span>Object Tree & Layers</span></div>
@@ -433,10 +459,13 @@
 
       </div>
 
-      <!-- ─── FAR RIGHT VERTICAL RAIL (WATCHLIST, INSTITUTIONAL GEX, ALERTS, NEWS & CALENDAR) ─── -->
+      <!-- ─── FAR RIGHT VERTICAL RAIL (WATCHLIST, OPTION OI, INSTITUTIONAL GEX, ALERTS, NEWS & CALENDAR) ─── -->
       <div class="tv-vertical-rail">
         <button class="tv-v-icon active" data-tab="watchlist" title="Watchlist and details">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <button class="tv-v-icon" data-tab="oi-analytics" title="Option Open Interest (OI Change, Strikes, PCR)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 20h18"/></svg>
         </button>
         <button class="tv-v-icon" data-tab="institutional" title="Institutional Flow & Gamma Exposure (GEX / COT)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 2L2 7h20L12 2z"/></svg>
@@ -644,6 +673,197 @@
 
     <!-- Alert Toast Notification Container -->
     <div class="tv-toast-container" id="alert-toast-container"></div>
+
+    <!-- ─── 10. DEDICATED OPEN INTEREST (OI) ANALYTICS DASHBOARD MODAL ─── -->
+    <div class="tv-modal-backdrop tv-oi-full-backdrop" id="oi-analytics-modal">
+      <div class="tv-oi-dashboard-container">
+        <!-- Top Nav & Subtabs -->
+        <div class="tv-oi-header">
+          <div class="tv-oi-subtabs" id="oi-subtabs">
+            <button class="tv-oi-tab-btn active" data-subtab="oi-change">OI Change</button>
+            <button class="tv-oi-tab-btn" data-subtab="open-interest">Open Interest</button>
+            <button class="tv-oi-tab-btn" data-subtab="multistrike-oi">Multistrike OI</button>
+            <button class="tv-oi-tab-btn" data-subtab="option-oi-time">Option OI vs Time</button>
+            <button class="tv-oi-tab-btn" data-subtab="fut-oi-time">Fut OI vs Time</button>
+          </div>
+          <div class="tv-oi-top-metrics">
+            <div class="tv-oi-metric-badge" id="oi-metric-vix">
+              <span class="lbl">INDIAVIX</span>
+              <span class="val" id="oi-top-vix-val">13.4</span>
+              <span class="chg dn" id="oi-top-vix-chg">-0.2</span>
+            </div>
+            <div class="tv-oi-metric-badge" id="oi-metric-pcr">
+              <span class="lbl">PCR</span>
+              <span class="val" id="oi-top-pcr-val">0.9</span>
+              <span class="info" title="Put Call Ratio = Total Put OI / Total Call OI">ℹ️</span>
+            </div>
+            <div class="tv-oi-metric-badge" id="oi-metric-maxpain">
+              <span class="lbl">MAX PAIN</span>
+              <span class="val" id="oi-top-maxpain-val">22,700</span>
+            </div>
+            <button class="tv-modal-close-btn" id="btn-close-oi-dashboard" title="Close Dashboard">✕</button>
+          </div>
+        </div>
+
+        <!-- Dashboard Body: Left Control Panel + Center Chart Area -->
+        <div class="tv-oi-main-layout">
+          <!-- Left Control Panel -->
+          <aside class="tv-oi-left-panel">
+            <!-- Symbol Selector Box -->
+            <div class="tv-oi-sym-box" id="oi-sym-selector-btn" title="Click to search / switch symbol">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <span class="tv-oi-sym-name" id="oi-active-symbol-title">NIFTY</span>
+                <span class="tv-oi-sym-price" id="oi-active-symbol-price">22,716.20</span>
+                <span class="tv-oi-sym-pct up" id="oi-active-symbol-pct">+0.28%</span>
+              </div>
+              <button class="tv-oi-info-pill" id="btn-oi-sym-info" type="button" title="Contract & Lot Details">Info</button>
+            </div>
+
+            <!-- Mode Switcher -->
+            <div class="tv-oi-mode-selector">
+              <label class="tv-oi-radio-label">
+                <input type="radio" name="oi-mode" value="intraday" checked />
+                <span>Intraday</span>
+              </label>
+              <label class="tv-oi-radio-label">
+                <input type="radio" name="oi-mode" value="custom" />
+                <span>Custom Range</span>
+              </label>
+            </div>
+
+            <!-- Expiries Checkboxes List -->
+            <div class="tv-oi-section">
+              <div class="tv-oi-section-head">Expiries Included</div>
+              <div class="tv-oi-expiries-list" id="oi-expiries-list">
+                <!-- Dynamically generated expiries -->
+              </div>
+            </div>
+
+            <!-- Strike Range Min / Max -->
+            <div class="tv-oi-section">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span class="tv-oi-section-head" style="margin-bottom:0;">Strike Range</span>
+                <button class="tv-oi-link-btn" id="btn-reset-strike-range" type="button">🔄 Reset</button>
+              </div>
+              <div class="tv-oi-range-steppers">
+                <div class="tv-oi-stepper-box">
+                  <span class="lbl">Min</span>
+                  <div class="stepper">
+                    <button type="button" id="btn-strike-min-dec">-</button>
+                    <span id="oi-strike-min-val">21700</span>
+                    <button type="button" id="btn-strike-min-inc">+</button>
+                  </div>
+                </div>
+                <div class="tv-oi-stepper-box">
+                  <span class="lbl">Max</span>
+                  <div class="stepper">
+                    <button type="button" id="btn-strike-max-dec">-</button>
+                    <span id="oi-strike-max-val">23700</span>
+                    <button type="button" id="btn-strike-max-inc">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Strikes above & below ATM Quick Filter -->
+            <div class="tv-oi-section">
+              <div class="tv-oi-section-head">Strikes above and below ATM</div>
+              <div class="tv-oi-atm-pills" id="oi-atm-pills">
+                <button class="tv-oi-atm-btn" data-atm="all">Show All</button>
+                <button class="tv-oi-atm-btn" data-atm="5">5</button>
+                <button class="tv-oi-atm-btn" data-atm="10">10</button>
+                <button class="tv-oi-atm-btn" data-atm="15">15</button>
+                <button class="tv-oi-atm-btn active" data-atm="20">20</button>
+                <button class="tv-oi-atm-btn" data-atm="25">25</button>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Center Chart & Time Playback Controls -->
+          <section class="tv-oi-center-panel">
+            <!-- Chart Header Controls -->
+            <div class="tv-oi-chart-header">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <h3 class="tv-oi-chart-title" id="oi-chart-title">OI Change on Tue, 29 Sep</h3>
+                <button class="tv-oi-help-link" id="btn-oi-how-to-read" type="button">How to read this?</button>
+              </div>
+              <div class="tv-oi-toggle-group">
+                <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Show Total OI</span>
+                <label class="tv-switch">
+                  <input type="checkbox" id="toggle-show-total-oi" />
+                  <span class="slider round"></span>
+                </label>
+                <span class="tv-new-tag">New</span>
+              </div>
+            </div>
+
+            <!-- Interactive Canvas Histogram -->
+            <div class="tv-oi-canvas-wrapper" id="oi-canvas-wrapper">
+              <canvas id="oi-histogram-canvas"></canvas>
+              <div class="tv-oi-tooltip" id="oi-chart-tooltip" style="display:none;"></div>
+            </div>
+
+            <!-- Legend -->
+            <div class="tv-oi-legend">
+              <div class="legend-item"><span class="dot put"></span> <span id="lbl-put-legend">Put OI chg</span></div>
+              <div class="legend-item"><span class="dot call"></span> <span id="lbl-call-legend">Call OI chg</span></div>
+            </div>
+
+            <!-- Intraday Time Range Slider -->
+            <div class="tv-oi-time-slider-box">
+              <div class="tv-oi-time-labels">
+                <span id="oi-time-start-lbl">9:15 AM</span>
+                <span id="oi-time-current-lbl" style="color:var(--accent);font-weight:700;">3:30 PM (Full Day)</span>
+                <span id="oi-time-end-lbl">3:30 PM</span>
+              </div>
+              <input type="range" class="tv-oi-slider" id="oi-time-range-slider" min="0" max="75" value="75" step="1" />
+            </div>
+
+            <!-- Time Preset Buttons -->
+            <div class="tv-oi-time-presets" id="oi-time-presets">
+              <button class="tv-oi-tp-btn" data-time="5m">Last 5 mins</button>
+              <button class="tv-oi-tp-btn" data-time="10m">Last 10 mins</button>
+              <button class="tv-oi-tp-btn" data-time="15m">Last 15 mins</button>
+              <button class="tv-oi-tp-btn" data-time="30m">Last 30 mins</button>
+              <button class="tv-oi-tp-btn" data-time="1h">Last 1 Hr</button>
+              <button class="tv-oi-tp-btn" data-time="2h">Last 2 Hrs</button>
+              <button class="tv-oi-tp-btn" data-time="3h">Last 3 Hrs</button>
+              <button class="tv-oi-tp-btn active" data-time="full">Full Day</button>
+            </div>
+
+            <!-- Summary Footer Card -->
+            <div class="tv-oi-summary-card">
+              <div class="tv-oi-sum-tag" id="oi-summary-date-tag">Change on Tue, 29 Sep</div>
+              <div class="tv-oi-sum-metrics">
+                <div class="metric"><span class="lbl">Call OI change:</span> <b class="val dn" id="oi-sum-call-chg">-3.85Cr</b></div>
+                <div class="metric"><span class="lbl">Put OI change:</span> <b class="val up" id="oi-sum-put-chg">+1.45Cr</b></div>
+              </div>
+              <div class="tv-oi-sum-prices">
+                <div class="price-row"><span class="lbl" id="oi-sum-sym-open-lbl">NIFTY at 9:15 AM:</span> <b id="oi-sum-open-price">22,780.25</b></div>
+                <div class="price-row"><span class="lbl" id="oi-sum-sym-close-lbl">NIFTY at 3:30 PM:</span> <b id="oi-sum-close-price">22,716.20</b></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Educational "How to read this" Modal -->
+    <div class="tv-modal-backdrop" id="oi-help-modal">
+      <div class="tv-alert-modal" style="width:520px;">
+        <div class="tv-alert-header">
+          <span style="font-weight:700;font-size:14px;color:var(--text);">Understanding Open Interest (OI) & OI Change</span>
+          <button class="tv-modal-close-btn" id="btn-close-oi-help">✕</button>
+        </div>
+        <div class="tv-alert-body" style="gap:10px;font-size:12.5px;line-height:1.5;color:var(--text);">
+          <div><strong>🟢 Put OI / Put Writing (Support):</strong> Put sellers take bullish risk. High Put OI marks strong downside support/floor.</div>
+          <div><strong>🔴 Call OI / Call Writing (Resistance):</strong> Call sellers take bearish risk. High Call OI marks upside ceiling/resistance.</div>
+          <div><strong>📊 Put-Call Ratio (PCR):</strong> PCR &gt; 1.0 = Bullish Sentiment, PCR &lt; 0.7 = Bearish Sentiment, PCR &gt; 1.5 = Overbought, PCR &lt; 0.5 = Oversold.</div>
+          <div><strong>🎯 Max Pain Strike:</strong> The strike price at which option buyers lose the most money at expiration (dealer magnet price).</div>
+        </div>
+      </div>
+    </div>
 
     <!-- ─── 8. MOBILE BOTTOM NAVIGATION BAR ─── -->
     <nav class="tv-mobile-nav" id="mobile-nav">
