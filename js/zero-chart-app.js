@@ -779,7 +779,7 @@ class ZeroChartApp {
     const legLeft = window.innerWidth <= 768 ? 10 : 54;
     const chartTheme = this.getChartTheme(this.currentTheme);
     const isMobile = window.innerWidth <= 768;
-    const defaultBars = isMobile ? 38 : 95;
+    const defaultBars = isMobile ? 75 : 140;
 
     pane.widget = createWidget(container, {
       feed: this.multiFeed,
