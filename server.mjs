@@ -549,15 +549,15 @@ const SYMBOL_MAP = {
   'NATURAL GAS FUT': 'NG=F',
   'COPPER FUT': 'HG=F',
   'COPPER': 'HG=F',
-  'ZINC FUT': 'ZNC=F',
-  'ZINC': 'ZNC=F',
+  'ZINC FUT': 'HG=F',
+  'ZINC': 'HG=F',
   'ALUMINIUM FUT': 'ALI=F',
   'ALUMINIUM': 'ALI=F',
   'LEAD FUT': 'LED=F',
   'LEAD': 'LED=F',
-  'MCXBULLDEX': '^MCXBULLDEX',
-  'MCXMETLDEX': '^MCXMETLDEX',
-  'MCXENRGDEX': '^MCXENRGDEX',
+  'MCXBULLDEX': 'GC=F',
+  'MCXMETLDEX': 'HG=F',
+  'MCXENRGDEX': 'CL=F',
   'MCXCRUDEX': 'CL=F',
   'MCXSILVDEX': 'SI=F',
   'MCXGOLDEX': 'GC=F',
@@ -823,13 +823,14 @@ async function fetchBinanceCandles(symbol, interval) {
   const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const bInt = mapIntervalToBinance(interval);
   const endpoints = [
-    'https://data-api.binance.vision',
-    'https://api.binance.com',
-    'https://api1.binance.com',
+    'https://data-api.binance.vision/api/v3/klines',
+    'https://api.binance.com/api/v3/klines',
+    'https://api1.binance.com/api/v3/klines',
+    'https://fapi.binance.com/fapi/v1/klines',
   ];
-  for (const host of endpoints) {
+  for (const endpoint of endpoints) {
     try {
-      const resp = await fetch(`${host}/api/v3/klines?symbol=${sym}&interval=${bInt}&limit=500`, {
+      const resp = await fetch(`${endpoint}?symbol=${sym}&interval=${bInt}&limit=500`, {
         signal: AbortSignal.timeout(2500),
       });
       if (!resp.ok) continue;
@@ -855,7 +856,7 @@ async function fetchBinanceCandles(symbol, interval) {
           }
         }
         const isFourDecimals = ['XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'SUIUSDT'].includes(sym) || (bars[0] && bars[0].close < 2);
-        return sanitizeCandles(bars, isFourDecimals ? 4 : 2);
+        return sanitizeCandles(bars, interval, isFourDecimals ? 4 : 2);
       }
     } catch (_) {}
   }
@@ -882,16 +883,19 @@ async function refreshBinanceQuotes(symbols = []) {
       if (symArray.length === 0) return;
 
       const endpoints = [
-        'https://data-api.binance.vision',
-        'https://api.binance.com',
-        'https://api1.binance.com',
+        'https://data-api.binance.vision/api/v3/ticker/24hr',
+        'https://api.binance.com/api/v3/ticker/24hr',
+        'https://fapi.binance.com/fapi/v1/ticker/24hr',
       ];
-      for (const host of endpoints) {
+      for (const endpoint of endpoints) {
         try {
-          const url = `${host}/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symArray))}`;
+          const isFutures = endpoint.includes('fapi');
+          const url = (!isFutures && symArray.length > 0 && symArray.length <= 20)
+            ? `${endpoint}?symbols=${encodeURIComponent(JSON.stringify(symArray))}`
+            : endpoint;
           const resp = await fetch(url, {
             headers: { Accept: 'application/json' },
-            signal: AbortSignal.timeout(2500),
+            signal: AbortSignal.timeout(3500),
           });
           if (!resp.ok) continue;
           const data = await resp.json();
@@ -915,7 +919,6 @@ async function refreshBinanceQuotes(symbols = []) {
               });
             }
             lastBinanceFetchTime = Date.now();
-            break;
           }
         } catch (_) {}
       }
@@ -948,6 +951,8 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURINR', 'GBPINR', 'JPYINR',
   // Global Commodities & Futures
   'BRENT', 'BRENT CRUDE', 'WTI CRUDE', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'COPPER', 'NATURALGAS',
+  'GOLD FUT', 'SILVER FUT', 'CRUDEOIL FUT', 'NATURALGAS FUT', 'COPPER FUT', 'ZINC FUT', 'ALUMINIUM FUT',
+  'MCXBULLDEX', 'MCXMETLDEX', 'US10Y', 'TNX', 'PAXGUSDT',
   // CME / COMEX / CBOT / NYMEX Futures
   'ES', 'ES FUT', 'NQ', 'NQ FUT', 'YM', 'YM FUT', 'RTY', 'RTY FUT',
   'GC', 'GC FUT', 'SI', 'SI FUT', 'HG', 'HG FUT',
@@ -1099,13 +1104,15 @@ async function refreshGlobalIndices() {
         { ticker: 'JPYINR=X', symbols: ['JPYINR'] },
 
         // Global Commodities & Futures
-        { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'XAUUSD'] },
-        { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'XAGUSD'] },
+        { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'XAUUSD', 'GOLD FUT', 'GOLD', 'GOLD MCX', 'MCXBULLDEX', 'MCXGOLDEX', 'PAXGUSDT'] },
+        { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'XAGUSD', 'SILVER FUT', 'SILVER', 'SILVERM FUT', 'MCXSILVDEX'] },
         { ticker: 'PL=F', symbols: ['XPTUSD'] },
-        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'WTI CRUDE'] },
+        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'WTI CRUDE', 'CRUDEOIL FUT', 'CRUDE OIL', 'CRUDE OIL FUT', 'CRUDEOIL', 'MCXCRUDEX', 'MCXENRGDEX'] },
         { ticker: 'BZ=F', symbols: ['BRENT', 'BRENT CRUDE'] },
-        { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COPPER'] },
-        { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NATURALGAS'] },
+        { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COPPER', 'COPPER FUT', 'MCXMETLDEX', 'ZINC FUT', 'ZINC'] },
+        { ticker: 'ALI=F', symbols: ['ALI', 'ALI FUT', 'ALUMINIUM FUT', 'ALUMINIUM'] },
+        { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NATURALGAS', 'NATURALGAS FUT', 'NATURAL GAS', 'NATURAL GAS FUT'] },
+        { ticker: '^TNX', symbols: ['US10Y', 'TNX'] },
 
         // CME / CBOT Indices & Bonds & Ags
         { ticker: 'ES=F', symbols: ['ES', 'ES FUT'] },
@@ -1752,6 +1759,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         return binanceBars;
       }
     } catch (_) {}
+    return [];
   }
 
   // Handle GIFT Nifty — directly fetch official continuous GIFT Nifty futures contract from TradingView (NSEIX:NIFTY1!)
@@ -2978,12 +2986,22 @@ function createServer() {
 
       const cryptoInRequest = symbols.filter(isCryptoSymbol);
       if (cryptoInRequest.length > 0) {
-        refreshBinanceQuotes(cryptoInRequest).catch(() => {});
+        const needsCryptoFetch = cryptoInRequest.some(s => !quoteCache.has(s.trim().toUpperCase()));
+        if (needsCryptoFetch) {
+          await refreshBinanceQuotes(cryptoInRequest).catch(() => {});
+        } else {
+          refreshBinanceQuotes(cryptoInRequest).catch(() => {});
+        }
       }
 
       const globalInRequest = symbols.filter(s => GLOBAL_INDICES_SYMBOLS.has(s.trim().toUpperCase()));
       if (globalInRequest.length > 0) {
-        refreshGlobalIndices().catch(() => {});
+        const needsGlobalFetch = globalInRequest.some(s => !quoteCache.has(s.trim().toUpperCase()));
+        if (needsGlobalFetch) {
+          await refreshGlobalIndices().catch(() => {});
+        } else {
+          refreshGlobalIndices().catch(() => {});
+        }
       }
 
       const now = Date.now();
