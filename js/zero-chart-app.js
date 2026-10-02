@@ -1247,7 +1247,7 @@ class ZeroChartApp {
     }
   }
 
-  addSymbolToActiveWatchlist(symbol, fullInst = null) {
+  addSymbolToActiveWatchlist(symbol, fullInst = null, switchChart = false) {
     const wl = this.getActiveWatchlist();
     const symNorm = symbol.toUpperCase().trim();
     if (!wl.symbols.includes(symNorm)) {
@@ -1256,9 +1256,11 @@ class ZeroChartApp {
       this.renderHorizontalWatchlistTabs();
       this.renderWatchlist();
     }
-    const inst = fullInst || findInstrument(symNorm);
-    if (inst) {
-      this.switchInstrument(inst);
+    if (switchChart) {
+      const inst = fullInst || findInstrument(symNorm);
+      if (inst) {
+        this.switchInstrument(inst);
+      }
     }
   }
 
