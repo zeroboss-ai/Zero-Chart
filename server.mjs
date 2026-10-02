@@ -161,6 +161,24 @@ const indicesMap = new Map([
   ['CNXIT', { token: '99926008', symbol: 'CNXIT', exch_seg: 'NSE', name: 'NIFTY IT' }],
   ['CNXAUTO', { token: '99926004', symbol: 'CNXAUTO', exch_seg: 'NSE', name: 'NIFTY AUTO' }],
   ['NIFTYMIDCAP', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
+  ['NIFTY MIDCAP', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
+  ['MIDCPNIFTY', { token: '99926074', symbol: 'MIDCPNIFTY', exch_seg: 'NSE', name: 'NIFTY MIDCAP SELECT' }],
+  ['NIFTY PHARMA', { token: '99926017', symbol: 'CNXPHARMA', exch_seg: 'NSE', name: 'NIFTY PHARMA' }],
+  ['CNXPHARMA', { token: '99926017', symbol: 'CNXPHARMA', exch_seg: 'NSE', name: 'NIFTY PHARMA' }],
+  ['NIFTY FMCG', { token: '99926006', symbol: 'CNXFMCG', exch_seg: 'NSE', name: 'NIFTY FMCG' }],
+  ['CNXFMCG', { token: '99926006', symbol: 'CNXFMCG', exch_seg: 'NSE', name: 'NIFTY FMCG' }],
+  ['NIFTY METAL', { token: '99926013', symbol: 'CNXMETAL', exch_seg: 'NSE', name: 'NIFTY METAL' }],
+  ['CNXMETAL', { token: '99926013', symbol: 'CNXMETAL', exch_seg: 'NSE', name: 'NIFTY METAL' }],
+  ['NIFTY ENERGY', { token: '99926005', symbol: 'CNXENERGY', exch_seg: 'NSE', name: 'NIFTY ENERGY' }],
+  ['CNXENERGY', { token: '99926005', symbol: 'CNXENERGY', exch_seg: 'NSE', name: 'NIFTY ENERGY' }],
+  ['NIFTY INFRA', { token: '99926007', symbol: 'CNXINFRA', exch_seg: 'NSE', name: 'NIFTY INFRASTRUCTURE' }],
+  ['CNXINFRA', { token: '99926007', symbol: 'CNXINFRA', exch_seg: 'NSE', name: 'NIFTY INFRASTRUCTURE' }],
+  ['NIFTY REALTY', { token: '99926018', symbol: 'CNXREALTY', exch_seg: 'NSE', name: 'NIFTY REALTY' }],
+  ['CNXREALTY', { token: '99926018', symbol: 'CNXREALTY', exch_seg: 'NSE', name: 'NIFTY REALTY' }],
+  ['NIFTY PSU BANK', { token: '99926019', symbol: 'CNXPSUBANK', exch_seg: 'NSE', name: 'NIFTY PSU BANK' }],
+  ['CNXPSUBANK', { token: '99926019', symbol: 'CNXPSUBANK', exch_seg: 'NSE', name: 'NIFTY PSU BANK' }],
+  ['BANKEX', { token: '99919012', symbol: 'BANKEX', exch_seg: 'BSE', name: 'BSE BANKEX' }],
+  ['BSE BANKEX', { token: '99919012', symbol: 'BANKEX', exch_seg: 'BSE', name: 'BSE BANKEX' }],
   // MCX Indices
   ['MCXBULLDEX', { token: '99920005', symbol: 'MCXBULLDEX', exch_seg: 'MCX', name: 'MCX BULLION INDEX' }],
   ['MCXMETLDEX', { token: '99920004', symbol: 'MCXMETLDEX', exch_seg: 'MCX', name: 'MCX METAL INDEX' }],
@@ -475,8 +493,27 @@ const SYMBOL_MAP = {
   'NIFTY AUTO': '^CNXAUTO',
   NIFTYMIDCAP: '^NSEMDCP50',
   'NIFTY MIDCAP': '^NSEMDCP50',
+  MIDCPNIFTY: '^NSEMDCP50',
+  'NIFTY MID SELECT': '^NSEMDCP50',
+  CNXPHARMA: '^CNXPHARMA',
+  'NIFTY PHARMA': '^CNXPHARMA',
+  CNXFMCG: '^CNXFMCG',
+  'NIFTY FMCG': '^CNXFMCG',
+  CNXMETAL: '^CNXMETAL',
+  'NIFTY METAL': '^CNXMETAL',
+  CNXENERGY: '^CNXENERGY',
+  'NIFTY ENERGY': '^CNXENERGY',
+  CNXINFRA: '^CNXINFRA',
+  'NIFTY INFRA': '^CNXINFRA',
+  'NIFTY INFRASTRUCTURE': '^CNXINFRA',
+  CNXREALTY: '^CNXREALTY',
+  'NIFTY REALTY': '^CNXREALTY',
+  CNXPSUBANK: '^CNXPSUBANK',
+  'NIFTY PSU BANK': '^CNXPSUBANK',
   SENSEX: '^BSESN',
   'BSE SENSEX': '^BSESN',
+  BANKEX: '^BSESN',
+  'BSE BANKEX': '^BSESN',
 
   // Equities
   MUTHOOTFIN: 'MUTHOOTFIN.NS',
@@ -2583,10 +2620,10 @@ function createServer() {
 
           let score = 0;
           if (!q) score = isMcx ? 35 : 60;
-          else if (name === q || name === cleanQ) score = 220;
-          else if (name.startsWith(cleanQ) || name.startsWith(q)) score = 170;
-          else if (name.includes(cleanQ) || cleanQ.includes(name)) score = 120;
-          else if (upperName.includes(cleanQ)) score = 90;
+          else if (name === q || name === cleanQ || upperName === cleanQ || upperName === q) score = 250;
+          else if (name.startsWith(cleanQ) || name.startsWith(q) || upperName.startsWith(cleanQ)) score = 190;
+          else if (name.includes(cleanQ) || upperName.includes(cleanQ)) score = 130;
+          else if (cleanQ.includes(name) && name.length >= 4) score = 60;
 
           if (score > 0 && !candidates.find((c) => c.item.symbol === name)) {
             candidates.push({
