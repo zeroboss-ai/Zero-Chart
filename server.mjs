@@ -1141,7 +1141,7 @@ async function refreshGlobalIndices() {
               const closes = q?.close?.filter(c => c != null) || [];
               const ltp = meta?.regularMarketPrice || closes[closes.length - 1];
               if (!Number.isFinite(ltp) || ltp <= 0) break;
-              const prev = closes.length > 1 ? closes[closes.length - 2] : (meta?.chartPreviousClose || ltp);
+              const prev = meta?.chartPreviousClose || meta?.previousClose || (closes.length > 1 ? closes[closes.length - 2] : ltp);
               const chg = +(ltp - prev).toFixed(2);
               const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
 
@@ -1171,17 +1171,22 @@ async function refreshGlobalIndices() {
       }));
       // Fetch live GIFT NIFTY quote from official continuous contract (NSEIX:NIFTY1!)
       try {
-        const giftBars = await fetchTradingViewCandles('NSEIX:NIFTY1!', '5m', 10);
+        const [giftDailyBars, giftBars] = await Promise.all([
+          fetchTradingViewCandles('NSEIX:NIFTY1!', '1d', 5).catch(() => []),
+          fetchTradingViewCandles('NSEIX:NIFTY1!', '5m', 10).catch(() => []),
+        ]);
         if (giftBars && giftBars.length > 0) {
           const last = giftBars[giftBars.length - 1];
-          const prev = giftBars.length > 1 ? giftBars[giftBars.length - 2].close : last.open;
+          let prev = (giftDailyBars && giftDailyBars.length > 1)
+            ? giftDailyBars[giftDailyBars.length - 2].close
+            : (giftDailyBars?.[0]?.open || giftBars[0].open);
           const chg = +(last.close - prev).toFixed(2);
           const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
           const q = {
             ltp: last.close,
-            open: last.open,
-            high: last.high,
-            low: last.low,
+            open: giftDailyBars?.[giftDailyBars.length - 1]?.open || giftBars[0].open,
+            high: Math.max(...giftBars.slice(-20).map(b => b.high)),
+            low: Math.min(...giftBars.slice(-20).map(b => b.low)),
             close: last.close,
             prevClose: prev,
             chg,
@@ -1768,14 +1773,14 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       const tvBars = await fetchTradingViewCandles('NSEIX:NIFTY1!', interval, 350);
       if (tvBars && tvBars.length > 0) {
         const lastBar = tvBars[tvBars.length - 1];
-        const firstBar = tvBars[0];
-        const prevClose = tvBars.length > 1 ? tvBars[tvBars.length - 2].close : firstBar.open;
+        const prevQuote = quoteCache.get('GIFT NIFTY');
+        const prevClose = (prevQuote && prevQuote.prevClose > 0) ? prevQuote.prevClose : tvBars[0].open;
         const chg = +(lastBar.close - prevClose).toFixed(2);
         const chgPct = prevClose !== 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
 
         quoteCache.set('GIFT NIFTY', {
           ltp: lastBar.close,
-          open: firstBar.open,
+          open: tvBars[0].open,
           high: Math.max(...tvBars.slice(-20).map(b => b.high)),
           low: Math.min(...tvBars.slice(-20).map(b => b.low)),
           close: lastBar.close,
