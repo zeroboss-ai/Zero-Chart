@@ -2601,6 +2601,166 @@ function createServer() {
       return;
     }
 
+    // ─── 8.5. USER LAYOUTS & CLOUD PERSISTENCE ───
+    if (reqUrl.pathname === '/api/user/layouts') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'application/json');
+
+      const DATA_DIR = path.join(ROOT, 'data');
+      const LAYOUTS_FILE = path.join(DATA_DIR, 'user_layouts.json');
+
+      const readLayouts = () => {
+        try {
+          if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+          if (fs.existsSync(LAYOUTS_FILE)) return JSON.parse(fs.readFileSync(LAYOUTS_FILE, 'utf8'));
+        } catch (_) {}
+        return [];
+      };
+
+      const writeLayouts = (data) => {
+        try {
+          if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+          fs.writeFileSync(LAYOUTS_FILE, JSON.stringify(data, null, 2), 'utf8');
+          return true;
+        } catch (_) { return false; }
+      };
+
+      if (req.method === 'GET') {
+        const layouts = readLayouts();
+        res.writeHead(200);
+        res.end(JSON.stringify({ status: 'success', count: layouts.length, layouts }));
+        return;
+      }
+
+      if (req.method === 'POST') {
+        try {
+          const buffers = [];
+          for await (const chunk of req) buffers.push(chunk);
+          const body = JSON.parse(Buffer.concat(buffers).toString());
+          const layout = body.layout;
+          if (!layout || !layout.name) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ status: 'error', message: 'Layout object with name is required' }));
+            return;
+          }
+          if (!layout.id) layout.id = 'layout_' + Date.now();
+          layout.updatedAt = Date.now();
+
+          const layouts = readLayouts();
+          const existingIdx = layouts.findIndex((l) => l.id === layout.id);
+          if (existingIdx >= 0) {
+            layouts[existingIdx] = { ...layouts[existingIdx], ...layout };
+          } else {
+            layouts.unshift(layout);
+          }
+          writeLayouts(layouts);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ status: 'success', layout }));
+          return;
+        } catch (err) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ status: 'error', message: err.message }));
+          return;
+        }
+      }
+
+      if (req.method === 'DELETE') {
+        const id = reqUrl.searchParams.get('id');
+        if (!id) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ status: 'error', message: 'Missing layout id' }));
+          return;
+        }
+        let layouts = readLayouts();
+        layouts = layouts.filter((l) => l.id !== id);
+        writeLayouts(layouts);
+        res.writeHead(200);
+        res.end(JSON.stringify({ status: 'success', message: 'Layout deleted' }));
+        return;
+      }
+    }
+
+    // ─── 8.6. USER INDICATOR TEMPLATES PERSISTENCE ───
+    if (reqUrl.pathname === '/api/user/templates') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'application/json');
+
+      const DATA_DIR = path.join(ROOT, 'data');
+      const TEMPLATES_FILE = path.join(DATA_DIR, 'user_templates.json');
+
+      const readTemplates = () => {
+        try {
+          if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+          if (fs.existsSync(TEMPLATES_FILE)) return JSON.parse(fs.readFileSync(TEMPLATES_FILE, 'utf8'));
+        } catch (_) {}
+        return [];
+      };
+
+      const writeTemplates = (data) => {
+        try {
+          if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+          fs.writeFileSync(TEMPLATES_FILE, JSON.stringify(data, null, 2), 'utf8');
+          return true;
+        } catch (_) { return false; }
+      };
+
+      if (req.method === 'GET') {
+        const templates = readTemplates();
+        res.writeHead(200);
+        res.end(JSON.stringify({ status: 'success', count: templates.length, templates }));
+        return;
+      }
+
+      if (req.method === 'POST') {
+        try {
+          const buffers = [];
+          for await (const chunk of req) buffers.push(chunk);
+          const body = JSON.parse(Buffer.concat(buffers).toString());
+          const template = body.template;
+          if (!template || !template.name || !Array.isArray(template.indicators)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ status: 'error', message: 'Template with name and indicators array is required' }));
+            return;
+          }
+          if (!template.id) template.id = 'tmpl_' + Date.now();
+          template.updatedAt = Date.now();
+
+          const templates = readTemplates();
+          const existingIdx = templates.findIndex((t) => t.id === template.id);
+          if (existingIdx >= 0) {
+            templates[existingIdx] = { ...templates[existingIdx], ...template };
+          } else {
+            templates.unshift(template);
+          }
+          writeTemplates(templates);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ status: 'success', template }));
+          return;
+        } catch (err) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ status: 'error', message: err.message }));
+          return;
+        }
+      }
+
+      if (req.method === 'DELETE') {
+        const id = reqUrl.searchParams.get('id');
+        if (!id) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ status: 'error', message: 'Missing template id' }));
+          return;
+        }
+        let templates = readTemplates();
+        templates = templates.filter((t) => t.id !== id);
+        writeTemplates(templates);
+        res.writeHead(200);
+        res.end(JSON.stringify({ status: 'success', message: 'Template deleted' }));
+        return;
+      }
+    }
+
     // ─── 9. DYNAMIC MULTI-ASSET SEARCH API ───
     if (reqUrl.pathname === '/api/market/search') {
       const q = (reqUrl.searchParams.get('q') || '').trim().toUpperCase();

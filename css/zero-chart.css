@@ -1449,6 +1449,53 @@ html, body {
   font-weight: 600;
 }
 
+.tv-sync-row:hover {
+  background: var(--panel-hover);
+}
+
+.tv-layout-mgr-menu {
+  top: 36px;
+  right: 0;
+  left: auto;
+  min-width: 260px;
+  padding: 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.tv-saved-layout-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.tv-saved-layout-item:hover {
+  background: var(--panel-hover);
+}
+
+.tv-saved-layout-item.active {
+  background: rgba(41, 98, 255, 0.12);
+}
+
+.tv-template-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.tv-template-card:hover {
+  border-color: var(--accent);
+  background: rgba(41, 98, 255, 0.04);
+}
+
 .tv-top-btn--alert:hover {
   background: rgba(255, 152, 0, 0.12);
 }

@@ -74,6 +74,12 @@
         <span>Indicators</span>
       </button>
 
+      <!-- Indicator Templates / Study Presets Trigger -->
+      <button class="tv-top-btn" id="btn-open-templates" title="Indicator Templates & Study Presets">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Templates</span>
+      </button>
+
       <!-- Object Tree / Active Indicators Manager -->
       <button class="tv-top-btn" id="btn-open-objects" title="Object Tree & Active Indicators">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6M9 16h6"/></svg>
@@ -114,11 +120,14 @@
         </button>
       </div>
 
-      <!-- Cloud Layout Name Dropdown -->
-      <button class="tv-top-btn" id="btn-layout-save" title="Save Layout">
-        <span style="font-weight:600;font-size:12px;">Zero Layout</span>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
-      </button>
+      <!-- Named Layout Manager & Cloud Save Dropdown -->
+      <div class="tv-layout-dropdown-wrapper">
+        <button class="tv-top-btn" id="btn-layout-save" title="Save & Manage Chart Layouts (Ctrl+S)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span id="active-layout-title" style="font-weight:600;font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Default Layout</span>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+        </button>
+      </div>
 
       <!-- Dedicated Option OI Analytics Topbar Trigger -->
       <button class="tv-top-btn tv-top-btn--oi" id="btn-open-oi-dashboard" title="Open Interest (OI) & Option Analytics Suite">
@@ -542,6 +551,104 @@
           <div class="tv-layout-preview layout-2x2"><div></div><div></div><div></div><div></div></div>
           <span>4 Charts Grid</span>
         </button>
+      </div>
+      
+      <div class="tv-menu-divider" style="margin:8px 0;border-top:1px solid var(--border);"></div>
+      <div class="tv-menu-header" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:4px 8px;">Sync On All Charts</div>
+      <div class="tv-sync-options" style="display:flex;flex-direction:column;gap:3px;padding:2px 6px;">
+        <label class="tv-sync-row" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;padding:5px 8px;border-radius:4px;color:var(--text);user-select:none;">
+          <span style="display:flex;align-items:center;gap:7px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+            Crosshair
+          </span>
+          <input type="checkbox" id="chk-sync-crosshair" checked style="accent-color:var(--accent);cursor:pointer;" />
+        </label>
+        <label class="tv-sync-row" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;padding:5px 8px;border-radius:4px;color:var(--text);user-select:none;">
+          <span style="display:flex;align-items:center;gap:7px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Time & Range
+          </span>
+          <input type="checkbox" id="chk-sync-time" checked style="accent-color:var(--accent);cursor:pointer;" />
+        </label>
+        <label class="tv-sync-row" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;padding:5px 8px;border-radius:4px;color:var(--text);user-select:none;">
+          <span style="display:flex;align-items:center;gap:7px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></svg>
+            Symbol
+          </span>
+          <input type="checkbox" id="chk-sync-symbol" style="accent-color:var(--accent);cursor:pointer;" />
+        </label>
+        <label class="tv-sync-row" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;padding:5px 8px;border-radius:4px;color:var(--text);user-select:none;">
+          <span style="display:flex;align-items:center;gap:7px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Interval
+          </span>
+          <input type="checkbox" id="chk-sync-interval" style="accent-color:var(--accent);cursor:pointer;" />
+        </label>
+      </div>
+    </div>
+
+    <!-- ─── 6.1. NAMED LAYOUT MANAGER DROPDOWN MENU ─── -->
+    <div class="tv-dropdown-menu tv-layout-mgr-menu" id="layout-manager-menu" style="min-width:260px;max-width:320px;">
+      <div style="padding:10px 12px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;letter-spacing:0.5px;">Active Layout</span>
+          <button class="tv-icon-btn" id="btn-rename-current-layout" title="Rename active layout" style="font-size:11px;padding:2px 6px;height:auto;color:var(--accent);">Rename</button>
+        </div>
+        <div id="layout-mgr-active-name" style="font-weight:700;font-size:14px;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Default Layout</div>
+      </div>
+      <div class="tv-menu-item" id="btn-save-current-layout">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        <span style="flex:1;">Save Layout</span>
+        <span style="font-size:10px;color:var(--text-muted);font-weight:600;">Ctrl+S</span>
+      </div>
+      <div class="tv-menu-item" id="btn-save-as-new-layout">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Save As New Layout...</span>
+      </div>
+      <div class="tv-menu-divider" style="margin:4px 0;border-top:1px solid var(--border);"></div>
+      <div class="tv-menu-header" style="font-size:11px;text-transform:uppercase;color:var(--text-muted);padding:6px 12px;display:flex;align-items:center;justify-content:space-between;">
+        <span>Saved Layouts</span>
+        <span id="saved-layouts-count" style="font-size:10px;background:var(--bg-card);padding:1px 5px;border-radius:10px;">0</span>
+      </div>
+      <div id="saved-layouts-list" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding:0 4px 6px 4px;">
+        <!-- Dynamically rendered saved layouts -->
+      </div>
+    </div>
+
+    <!-- ─── 6.2. INDICATOR TEMPLATES & STUDY PRESETS MODAL ─── -->
+    <div class="tv-modal-backdrop" id="template-manager-modal">
+      <div class="tv-modal-content" style="max-width:520px;border-radius:10px;background:var(--bg-pane);border:1px solid var(--border);box-shadow:0 12px 36px rgba(0,0,0,0.4);display:flex;flex-direction:column;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            <span style="font-weight:700;font-size:15px;color:var(--text-bright);">Indicator Study Templates</span>
+          </div>
+          <button class="tv-modal-close-btn" id="btn-close-templates">✕</button>
+        </div>
+        
+        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:16px;max-height:75vh;overflow-y:auto;">
+          <!-- Save Current Setup as Template -->
+          <div style="background:var(--bg-card);padding:12px;border-radius:8px;border:1px solid var(--border);display:flex;flex-direction:column;gap:8px;">
+            <span style="font-size:12px;font-weight:700;color:var(--text-bright);">Save Current Active Indicators as Preset</span>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="txt-new-template-name" placeholder="Template Name (e.g. Scalping 5m Setup)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12.5px;outline:none;" />
+              <button class="tv-btn tv-btn--accent" id="btn-save-current-template" style="padding:0 14px;font-size:12px;font-weight:600;white-space:nowrap;">Save Setup</button>
+            </div>
+            <div id="current-active-indicators-preview" style="font-size:11.5px;color:var(--text-muted);line-height:1.4;">Active on chart: None</div>
+          </div>
+
+          <!-- Built-in Pro Templates -->
+          <div>
+            <div style="font-size:11.5px;text-transform:uppercase;color:var(--text-muted);font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">⚡ Pro Study Presets</div>
+            <div id="pro-templates-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>
+
+          <!-- User Custom Templates -->
+          <div>
+            <div style="font-size:11.5px;text-transform:uppercase;color:var(--text-muted);font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">👤 My Saved Templates</div>
+            <div id="user-templates-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>
+        </div>
       </div>
     </div>
 

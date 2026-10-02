@@ -156,6 +156,21 @@ class ZeroChartApp {
     // Layout split proportions state
     this.layoutSplits = this.loadLayoutSplits();
 
+    // Named Layouts & Cloud Setup state
+    this.activeLayoutId = localStorage.getItem('zerochart_active_layout_id') || 'layout_default';
+    this.activeLayoutName = localStorage.getItem('zerochart_active_layout_name') || 'Default Layout';
+    this.savedLayouts = [];
+    this.savedTemplates = [];
+
+    // Multi-Chart Synchronization state
+    let syncOpts = { crosshair: true, time: true, symbol: false, interval: false };
+    try {
+      const s = localStorage.getItem('zerochart_sync_options');
+      if (s) syncOpts = { ...syncOpts, ...JSON.parse(s) };
+    } catch (_) {}
+    this.syncOptions = syncOpts;
+    this.isSyncingTime = false;
+
     // Restore saved layout configuration if exists
     const savedLayout = this.loadSavedLayoutData();
     if (savedLayout?.panes && Array.isArray(savedLayout.panes)) {
@@ -383,6 +398,9 @@ class ZeroChartApp {
 
     // 1. Initialize Layout & Panes
     this.initLayoutSystem();
+    this.initMultiChartSync();
+    this.initLayoutManager();
+    this.initStudyTemplates();
     this.initSidebarResizer();
     this.initChartSplitters();
 
@@ -943,7 +961,13 @@ class ZeroChartApp {
           }
         }
       }
+      // Broadcast crosshair position across other visible panes when synchronized
+      this.broadcastCrosshair(paneIndex, data);
     });
+
+    // Synchronize visible time range & pan/zoom across visible panes
+    pane.widget.chart.on('pan', () => this.broadcastTimeRange(paneIndex));
+    pane.widget.chart.on('zoom', () => this.broadcastTimeRange(paneIndex));
 
     // Listen to chart click for Replay Jump cut-point selection & Alert line close button
     pane.widget.chart.on('click', (event) => {
@@ -1437,36 +1461,38 @@ class ZeroChartApp {
     this.renderWatchlist();
   }
 
-  switchInstrument(inst) {
+  switchInstrument(inst, targetPaneIndex = this.activePaneIndex, fromSync = false) {
     if (this.isReplayMode) {
       this.exitReplayMode();
     }
-    const pane = this.panes[this.activePaneIndex];
-    const prevSym = pane?.instrument?.symbol || this.currentInstrument?.symbol;
+    const pane = this.panes[targetPaneIndex];
+    const prevSym = pane?.instrument?.symbol || (targetPaneIndex === this.activePaneIndex ? this.currentInstrument?.symbol : null);
     if (prevSym) {
       // 1. Save drawings for the previous symbol before switching
-      this.saveSymbolDrawings(this.activePaneIndex, prevSym);
+      this.saveSymbolDrawings(targetPaneIndex, prevSym);
     }
 
     this._isSwitchingSymbol = true;
     if (pane) {
       pane.instrument = inst;
     }
-    this.currentInstrument = inst;
-    const activeWidget = this.widget;
-    if (activeWidget) {
+    if (targetPaneIndex === this.activePaneIndex) {
+      this.currentInstrument = inst;
+    }
+    const targetWidget = pane?.widget || (targetPaneIndex === this.activePaneIndex ? this.widget : null);
+    if (targetWidget) {
       // 2. Immediately clear drawings so previous symbol's lines never show on new symbol
-      activeWidget.draw?.clear?.();
+      targetWidget.draw?.clear?.();
 
       // 3. Switch symbol on widget (indicators remain active and automatically recalculate!)
-      activeWidget.setSymbol(inst.symbol, inst.exchange);
+      targetWidget.setSymbol(inst.symbol, inst.exchange);
       const prec = inst.precision !== undefined ? inst.precision : 2;
       const chartTheme = this.getChartTheme(this.currentTheme);
       try {
-        if (activeWidget.chart?.setAxisChromeOptions) {
-          activeWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
+        if (targetWidget.chart?.setAxisChromeOptions) {
+          targetWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
         }
-        activeWidget.chart?.primarySeries()?.applyOptions({
+        targetWidget.chart?.primarySeries()?.applyOptions({
           precision: prec,
           upColor: chartTheme.upColor,
           downColor: chartTheme.downColor,
@@ -1475,15 +1501,15 @@ class ZeroChartApp {
           borderUpColor: chartTheme.upColor,
           borderDownColor: chartTheme.downColor,
         });
-        activeWidget.series?.applyOptions?.({ precision: prec });
-        activeWidget.chart?.setPriceScaleOptions?.({
+        targetWidget.series?.applyOptions?.({ precision: prec });
+        targetWidget.chart?.setPriceScaleOptions?.({
           textColor: chartTheme.axisText,
           fontSize: 12,
         });
       } catch (_) {}
       setTimeout(() => {
         try {
-          activeWidget.chart?.primarySeries()?.applyOptions({
+          targetWidget.chart?.primarySeries()?.applyOptions({
             precision: prec,
             upColor: chartTheme.upColor,
             downColor: chartTheme.downColor,
@@ -1492,32 +1518,44 @@ class ZeroChartApp {
             borderUpColor: chartTheme.upColor,
             borderDownColor: chartTheme.downColor,
           });
-          activeWidget.series?.applyOptions?.({ precision: prec });
-          activeWidget.chart?.setPriceScaleOptions?.({
+          targetWidget.series?.applyOptions?.({ precision: prec });
+          targetWidget.chart?.setPriceScaleOptions?.({
             textColor: chartTheme.axisText,
             fontSize: 12,
           });
         } catch (_) {}
         // 4. Restore drawings specifically for this new symbol
-        this.restoreSymbolDrawings(this.activePaneIndex, inst.symbol);
-        this.syncAlertPriceLines(this.activePaneIndex);
+        this.restoreSymbolDrawings(targetPaneIndex, inst.symbol);
+        this.syncAlertPriceLines(targetPaneIndex);
         this._isSwitchingSymbol = false;
       }, 100);
     } else {
       this._isSwitchingSymbol = false;
     }
 
-    this.updateHeaderDisplay();
-    this.renderWatchlist();
-    if (document.getElementById('panel-institutional')?.style.display === 'flex') {
-      this.loadInstitutionalPanel();
-    }
-    if (document.getElementById('oi-analytics-modal')?.classList.contains('show')) {
-      this.openOIDashboard(inst.symbol);
-    }
-    this.closeModal('search-modal');
-    if (window.innerWidth <= 768) {
-      this.closeMobileDrawer(true);
+    if (targetPaneIndex === this.activePaneIndex) {
+      this.updateHeaderDisplay();
+      this.renderWatchlist();
+      if (document.getElementById('panel-institutional')?.style.display === 'flex') {
+        this.loadInstitutionalPanel();
+      }
+      if (document.getElementById('oi-analytics-modal')?.classList.contains('show')) {
+        this.openOIDashboard(inst.symbol);
+      }
+      this.closeModal('search-modal');
+      if (window.innerWidth <= 768) {
+        this.closeMobileDrawer(true);
+      }
+
+      // Propagate to other visible panes if symbol sync is active
+      if (this.syncOptions?.symbol && !fromSync) {
+        const visibleCount = this.getVisiblePaneCount();
+        for (let i = 0; i < visibleCount; i++) {
+          if (i !== targetPaneIndex && this.panes[i]?.widget) {
+            this.switchInstrument(inst, i, true);
+          }
+        }
+      }
     }
   }
 
@@ -3015,26 +3053,8 @@ class ZeroChartApp {
     const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
     tfBtns.forEach((btn) => {
       btn.onclick = () => {
-        if (this.isReplayMode) {
-          this.exitReplayMode();
-        }
-        tfBtns.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
         const interval = btn.dataset.interval;
-        this.currentInterval = interval;
-        const activeWidget = this.widget;
-        if (activeWidget) {
-          activeWidget.setInterval(interval);
-          try {
-            if (activeWidget.chart?.setAxisChromeOptions) {
-              activeWidget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
-            }
-          } catch (_) {}
-        }
-        try {
-          localStorage.setItem('zerochart_last_interval', interval);
-          this.saveFullLayout();
-        } catch (_) {}
+        if (interval) this.setInterval(interval);
       };
     });
 
@@ -3105,6 +3125,14 @@ class ZeroChartApp {
       };
     }
 
+    // Indicator Templates / Study Presets Trigger
+    const tplBtn = document.getElementById('btn-open-templates');
+    if (tplBtn) {
+      tplBtn.onclick = () => {
+        this.openStudyTemplatesModal();
+      };
+    }
+
     // Objects Tree / Active Indicators Manager
     const objBtn = document.getElementById('btn-open-objects');
     if (objBtn) {
@@ -3122,14 +3150,13 @@ class ZeroChartApp {
     if (undoBtn) undoBtn.onclick = () => this.widget?.draw?.undo();
     if (redoBtn) redoBtn.onclick = () => this.widget?.draw?.redo();
 
-    // Layout Save Trigger
+    // Layout Save & Manager Menu Dropdown Trigger
     const saveBtn = document.getElementById('btn-layout-save');
-    if (saveBtn) {
-      saveBtn.onclick = () => {
-        this.saveFullLayout();
-        saveBtn.style.color = 'var(--buy)';
-        this.showToast('💾 Zero Chart Layout & Drawings Saved Successfully!');
-        setTimeout(() => (saveBtn.style.color = ''), 2000);
+    const layoutMgrMenu = document.getElementById('layout-manager-menu');
+    if (saveBtn && layoutMgrMenu) {
+      saveBtn.onclick = (e) => {
+        e.stopPropagation();
+        layoutMgrMenu.classList.toggle('show');
       };
     }
 
@@ -4299,6 +4326,11 @@ class ZeroChartApp {
     }
   }
 
+  openModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.classList.add('show');
+  }
+
   closeModal(modalId) {
     const el = document.getElementById(modalId);
     if (el) el.classList.remove('show');
@@ -4515,27 +4547,7 @@ class ZeroChartApp {
 
   saveFullLayout() {
     try {
-      const layoutData = {
-        theme: this.currentTheme,
-        activeLayout: this.currentLayout,
-        activePaneIndex: this.activePaneIndex,
-        activeWatchlistId: this.activeWatchlistId,
-        panes: this.panes.map((p) => ({
-          id: p.id,
-          symbol: p.instrument?.symbol || 'NIFTY 50',
-          exchange: p.instrument?.exchange || 'NSE',
-          interval: p.interval,
-          chartType: p.chartType,
-        })),
-      };
-      localStorage.setItem('zerochart_full_layout', JSON.stringify(layoutData));
-      // Save drawings for all active pane symbols
-      this.panes.forEach((p, idx) => {
-        if (p.instrument?.symbol) {
-          this.saveSymbolDrawings(idx, p.instrument.symbol);
-        }
-      });
-      this.saveGlobalIndicators(0);
+      this.saveLayout(this.activeLayoutId, this.activeLayoutName);
       return true;
     } catch (err) {
       console.warn('[ZeroChart] Failed to save full layout:', err);
@@ -4545,10 +4557,753 @@ class ZeroChartApp {
 
   loadSavedLayoutData() {
     try {
-      const saved = localStorage.getItem('zerochart_full_layout');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('zerochart_full_layout') || localStorage.getItem('zerochart_user_layouts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+        return parsed;
+      }
     } catch (_) {}
     return null;
+  }
+
+  // ─── MULTI-CHART SYNCHRONIZATION ENGINE ───
+  initMultiChartSync() {
+    const chkCrosshair = document.getElementById('chk-sync-crosshair');
+    const chkTime = document.getElementById('chk-sync-time');
+    const chkSymbol = document.getElementById('chk-sync-symbol');
+    const chkInterval = document.getElementById('chk-sync-interval');
+
+    if (chkCrosshair) {
+      chkCrosshair.checked = !!this.syncOptions.crosshair;
+      chkCrosshair.onchange = (e) => {
+        this.syncOptions.crosshair = e.target.checked;
+        this.saveSyncOptions();
+      };
+    }
+    if (chkTime) {
+      chkTime.checked = !!this.syncOptions.time;
+      chkTime.onchange = (e) => {
+        this.syncOptions.time = e.target.checked;
+        this.saveSyncOptions();
+        if (this.syncOptions.time) this.broadcastTimeRange(this.activePaneIndex);
+      };
+    }
+    if (chkSymbol) {
+      chkSymbol.checked = !!this.syncOptions.symbol;
+      chkSymbol.onchange = (e) => {
+        this.syncOptions.symbol = e.target.checked;
+        this.saveSyncOptions();
+        if (this.syncOptions.symbol && this.currentInstrument) {
+          this.switchInstrument(this.currentInstrument, this.activePaneIndex, false);
+        }
+      };
+    }
+    if (chkInterval) {
+      chkInterval.checked = !!this.syncOptions.interval;
+      chkInterval.onchange = (e) => {
+        this.syncOptions.interval = e.target.checked;
+        this.saveSyncOptions();
+        if (this.syncOptions.interval && this.currentInterval) {
+          this.setInterval(this.currentInterval, this.activePaneIndex, false);
+        }
+      };
+    }
+  }
+
+  saveSyncOptions() {
+    try {
+      localStorage.setItem('zerochart_sync_options', JSON.stringify(this.syncOptions));
+    } catch (_) {}
+  }
+
+  getVisiblePaneCount() {
+    const layout = this.currentLayout;
+    if (layout === '1x2' || layout === '2x1') return 2;
+    if (layout === '1x3') return 3;
+    if (layout === '2x2') return 4;
+    return 1;
+  }
+
+  broadcastCrosshair(sourcePaneIdx, data) {
+    if (!this.syncOptions.crosshair) return;
+    const visibleCount = this.getVisiblePaneCount();
+    if (visibleCount <= 1) return;
+
+    for (let i = 0; i < visibleCount; i++) {
+      if (i === sourcePaneIdx) continue;
+      const targetPane = this.panes[i];
+      if (!targetPane?.widget?.chart) continue;
+      if (data?.time) {
+        try {
+          const targetChart = targetPane.widget.chart;
+          const targetLayer = targetChart._dataLayer;
+          if (targetLayer) {
+            const idx = targetLayer.timeToIndex(data.time);
+            if (idx !== null && idx >= 0) {
+              const bar = targetLayer.barAt(idx);
+              if (bar && typeof targetChart.setLegendData === 'function') {
+                targetChart.setLegendData(bar);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  broadcastTimeRange(sourcePaneIdx) {
+    if (!this.syncOptions.time || this.isSyncingTime) return;
+    const visibleCount = this.getVisiblePaneCount();
+    if (visibleCount <= 1) return;
+
+    const sourcePane = this.panes[sourcePaneIdx];
+    if (!sourcePane?.widget?.chart) return;
+
+    try {
+      const range = sourcePane.widget.chart.getVisibleLogicalRange();
+      if (!range || typeof range.from !== 'number' || typeof range.to !== 'number') return;
+      this.isSyncingTime = true;
+      for (let i = 0; i < visibleCount; i++) {
+        if (i === sourcePaneIdx) continue;
+        const targetPane = this.panes[i];
+        if (targetPane?.widget?.chart) {
+          try {
+            targetPane.widget.chart.setVisibleLogicalRange(range);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+    finally {
+      setTimeout(() => {
+        this.isSyncingTime = false;
+      }, 40);
+    }
+  }
+
+  setInterval(interval, paneIndex = this.activePaneIndex, fromSync = false) {
+    if (this.isReplayMode) {
+      this.exitReplayMode();
+    }
+    const pane = this.panes[paneIndex];
+    if (!pane) return;
+    pane.interval = interval;
+    if (paneIndex === this.activePaneIndex) {
+      this.currentInterval = interval;
+      const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
+      tfBtns.forEach((b) => b.classList.toggle('active', b.dataset.interval === interval));
+      try {
+        localStorage.setItem('zerochart_last_interval', interval);
+      } catch (_) {}
+    }
+    if (pane.widget) {
+      pane.widget.setInterval(interval);
+      try {
+        if (pane.widget.chart?.setAxisChromeOptions) {
+          pane.widget.chart.setAxisChromeOptions({ barCountdown: true, sessionClock: true });
+        }
+      } catch (_) {}
+    }
+    if (this.syncOptions?.interval && !fromSync) {
+      const visibleCount = this.getVisiblePaneCount();
+      for (let i = 0; i < visibleCount; i++) {
+        if (i !== paneIndex && this.panes[i]?.widget) {
+          this.setInterval(interval, i, true);
+        }
+      }
+    }
+  }
+
+  // ─── NAMED LAYOUT MANAGER SYSTEM ───
+  initLayoutManager() {
+    const saveMenuBtn = document.getElementById('btn-save-current-layout');
+    const saveAsBtn = document.getElementById('btn-save-as-new-layout');
+    const renameBtn = document.getElementById('btn-rename-current-layout');
+    const layoutMgrMenu = document.getElementById('layout-manager-menu');
+    const saveTopBtn = document.getElementById('btn-layout-save');
+
+    if (saveMenuBtn) {
+      saveMenuBtn.onclick = () => {
+        this.saveLayout(this.activeLayoutId, this.activeLayoutName);
+        layoutMgrMenu?.classList.remove('show');
+      };
+    }
+
+    if (saveAsBtn) {
+      saveAsBtn.onclick = () => {
+        const name = prompt('Enter a name for this new chart layout:', `${this.currentInstrument?.symbol || 'Chart'} Setup`);
+        if (name && name.trim()) {
+          const newId = 'layout_' + Date.now();
+          this.saveLayout(newId, name.trim());
+          layoutMgrMenu?.classList.remove('show');
+        }
+      };
+    }
+
+    if (renameBtn) {
+      renameBtn.onclick = () => {
+        const newName = prompt('Rename current layout:', this.activeLayoutName);
+        if (newName && newName.trim()) {
+          this.activeLayoutName = newName.trim();
+          this.updateLayoutTitleUI();
+          this.saveLayout(this.activeLayoutId, this.activeLayoutName);
+        }
+      };
+    }
+
+    // Ctrl+S / Cmd+S Global Shortcut
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        this.saveLayout(this.activeLayoutId, this.activeLayoutName);
+      }
+    });
+
+    // Close layout manager dropdown on click outside
+    document.addEventListener('click', (e) => {
+      if (layoutMgrMenu && !layoutMgrMenu.contains(e.target) && e.target !== saveTopBtn && !saveTopBtn?.contains(e.target)) {
+        layoutMgrMenu.classList.remove('show');
+      }
+    });
+
+    this.updateLayoutTitleUI();
+    this.loadSavedLayouts();
+  }
+
+  updateLayoutTitleUI() {
+    const topTitle = document.getElementById('active-layout-title');
+    const menuTitle = document.getElementById('layout-mgr-active-name');
+    if (topTitle) topTitle.textContent = this.activeLayoutName || 'Default Layout';
+    if (menuTitle) menuTitle.textContent = this.activeLayoutName || 'Default Layout';
+    try {
+      localStorage.setItem('zerochart_active_layout_id', this.activeLayoutId);
+      localStorage.setItem('zerochart_active_layout_name', this.activeLayoutName);
+    } catch (_) {}
+  }
+
+  async loadSavedLayouts() {
+    try {
+      const resp = await fetch('/api/user/layouts');
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.status === 'success' && Array.isArray(json.layouts)) {
+          this.savedLayouts = json.layouts;
+          localStorage.setItem('zerochart_user_layouts', JSON.stringify(this.savedLayouts));
+          this.renderSavedLayoutsList();
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback to localStorage
+    try {
+      const local = localStorage.getItem('zerochart_user_layouts');
+      if (local) {
+        this.savedLayouts = JSON.parse(local) || [];
+      }
+    } catch (_) {}
+    this.renderSavedLayoutsList();
+  }
+
+  async saveLayout(id = this.activeLayoutId, name = this.activeLayoutName) {
+    this.activeLayoutId = id || ('layout_' + Date.now());
+    this.activeLayoutName = name || 'Default Layout';
+    this.updateLayoutTitleUI();
+
+    // Serialize layout state
+    const layout = {
+      id: this.activeLayoutId,
+      name: this.activeLayoutName,
+      updatedAt: Date.now(),
+      theme: this.currentTheme,
+      activeLayout: this.currentLayout,
+      activePaneIndex: this.activePaneIndex,
+      activeWatchlistId: this.activeWatchlistId,
+      layoutSplits: this.layoutSplits,
+      syncOptions: this.syncOptions,
+      panes: this.panes.map((p) => {
+        let inds = [];
+        let drawings = null;
+        if (p.widget?.chart) {
+          try {
+            inds = p.widget.chart.indicators().map((i) => ({
+              indicatorId: i.indicatorId,
+              settings: i.settings(),
+              paneIndex: i.paneIndex,
+            }));
+          } catch (_) {}
+        }
+        if (p.widget?.draw && typeof p.widget.draw.toJSON === 'function') {
+          try {
+            drawings = p.widget.draw.toJSON();
+          } catch (_) {}
+        }
+        return {
+          id: p.id,
+          symbol: p.instrument?.symbol || 'NIFTY 50',
+          exchange: p.instrument?.exchange || 'NSE',
+          interval: p.interval,
+          chartType: p.chartType,
+          indicators: inds,
+          drawings: drawings,
+        };
+      }),
+    };
+
+    // Local cache update
+    const existingIdx = this.savedLayouts.findIndex((l) => l.id === layout.id);
+    if (existingIdx >= 0) {
+      this.savedLayouts[existingIdx] = layout;
+    } else {
+      this.savedLayouts.unshift(layout);
+    }
+    try {
+      localStorage.setItem('zerochart_user_layouts', JSON.stringify(this.savedLayouts));
+    } catch (_) {}
+    this.renderSavedLayoutsList();
+
+    // Cloud API sync
+    try {
+      await fetch('/api/user/layouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout }),
+      });
+    } catch (err) {
+      console.warn('[ZeroChart] Cloud layout save failed, kept locally:', err);
+    }
+
+    // Visual feedback on save button
+    const saveBtn = document.getElementById('btn-layout-save');
+    if (saveBtn) {
+      saveBtn.style.color = 'var(--buy)';
+      setTimeout(() => (saveBtn.style.color = ''), 1500);
+    }
+    this.showToast(`💾 Layout "${this.activeLayoutName}" saved successfully!`, 2200);
+  }
+
+  async loadLayout(id) {
+    const layout = this.savedLayouts.find((l) => l.id === id);
+    if (!layout) return;
+
+    this.activeLayoutId = layout.id;
+    this.activeLayoutName = layout.name;
+    this.updateLayoutTitleUI();
+
+    if (layout.layoutSplits) {
+      this.layoutSplits = layout.layoutSplits;
+      try {
+        localStorage.setItem('zerochart_layout_splits', JSON.stringify(this.layoutSplits));
+      } catch (_) {}
+    }
+    if (layout.syncOptions) {
+      this.syncOptions = { ...layout.syncOptions };
+      this.saveSyncOptions();
+      this.initMultiChartSync();
+    }
+
+    // Apply layout grid type
+    if (layout.activeLayout) {
+      this.setLayout(layout.activeLayout, true);
+    }
+
+    // Restore each pane
+    if (Array.isArray(layout.panes)) {
+      layout.panes.forEach((sp, idx) => {
+        const pane = this.panes[idx];
+        if (!pane) return;
+        if (sp.symbol) {
+          const inst = findInstrument(sp.symbol);
+          if (inst) pane.instrument = inst;
+        }
+        if (sp.interval) pane.interval = sp.interval;
+        if (sp.chartType) pane.chartType = sp.chartType;
+
+        if (pane.widget) {
+          if (pane.instrument?.symbol) {
+            pane.widget.setSymbol(pane.instrument.symbol, pane.instrument.exchange);
+          }
+          if (pane.interval) {
+            pane.widget.setInterval(pane.interval);
+          }
+          // Restore indicators
+          if (Array.isArray(sp.indicators) && pane.widget.chart) {
+            try {
+              const curInds = pane.widget.chart.indicators();
+              curInds.forEach((ci) => ci.remove?.());
+              sp.indicators.forEach((ind) => {
+                try {
+                  pane.widget.chart.addIndicator(ind.indicatorId, ind.settings || {});
+                } catch (_) {}
+              });
+            } catch (_) {}
+          }
+          // Restore drawings
+          if (sp.drawings && pane.widget.draw && typeof pane.widget.draw.fromJSON === 'function') {
+            try {
+              pane.widget.draw.clear();
+              pane.widget.draw.fromJSON(sp.drawings);
+            } catch (_) {}
+          }
+        }
+      });
+    }
+
+    if (typeof layout.activePaneIndex === 'number') {
+      this.setActivePane(layout.activePaneIndex);
+    }
+
+    this.renderSavedLayoutsList();
+    this.showToast(`✅ Loaded layout "${layout.name}"`, 2200);
+  }
+
+  async deleteLayout(id, e) {
+    if (e) e.stopPropagation();
+    const l = this.savedLayouts.find((item) => item.id === id);
+    const name = l?.name || 'this layout';
+    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+    this.savedLayouts = this.savedLayouts.filter((item) => item.id !== id);
+    try {
+      localStorage.setItem('zerochart_user_layouts', JSON.stringify(this.savedLayouts));
+    } catch (_) {}
+
+    try {
+      await fetch(`/api/user/layouts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (_) {}
+
+    this.renderSavedLayoutsList();
+    this.showToast(`🗑️ Deleted layout "${name}"`, 2000);
+  }
+
+  renderSavedLayoutsList() {
+    const container = document.getElementById('saved-layouts-list');
+    if (!container) return;
+    if (!this.savedLayouts || this.savedLayouts.length === 0) {
+      container.innerHTML = `<div style="padding:8px 12px;font-size:11.5px;color:var(--text-muted);text-align:center;">No saved layouts yet. Click "+ Save New Setup..." to create one.</div>`;
+      return;
+    }
+
+    container.innerHTML = this.savedLayouts
+      .map((l) => {
+        const isActive = l.id === this.activeLayoutId;
+        const dateStr = l.updatedAt ? new Date(l.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        return `
+        <div class="tv-saved-layout-item ${isActive ? 'active' : ''}" data-id="${l.id}">
+          <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;gap:2px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="name" style="font-weight:${isActive ? '700' : '500'};color:${isActive ? 'var(--accent)' : 'var(--text-bright)'};font-size:12.5px;">${l.name}</span>
+              ${isActive ? '<span style="font-size:9.5px;background:rgba(41,98,255,0.15);color:var(--accent);padding:1px 5px;border-radius:4px;font-weight:700;">ACTIVE</span>' : ''}
+            </div>
+            <span class="meta" style="font-size:10.5px;color:var(--text-muted);">${l.activeLayout || '1 Chart'} • ${dateStr}</span>
+          </div>
+          <button class="del-btn" data-del-id="${l.id}" title="Delete layout" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
+      `;
+      })
+      .join('');
+
+    container.querySelectorAll('.tv-saved-layout-item').forEach((item) => {
+      item.onclick = (e) => {
+        if (e.target.closest('.del-btn')) return;
+        const id = item.dataset.id;
+        if (id) {
+          this.loadLayout(id);
+          document.getElementById('layout-manager-menu')?.classList.remove('show');
+        }
+      };
+    });
+
+    container.querySelectorAll('.del-btn').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.delId;
+        if (id) this.deleteLayout(id, e);
+      };
+    });
+  }
+
+  // ─── INDICATOR STUDY TEMPLATES & PRESETS ───
+  initStudyTemplates() {
+    const openBtn = document.getElementById('btn-open-templates');
+    const closeBtn = document.getElementById('btn-close-templates');
+    const modal = document.getElementById('template-manager-modal');
+    const saveBtn = document.getElementById('btn-save-current-template');
+    const nameInput = document.getElementById('txt-new-template-name');
+
+    if (openBtn) openBtn.onclick = () => this.openStudyTemplatesModal();
+    if (closeBtn) closeBtn.onclick = () => this.closeModal('template-manager-modal');
+    if (modal) {
+      modal.onclick = (e) => {
+        if (e.target === modal) this.closeModal('template-manager-modal');
+      };
+    }
+
+    if (saveBtn && nameInput) {
+      saveBtn.onclick = () => {
+        const name = nameInput.value.trim();
+        if (name) this.saveCurrentAsTemplate(name);
+      };
+      nameInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          const name = nameInput.value.trim();
+          if (name) this.saveCurrentAsTemplate(name);
+        }
+      };
+    }
+
+    this.renderProTemplates();
+    this.loadSavedTemplates();
+  }
+
+  openStudyTemplatesModal() {
+    this.openModal('template-manager-modal');
+    const previewEl = document.getElementById('current-active-indicators-preview');
+    const pane = this.panes[this.activePaneIndex];
+    if (previewEl && pane?.widget?.chart) {
+      try {
+        const inds = pane.widget.chart.indicators();
+        if (inds.length > 0) {
+          const names = inds.map((i) => i.descriptor?.name || i.indicatorId.toUpperCase()).join(' + ');
+          previewEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">Active on chart:</span> ${names}`;
+        } else {
+          previewEl.innerHTML = `Active on chart: <span style="color:var(--text-muted);font-style:italic;">No indicators added</span>`;
+        }
+      } catch (_) {}
+    }
+  }
+
+  renderProTemplates() {
+    const container = document.getElementById('pro-templates-list');
+    if (!container) return;
+
+    const PRO_TEMPLATES = [
+      {
+        id: 'pro_scalper',
+        name: '⚡ Scalper Pro (EMA 9/21 + VWAP + SuperTrend + RSI)',
+        desc: 'High-probability momentum intraday scalping setup with dynamic trend filters.',
+        indicators: [
+          { indicatorId: 'ema', settings: { length: 9, color: '#2962ff' } },
+          { indicatorId: 'ema', settings: { length: 21, color: '#f5a623' } },
+          { indicatorId: 'vwap', settings: {} },
+          { indicatorId: 'supertrend', settings: { period: 10, multiplier: 2 } },
+          { indicatorId: 'rsi', settings: { length: 14 } },
+        ],
+      },
+      {
+        id: 'pro_trend_rider',
+        name: '🌊 Trend Rider (EMA 20/50/200 + MACD + ATR)',
+        desc: 'Institutional trend-following suite for capturing multi-hour and multi-day breakouts.',
+        indicators: [
+          { indicatorId: 'ema', settings: { length: 20, color: '#089981' } },
+          { indicatorId: 'ema', settings: { length: 50, color: '#f5a623' } },
+          { indicatorId: 'ema', settings: { length: 200, color: '#f23645' } },
+          { indicatorId: 'macd', settings: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 } },
+          { indicatorId: 'atr', settings: { length: 14 } },
+        ],
+      },
+      {
+        id: 'pro_bb_momentum',
+        name: '🎯 Bollinger Squeeze & Momentum (BB + RSI + Stochastic)',
+        desc: 'Detect volatility compression squeezes and explosive mean-reversion expansions.',
+        indicators: [
+          { indicatorId: 'bollinger', settings: { length: 20, stdDev: 2 } },
+          { indicatorId: 'rsi', settings: { length: 14 } },
+          { indicatorId: 'stochastic', settings: { kPeriod: 14, dPeriod: 3, slowing: 3 } },
+        ],
+      },
+      {
+        id: 'pro_clean_price',
+        name: '💎 Clean Pure Price (Volume + VWAP)',
+        desc: 'Distraction-free institutional price action and volume profile confluence.',
+        indicators: [
+          { indicatorId: 'volume', settings: {} },
+          { indicatorId: 'vwap', settings: {} },
+        ],
+      },
+    ];
+
+    container.innerHTML = PRO_TEMPLATES.map((tpl) => `
+      <div class="tv-template-card" data-pro-id="${tpl.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;transition:all 0.15s ease;display:flex;flex-direction:column;gap:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-weight:700;font-size:13px;color:var(--text-bright);">${tpl.name}</span>
+          <span style="font-size:11px;background:rgba(41,98,255,0.12);color:var(--accent);padding:2px 6px;border-radius:4px;font-weight:600;">Apply</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-muted);line-height:1.4;">${tpl.desc}</div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.tv-template-card').forEach((card) => {
+      card.onclick = () => {
+        const id = card.dataset.proId;
+        const tpl = PRO_TEMPLATES.find((t) => t.id === id);
+        if (tpl) this.applyIndicatorTemplate(tpl);
+      };
+    });
+  }
+
+  async loadSavedTemplates() {
+    try {
+      const resp = await fetch('/api/user/templates');
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.status === 'success' && Array.isArray(json.templates)) {
+          this.savedTemplates = json.templates;
+          localStorage.setItem('zerochart_user_templates', JSON.stringify(this.savedTemplates));
+          this.renderSavedTemplatesList();
+          return;
+        }
+      }
+    } catch (_) {}
+
+    try {
+      const local = localStorage.getItem('zerochart_user_templates');
+      if (local) {
+        this.savedTemplates = JSON.parse(local) || [];
+      }
+    } catch (_) {}
+    this.renderSavedTemplatesList();
+  }
+
+  async saveCurrentAsTemplate(name) {
+    if (!name || !name.trim()) {
+      this.showToast('Please enter a template name', 2000);
+      return;
+    }
+    const pane = this.panes[this.activePaneIndex];
+    if (!pane?.widget?.chart) return;
+    const inds = pane.widget.chart.indicators().map((i) => ({
+      indicatorId: i.indicatorId,
+      settings: i.settings(),
+    }));
+
+    if (inds.length === 0) {
+      this.showToast('No active indicators on chart to save', 2000);
+      return;
+    }
+
+    const template = {
+      id: 'tpl_' + Date.now(),
+      name: name.trim(),
+      createdAt: Date.now(),
+      indicators: inds,
+    };
+
+    const existingIdx = this.savedTemplates.findIndex((t) => t.name.toLowerCase() === template.name.toLowerCase());
+    if (existingIdx >= 0) {
+      this.savedTemplates[existingIdx] = template;
+    } else {
+      this.savedTemplates.unshift(template);
+    }
+
+    try {
+      localStorage.setItem('zerochart_user_templates', JSON.stringify(this.savedTemplates));
+    } catch (_) {}
+
+    try {
+      await fetch('/api/user/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template }),
+      });
+    } catch (_) {}
+
+    this.renderSavedTemplatesList();
+    this.showToast(`💾 Saved study template "${template.name}"`, 2200);
+    const inputEl = document.getElementById('txt-new-template-name');
+    if (inputEl) inputEl.value = '';
+  }
+
+  applyIndicatorTemplate(template, replace = true) {
+    const pane = this.panes[this.activePaneIndex];
+    if (!pane?.widget?.chart) return;
+    const chart = pane.widget.chart;
+
+    if (replace) {
+      try {
+        const existing = chart.indicators();
+        existing.forEach((ind) => {
+          try { ind.remove?.(); } catch (_) {}
+        });
+      } catch (_) {}
+    }
+
+    for (const item of template.indicators) {
+      try {
+        chart.addIndicator(item.indicatorId, item.settings || {});
+      } catch (e) {
+        console.warn('[ZeroChart] Failed to add template indicator:', item.indicatorId, e);
+      }
+    }
+
+    this.saveGlobalIndicators(this.activePaneIndex);
+    this.closeModal('template-manager-modal');
+    this.showToast(`✨ Applied "${template.name}" template`, 2200);
+  }
+
+  async deleteTemplate(id, e) {
+    if (e) e.stopPropagation();
+    const t = this.savedTemplates.find((item) => item.id === id);
+    const name = t?.name || 'this template';
+    if (!confirm(`Delete template "${name}"?`)) return;
+
+    this.savedTemplates = this.savedTemplates.filter((item) => item.id !== id);
+    try {
+      localStorage.setItem('zerochart_user_templates', JSON.stringify(this.savedTemplates));
+    } catch (_) {}
+
+    try {
+      await fetch(`/api/user/templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (_) {}
+
+    this.renderSavedTemplatesList();
+    this.showToast(`🗑️ Deleted template "${name}"`, 2000);
+  }
+
+  renderSavedTemplatesList() {
+    const container = document.getElementById('user-templates-list');
+    if (!container) return;
+    if (!this.savedTemplates || this.savedTemplates.length === 0) {
+      container.innerHTML = `<div style="padding:10px;font-size:11.5px;color:var(--text-muted);text-align:center;">No custom templates yet. Add your favorite indicators and click "Save Setup" above.</div>`;
+      return;
+    }
+
+    container.innerHTML = this.savedTemplates.map((tpl) => {
+      const indNames = tpl.indicators.map((i) => i.indicatorId.toUpperCase()).join(', ');
+      const dateStr = tpl.createdAt ? new Date(tpl.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+      return `
+        <div class="tv-template-card" data-user-tpl-id="${tpl.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;transition:all 0.15s ease;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;flex-direction:column;gap:3px;flex:1;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-weight:700;font-size:13px;color:var(--text-bright);">${tpl.name}</span>
+              <span style="font-size:10px;color:var(--text-muted);">${dateStr}</span>
+            </div>
+            <span style="font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${indNames}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;background:rgba(41,98,255,0.12);color:var(--accent);padding:2px 8px;border-radius:4px;font-weight:600;">Apply</span>
+            <button class="del-tpl-btn" data-del-tpl-id="${tpl.id}" title="Delete template" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;border-radius:4px;">✕</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.tv-template-card').forEach((card) => {
+      card.onclick = (e) => {
+        if (e.target.closest('.del-tpl-btn')) return;
+        const id = card.dataset.userTplId;
+        const tpl = this.savedTemplates.find((t) => t.id === id);
+        if (tpl) this.applyIndicatorTemplate(tpl);
+      };
+    });
+
+    container.querySelectorAll('.del-tpl-btn').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.delTplId;
+        if (id) this.deleteTemplate(id, e);
+      };
+    });
   }
 
   // ─── PROGRESSIVE WEB APP (PWA) SYSTEM ───
