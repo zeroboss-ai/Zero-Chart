@@ -500,9 +500,10 @@
     <div class="tv-modal-backdrop" id="search-modal">
       <div class="tv-search-modal">
         <div class="tv-search-header">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" class="tv-search-input" id="search-query" placeholder="Search Muthoot, ICICI, Nifty, Stocks, Crypto, Commodities..." autofocus />
-          <button class="tv-modal-close-btn" id="btn-close-search">✕</button>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" class="tv-search-input" id="search-query" placeholder="Type symbol, stock name, index, crypto, commodity..." autocomplete="off" spellcheck="false" autofocus />
+          <button class="tv-search-clear-btn" id="btn-clear-search" title="Clear input" style="display:none;">✕</button>
+          <button class="tv-modal-close-btn" id="btn-close-search" title="Close (Esc)">✕</button>
         </div>
         <div class="tv-search-tabs" id="search-category-tabs">
           <button class="tv-st-btn active" data-cat="all">All Markets</button>
@@ -513,6 +514,14 @@
           <button class="tv-st-btn" data-cat="commodities">🛢️ Commodities</button>
         </div>
         <div class="tv-search-results" id="search-results"></div>
+        <div class="tv-search-footer">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span><span class="tv-search-kbd">↑</span> <span class="tv-search-kbd">↓</span> Navigate</span>
+            <span><span class="tv-search-kbd">Enter</span> Select & Load Chart</span>
+            <span><span class="tv-search-kbd">+</span> Add to Watchlist</span>
+          </div>
+          <div><span class="tv-search-kbd">Esc</span> Close</div>
+        </div>
       </div>
     </div>
 

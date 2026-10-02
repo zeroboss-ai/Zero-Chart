@@ -217,11 +217,34 @@ class ZeroChartApp {
     this.oiATMFilter = 20;
     this.oiShowTotal = false;
     this.oiTimeSliderIndex = 75; // 0 to 75 (75 = 3:30 PM Full Day)
-    this.oiTimePreset = 'full';
     this.oiSelectedExpiries = new Set();
     this.oiHoveredStrike = null;
     this.oiCustomMin = null;
     this.oiCustomMax = null;
+
+    // Search Engine State (Smooth Pro Fuzzy Search & Recent Searches)
+    let recSearches = [];
+    try {
+      const rs = localStorage.getItem('zerochart_recent_searches');
+      if (rs) recSearches = JSON.parse(rs);
+    } catch (_) {}
+    this.recentSearches = Array.isArray(recSearches) ? recSearches : [];
+    this.searchCurrentResults = [];
+    this.searchSelectedIndex = 0;
+    this.quickMarkets = [
+      { symbol: 'NIFTY 50', name: 'NIFTY 50 Index', exchange: 'NSE', badgeText: 'NIFTY', badgeColor: '#2962ff' },
+      { symbol: 'BANKNIFTY', name: 'NIFTY Bank Index', exchange: 'NSE', badgeText: 'BNF', badgeColor: '#089981' },
+      { symbol: 'SENSEX', name: 'BSE Sensex 30 Index', exchange: 'BSE', badgeText: 'SNX', badgeColor: '#7b1fa2' },
+      { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', exchange: 'NSE', badgeText: 'RIL', badgeColor: '#e53935' },
+      { symbol: 'TCS', name: 'Tata Consultancy Services', exchange: 'NSE', badgeText: 'TCS', badgeColor: '#00897b' },
+      { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd', exchange: 'NSE', badgeText: 'HDFC', badgeColor: '#1565c0' },
+      { symbol: 'MUTHOOTFIN', name: 'Muthoot Finance Ltd', exchange: 'NSE', badgeText: 'MUTH', badgeColor: '#c2185b' },
+      { symbol: 'CRUDEOIL FUT', name: 'Crude Oil MCX Near Futures', exchange: 'MCX', badgeText: 'OIL', badgeColor: '#263238' },
+      { symbol: 'GOLD FUT', name: 'Gold MCX 1kg Futures', exchange: 'MCX', badgeText: 'GOLD', badgeColor: '#ffb300' },
+      { symbol: 'BTCUSDT', name: 'Bitcoin / Tether USD', exchange: 'BINANCE', badgeText: 'BTC', badgeColor: '#f7931a' },
+      { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', badgeText: 'NVDA', badgeColor: '#76b900' },
+      { symbol: 'USDINR', name: 'US Dollar / Indian Rupee', exchange: 'FOREX', badgeText: '$₹', badgeColor: '#43a047' },
+    ];
 
     this.init();
   }
@@ -4233,57 +4256,118 @@ class ZeroChartApp {
     }
   }
 
-  // ─── MODALS & DYNAMIC SEARCH ───
+  // ─── MODALS & SMOOTH PRO SYMBOL SEARCH ENGINE ───
   initModals() {
     const searchModal = document.getElementById('search-modal');
     const searchInput = document.getElementById('search-query');
     const searchBtn = document.getElementById('btn-open-search');
+    const clearBtn = document.getElementById('btn-clear-search');
     const closeSearchBtn = document.getElementById('btn-close-search');
     const wlAddBtn = document.getElementById('btn-wl-add');
+    const stBtns = document.querySelectorAll('#search-category-tabs .tv-st-btn');
 
     let activeCat = 'all';
     let searchDebounce = null;
 
-    const performSearch = async (q, cat) => {
-      try {
-        const resp = await fetch(`/api/market/search?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(cat)}`);
-        if (resp.ok) {
-          const json = await resp.json();
-          if (json.status === 'success' && Array.isArray(json.results) && json.results.length > 0) {
-            this.renderSearchResults(json.results);
-            return;
-          }
-        }
-      } catch (_) {}
+    const performSearch = async (q, cat = activeCat) => {
+      const trimmed = (q || '').trim();
+      const catNorm = cat || 'all';
 
-      // Local fallback
-      let filtered = MASTER_INSTRUMENTS.filter(
-        (s) =>
-          (cat === 'all' || s.category === cat) &&
-          (s.symbol.toLowerCase().includes(q.toLowerCase()) ||
-            s.name.toLowerCase().includes(q.toLowerCase()) ||
-            s.displaySymbol.toLowerCase().includes(q.toLowerCase()))
-      );
-      if (filtered.length === 0 && q.length > 0) {
-        filtered = [findInstrument(q)];
+      // 1. If empty query, immediately render Trending Quick Markets & Recent Searches
+      if (!trimmed) {
+        if (clearBtn) clearBtn.style.display = 'none';
+        this.renderEmptySearchState(catNorm);
+        return;
       }
-      this.renderSearchResults(filtered);
+
+      if (clearBtn) clearBtn.style.display = 'flex';
+
+      // 2. Zero-Latency Instant Local Filtering (0ms UI response)
+      const qLower = trimmed.toLowerCase();
+      const localMatches = [];
+
+      // Check known MASTER_INSTRUMENTS
+      for (const inst of MASTER_INSTRUMENTS) {
+        if (catNorm !== 'all' && inst.category !== catNorm) continue;
+        const sym = (inst.symbol || '').toLowerCase();
+        const disp = (inst.displaySymbol || '').toLowerCase();
+        const name = (inst.name || '').toLowerCase();
+
+        let score = 0;
+        if (sym === qLower || disp === qLower) score = 1000;
+        else if (sym.startsWith(qLower) || disp.startsWith(qLower)) score = 500;
+        else if (sym.includes(qLower) || disp.includes(qLower)) score = 250;
+        else if (name.includes(qLower)) score = 100;
+
+        if (score > 0) {
+          localMatches.push({ score, inst });
+        }
+      }
+
+      localMatches.sort((a, b) => b.score - a.score);
+      const instantList = localMatches.map((m) => m.inst);
+
+      // Render instant list immediately so user never sees a delay
+      this.renderSearchResults(instantList, trimmed);
+
+      // 3. Asynchronously query server for comprehensive 150k+ instruments
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(async () => {
+        try {
+          const resp = await fetch(`/api/market/search?q=${encodeURIComponent(trimmed)}&cat=${encodeURIComponent(catNorm)}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json.status === 'success' && Array.isArray(json.results) && json.results.length > 0) {
+              // Merge server results ensuring no duplicates
+              const seen = new Set();
+              const merged = [];
+              for (const item of json.results) {
+                if (!seen.has(item.symbol)) {
+                  seen.add(item.symbol);
+                  merged.push(item);
+                }
+              }
+              for (const item of instantList) {
+                if (!seen.has(item.symbol)) {
+                  seen.add(item.symbol);
+                  merged.push(item);
+                }
+              }
+              this.renderSearchResults(merged, trimmed);
+            }
+          }
+        } catch (_) {}
+      }, 40);
     };
 
-    const openSearch = () => {
+    const openSearch = (initialQuery = '') => {
       if (searchModal) {
         searchModal.classList.add('show');
         if (searchInput) {
-          searchInput.value = '';
-          performSearch('', activeCat);
-          setTimeout(() => searchInput.focus(), 50);
+          searchInput.value = initialQuery;
+          performSearch(initialQuery, activeCat);
+          setTimeout(() => {
+            searchInput.focus();
+            if (initialQuery) {
+              searchInput.setSelectionRange(initialQuery.length, initialQuery.length);
+            }
+          }, 30);
         }
       }
     };
 
-    if (searchBtn) searchBtn.onclick = openSearch;
-    if (wlAddBtn) wlAddBtn.onclick = openSearch;
+    if (searchBtn) searchBtn.onclick = () => openSearch('');
+    if (wlAddBtn) wlAddBtn.onclick = () => openSearch('');
     if (closeSearchBtn) closeSearchBtn.onclick = () => this.closeModal('search-modal');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
+          performSearch('', activeCat);
+        }
+      };
+    }
 
     if (searchModal) {
       searchModal.onclick = (e) => {
@@ -4291,85 +4375,281 @@ class ZeroChartApp {
       };
     }
 
-    // Search Category Tabs
-    const stBtns = document.querySelectorAll('#search-category-tabs .tv-st-btn');
+    // Category Tabs Switching
     stBtns.forEach((btn) => {
       btn.onclick = () => {
         stBtns.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         activeCat = btn.dataset.cat || 'all';
-        performSearch(searchInput?.value.trim() || '', activeCat);
+        performSearch(searchInput?.value || '', activeCat);
       };
     });
 
     if (searchInput) {
       searchInput.oninput = () => {
-        const q = searchInput.value.trim();
-        clearTimeout(searchDebounce);
-        searchDebounce = setTimeout(() => {
-          performSearch(q, activeCat);
-        }, 120);
+        performSearch(searchInput.value, activeCat);
       };
 
+      // Keyboard Navigation in Search Results (TradingView style)
       searchInput.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-          const q = searchInput.value.trim();
-          if (q) {
-            const inst = findInstrument(q);
-            if (inst) {
-              this.addSymbolToActiveWatchlist(inst.symbol);
-              this.closeModal('search-modal');
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (this.searchCurrentResults.length > 0) {
+            this.searchSelectedIndex = Math.min(this.searchCurrentResults.length - 1, this.searchSelectedIndex + 1);
+            this.updateSearchSelectionHighlight();
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (this.searchCurrentResults.length > 0) {
+            this.searchSelectedIndex = Math.max(0, this.searchSelectedIndex - 1);
+            this.updateSearchSelectionHighlight();
+          }
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (this.searchCurrentResults.length > 0 && this.searchCurrentResults[this.searchSelectedIndex]) {
+            const chosen = this.searchCurrentResults[this.searchSelectedIndex];
+            this.selectAndSwitchSymbol(chosen);
+          } else {
+            const q = searchInput.value.trim();
+            if (q) {
+              const inst = findInstrument(q);
+              if (inst) this.selectAndSwitchSymbol(inst);
             }
           }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.closeModal('search-modal');
+        } else if (e.key === 'Tab') {
+          // Cycle category tabs with Tab / Shift+Tab
+          e.preventDefault();
+          const activeIdx = Array.from(stBtns).findIndex((b) => b.classList.contains('active'));
+          let nextIdx = e.shiftKey ? activeIdx - 1 : activeIdx + 1;
+          if (nextIdx < 0) nextIdx = stBtns.length - 1;
+          if (nextIdx >= stBtns.length) nextIdx = 0;
+          stBtns[nextIdx]?.click();
         }
       };
     }
+
+    // ─── Global Type-To-Search anywhere on terminal (TradingView feature) ───
+    window.addEventListener('keydown', (e) => {
+      // Ignore if user is already typing in an input, textarea, select or if modal is visible
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+      if (document.querySelector('.tv-modal-backdrop.show')) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // Single alphanumeric character or / triggers search instantly
+      if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+        e.preventDefault();
+        openSearch(e.key.toUpperCase());
+      } else if (e.key === '/') {
+        e.preventDefault();
+        openSearch('');
+      }
+    });
+
+    // Global Ctrl+K / Cmd+K search shortcut
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        openSearch('');
+      }
+    });
   }
 
-  openModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.classList.add('show');
+  addRecentSearch(inst) {
+    if (!inst || !inst.symbol) return;
+    const cleanSym = inst.symbol.toUpperCase().trim();
+    this.recentSearches = this.recentSearches.filter((s) => (s.symbol || '').toUpperCase().trim() !== cleanSym);
+    this.recentSearches.unshift({
+      symbol: inst.symbol,
+      displaySymbol: inst.displaySymbol || inst.symbol,
+      name: inst.name || inst.symbol,
+      exchange: inst.exchange || 'NSE',
+      badgeText: inst.badgeText || inst.symbol.substring(0, 2),
+      badgeColor: inst.badgeColor || '#2962ff',
+    });
+    if (this.recentSearches.length > 12) {
+      this.recentSearches = this.recentSearches.slice(0, 12);
+    }
+    try {
+      localStorage.setItem('zerochart_recent_searches', JSON.stringify(this.recentSearches));
+    } catch (_) {}
   }
 
-  closeModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.classList.remove('show');
+  selectAndSwitchSymbol(inst) {
+    if (!inst) return;
+    this.addRecentSearch(inst);
+    this.switchInstrument(inst);
+    this.closeModal('search-modal');
+    this.showToast(`Switched chart to ${inst.displaySymbol || inst.symbol}`, 1800);
   }
 
-  renderSearchResults(list) {
+  highlightSearchMatch(text, query) {
+    if (!text) return '';
+    if (!query || !query.trim()) return text;
+    const q = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${q})`, 'gi');
+    return text.replace(regex, '<mark class="tv-search-match">$1</mark>');
+  }
+
+  renderEmptySearchState(cat = 'all') {
+    const resultsContainer = document.getElementById('search-results');
+    if (!resultsContainer) return;
+    this.searchCurrentResults = [];
+    this.searchSelectedIndex = 0;
+
+    let html = '';
+
+    // 1. Trending Quick Markets
+    const filteredQuick = this.quickMarkets.filter((m) => {
+      if (cat === 'all') return true;
+      if (cat === 'india') return m.exchange === 'NSE' || m.exchange === 'BSE';
+      if (cat === 'crypto') return m.exchange === 'BINANCE';
+      if (cat === 'commodities') return m.exchange === 'MCX';
+      if (cat === 'forex') return m.exchange === 'FOREX';
+      if (cat === 'global') return m.exchange === 'NASDAQ' || m.exchange === 'INDEX';
+      return true;
+    });
+
+    if (filteredQuick.length > 0) {
+      html += `
+        <div class="tv-search-quick-section">
+          <div class="tv-search-quick-title">🔥 Popular Markets</div>
+          <div class="tv-search-chips-grid">
+            ${filteredQuick.map((m) => `
+              <div class="tv-search-chip" data-sym="${m.symbol}">
+                <span class="badge" style="background:${m.badgeColor || '#2962ff'};color:#fff;padding:1px 4px;border-radius:3px;font-size:9.5px;font-weight:700;">${m.badgeText || m.symbol.substring(0, 2)}</span>
+                <span>${m.symbol}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. Recent Searches
+    if (this.recentSearches && this.recentSearches.length > 0) {
+      html += `
+        <div class="tv-search-quick-section" style="padding-top:0;">
+          <div class="tv-search-quick-title">
+            <span>🕒 Recent Searches</span>
+            <button id="btn-clear-recent-searches" style="background:none;border:none;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;padding:0;">Clear</button>
+          </div>
+          <div class="tv-search-chips-grid">
+            ${this.recentSearches.map((m) => `
+              <div class="tv-search-chip" data-sym="${m.symbol}">
+                <span class="badge" style="background:${m.badgeColor || '#2962ff'};color:#fff;padding:1px 4px;border-radius:3px;font-size:9.5px;font-weight:700;">${m.badgeText || m.symbol.substring(0, 2)}</span>
+                <span>${m.displaySymbol || m.symbol}</span>
+                <span style="font-size:10.5px;color:var(--text-muted);font-weight:400;">(${m.exchange || 'NSE'})</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    resultsContainer.innerHTML = html;
+
+    // Attach click handlers to quick chips
+    resultsContainer.querySelectorAll('.tv-search-chip').forEach((chip) => {
+      chip.onclick = () => {
+        const sym = chip.dataset.sym;
+        const inst = findInstrument(sym) || this.recentSearches.find((s) => s.symbol === sym) || this.quickMarkets.find((m) => m.symbol === sym);
+        if (inst) this.selectAndSwitchSymbol(inst);
+      };
+    });
+
+    const clearRecentBtn = document.getElementById('btn-clear-recent-searches');
+    if (clearRecentBtn) {
+      clearRecentBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.recentSearches = [];
+        localStorage.removeItem('zerochart_recent_searches');
+        this.renderEmptySearchState(cat);
+      };
+    }
+  }
+
+  renderSearchResults(list, query = '') {
     const resultsContainer = document.getElementById('search-results');
     if (!resultsContainer) return;
     resultsContainer.innerHTML = '';
+    this.searchCurrentResults = list || [];
+    this.searchSelectedIndex = 0;
 
-    if (list.length === 0) {
-      resultsContainer.innerHTML =
-        '<div style="padding:20px;text-align:center;color:var(--text-muted);">No symbols found</div>';
+    if (!list || list.length === 0) {
+      resultsContainer.innerHTML = `
+        <div style="padding:32px 20px;text-align:center;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <span style="font-size:24px;">🔍</span>
+          <span style="font-weight:600;font-size:14px;color:var(--text-bright);">No matching symbols found</span>
+          <span style="font-size:12px;">Check your spelling or switch category tabs above</span>
+        </div>
+      `;
       return;
     }
 
-    list.forEach((inst) => {
+    list.forEach((inst, index) => {
       const item = document.createElement('div');
-      item.className = 'tv-search-item';
+      item.className = `tv-search-item ${index === 0 ? 'selected' : ''}`;
+      item.dataset.index = index;
+
+      const symHl = this.highlightSearchMatch(inst.displaySymbol || inst.symbol, query);
+      const nameHl = this.highlightSearchMatch(inst.name || inst.symbol, query);
+      const badgeBg = inst.badgeColor || '#2962ff';
+      const badgeTxt = inst.badgeText || (inst.symbol || '').substring(0, 2);
+
       item.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div class="tv-symbol-circle" style="background:${inst.badgeColor || '#2962ff'};">${inst.badgeText || inst.symbol.substring(0, 2)}</div>
-          <div>
-            <div style="font-weight:700;font-size:14px;color:var(--text-bright);letter-spacing:-0.01em;">${inst.displaySymbol || inst.symbol}</div>
-            <div style="font-size:12px;color:var(--text-muted);font-weight:500;margin-top:1px;">${inst.name || inst.symbol}</div>
+        <div style="display:flex;align-items:center;gap:12px;overflow:hidden;flex:1;">
+          <div class="tv-symbol-circle" style="background:${badgeBg};">${badgeTxt}</div>
+          <div style="display:flex;flex-direction:column;gap:1px;overflow:hidden;flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-weight:700;font-size:14px;color:var(--text-bright);letter-spacing:-0.01em;">${symHl}</span>
+              <span class="tv-sym-badge">${inst.exchange || 'NSE'}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nameHl}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span class="tv-sym-badge">${inst.exchange || 'NSE'}</span>
-          <button class="tv-wl-act-btn" style="color:var(--accent);" title="Add to active watchlist">+</button>
+          <button class="tv-wl-act-btn btn-add-wl-search" data-index="${index}" style="color:var(--accent);padding:4px 8px;border-radius:4px;" title="Add to active watchlist">+</button>
         </div>
       `;
 
-      item.onclick = () => {
-        this.addSymbolToActiveWatchlist(inst.symbol, inst);
-        this.closeModal('search-modal');
+      // Row Click -> Load Chart & Switch Symbol
+      item.onclick = (e) => {
+        if (e.target.closest('.btn-add-wl-search')) return;
+        this.selectAndSwitchSymbol(inst);
       };
 
+      // + Button Click -> Add to Watchlist without closing modal
+      const addBtn = item.querySelector('.btn-add-wl-search');
+      if (addBtn) {
+        addBtn.onclick = (e) => {
+          e.stopPropagation();
+          this.addSymbolToActiveWatchlist(inst.symbol, inst);
+          addBtn.textContent = '✓';
+          addBtn.style.color = 'var(--buy)';
+          setTimeout(() => {
+            addBtn.textContent = '+';
+            addBtn.style.color = 'var(--accent)';
+          }, 1500);
+        };
+      }
+
       resultsContainer.appendChild(item);
+    });
+  }
+
+  updateSearchSelectionHighlight() {
+    const resultsContainer = document.getElementById('search-results');
+    if (!resultsContainer) return;
+    const items = resultsContainer.querySelectorAll('.tv-search-item');
+    items.forEach((item, idx) => {
+      const isSel = idx === this.searchSelectedIndex;
+      item.classList.toggle('selected', isSel);
+      if (isSel) {
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     });
   }
 
