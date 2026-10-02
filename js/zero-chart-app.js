@@ -1521,6 +1521,30 @@ class ZeroChartApp {
     }
   }
 
+  nextInstrument() {
+    const list = this.getActiveWatchlistInstruments();
+    if (!list || list.length === 0) return;
+    const curSym = this.currentInstrument?.symbol;
+    const idx = list.findIndex((i) => i.symbol === curSym);
+    let nextIdx = 0;
+    if (idx !== -1) {
+      nextIdx = (idx + 1) % list.length;
+    }
+    this.switchInstrument(list[nextIdx]);
+  }
+
+  prevInstrument() {
+    const list = this.getActiveWatchlistInstruments();
+    if (!list || list.length === 0) return;
+    const curSym = this.currentInstrument?.symbol;
+    const idx = list.findIndex((i) => i.symbol === curSym);
+    let prevIdx = list.length - 1;
+    if (idx !== -1) {
+      prevIdx = (idx - 1 + list.length) % list.length;
+    }
+    this.switchInstrument(list[prevIdx]);
+  }
+
   // ─── LIVE DATA STREAMING & ALERT TRIGGER EVALUATION ───
   startLiveMarketStream() {
     // 1. Subscribe to Binance 24/7 Crypto & Paxos Gold
@@ -2971,6 +2995,22 @@ class ZeroChartApp {
 
   // ─── TOPBAR & CONTROLS ───
   initTopbarEvents() {
+    // Previous & Next Symbol quick switcher buttons
+    const prevSymBtn = document.getElementById('btn-prev-symbol');
+    const nextSymBtn = document.getElementById('btn-next-symbol');
+    if (prevSymBtn) {
+      prevSymBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.prevInstrument();
+      };
+    }
+    if (nextSymBtn) {
+      nextSymBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.nextInstrument();
+      };
+    }
+
     // Timeframe selector buttons
     const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
     tfBtns.forEach((btn) => {

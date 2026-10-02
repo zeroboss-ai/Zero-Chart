@@ -145,6 +145,40 @@ html, body {
   -webkit-text-fill-color: transparent;
 }
 
+.tv-sym-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tv-sym-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tv-sym-nav-btn:hover {
+  background: var(--panel-hover);
+  color: var(--text-bright);
+  border-color: var(--border);
+}
+
+.tv-sym-nav-btn:active {
+  background: #2962ff;
+  color: #ffffff;
+  border-color: #2962ff;
+}
+
 .tv-sym-btn {
   display: flex;
   align-items: center;
@@ -1691,29 +1725,53 @@ html, body {
     display: none !important;
   }
 
+  /* Hide Zero Chart Logo on Mobile to maximize room for symbol and timeframe buttons */
   .tv-brand {
-    padding: 2px 4px !important;
-    gap: 5px !important;
-    margin-right: 1px !important;
+    display: none !important;
   }
 
-  .tv-brand-logo {
-    width: 22px !important;
-    height: 22px !important;
+  .tv-sym-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    flex-shrink: 0 !important;
   }
 
-  .tv-brand-name {
-    font-size: 11.5px !important;
-    letter-spacing: 0.4px !important;
+  .tv-sym-nav-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 26px !important;
+    height: 30px !important;
+    background: var(--panel-elev) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    color: var(--text-muted) !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    transition: all 0.12s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .tv-sym-nav-btn:active {
+    background: #2962ff !important;
+    color: #ffffff !important;
+    border-color: #2962ff !important;
   }
 
   .tv-sym-btn {
-    padding: 3px 7px !important;
-    gap: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 4px 8px !important;
+    gap: 5px !important;
     font-size: 12px !important;
-    max-width: 160px !important;
+    max-width: 155px !important;
     overflow: hidden !important;
     flex-shrink: 0 !important;
+    background: var(--panel-elev) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
   }
 
   .tv-sym-title {
