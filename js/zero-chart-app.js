@@ -429,7 +429,7 @@ class ZeroChartApp {
 
     // 15. Responsive Layout & Legend Offset Sync on Resize
     window.addEventListener('resize', () => {
-      const legTop = window.innerWidth <= 768 ? 48 : 42;
+      const legTop = window.innerWidth <= 768 ? 10 : 42;
       const legLeft = window.innerWidth <= 768 ? 10 : 54;
       this.panes.forEach((p) => {
         try {
@@ -775,7 +775,7 @@ class ZeroChartApp {
     const container = document.getElementById(pane.containerId);
     if (!container) return;
 
-    const legTop = window.innerWidth <= 768 ? 48 : 42;
+    const legTop = window.innerWidth <= 768 ? 10 : 42;
     const legLeft = window.innerWidth <= 768 ? 10 : 54;
     const chartTheme = this.getChartTheme(this.currentTheme);
     const isMobile = window.innerWidth <= 768;
