@@ -4545,7 +4545,6 @@ class ZeroChartApp {
       try { document.activeElement.blur(); } catch (_) {}
     }
     this.switchInstrument(fullInst);
-    this.showToast(`Switched chart to ${fullInst.displaySymbol || fullInst.symbol}`, 1800);
   }
 
   highlightSearchMatch(text, query) {
@@ -5067,7 +5066,7 @@ class ZeroChartApp {
 
     if (saveMenuBtn) {
       saveMenuBtn.onclick = () => {
-        this.saveLayout(this.activeLayoutId, this.activeLayoutName);
+        this.saveLayout(this.activeLayoutId, this.activeLayoutName, true);
         layoutMgrMenu?.classList.remove('show');
       };
     }
@@ -5077,7 +5076,7 @@ class ZeroChartApp {
         const name = prompt('Enter a name for this new chart layout:', `${this.currentInstrument?.symbol || 'Chart'} Setup`);
         if (name && name.trim()) {
           const newId = 'layout_' + Date.now();
-          this.saveLayout(newId, name.trim());
+          this.saveLayout(newId, name.trim(), true);
           layoutMgrMenu?.classList.remove('show');
         }
       };
@@ -5089,7 +5088,7 @@ class ZeroChartApp {
         if (newName && newName.trim()) {
           this.activeLayoutName = newName.trim();
           this.updateLayoutTitleUI();
-          this.saveLayout(this.activeLayoutId, this.activeLayoutName);
+          this.saveLayout(this.activeLayoutId, this.activeLayoutName, true);
         }
       };
     }
@@ -5098,7 +5097,7 @@ class ZeroChartApp {
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        this.saveLayout(this.activeLayoutId, this.activeLayoutName);
+        this.saveLayout(this.activeLayoutId, this.activeLayoutName, true);
       }
     });
 
@@ -5148,7 +5147,7 @@ class ZeroChartApp {
     this.renderSavedLayoutsList();
   }
 
-  async saveLayout(id = this.activeLayoutId, name = this.activeLayoutName) {
+  async saveLayout(id = this.activeLayoutId, name = this.activeLayoutName, isManual = false) {
     this.activeLayoutId = id || ('layout_' + Date.now());
     this.activeLayoutName = name || 'Default Layout';
     this.updateLayoutTitleUI();
@@ -5222,7 +5221,9 @@ class ZeroChartApp {
       saveBtn.style.color = 'var(--buy)';
       setTimeout(() => (saveBtn.style.color = ''), 1500);
     }
-    this.showToast(`💾 Layout "${this.activeLayoutName}" saved successfully!`, 2200);
+    if (isManual) {
+      this.showToast(`💾 Layout "${this.activeLayoutName}" saved successfully!`, 2200);
+    }
   }
 
   async loadLayout(id) {
