@@ -4342,7 +4342,7 @@ class ZeroChartApp {
 
     const openSearch = (initialQuery = '') => {
       if (searchModal) {
-        searchModal.classList.add('show');
+        this.openModal('search-modal');
         if (searchInput) {
           searchInput.value = initialQuery;
           performSearch(initialQuery, activeCat);
@@ -4358,9 +4358,27 @@ class ZeroChartApp {
 
     if (searchBtn) searchBtn.onclick = () => openSearch('');
     if (wlAddBtn) wlAddBtn.onclick = () => openSearch('');
-    if (closeSearchBtn) closeSearchBtn.onclick = () => this.closeModal('search-modal');
+    
+    // Close button handlers
+    if (closeSearchBtn) {
+      closeSearchBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeModal('search-modal');
+      };
+    }
+    const footerCloseBtn = document.getElementById('btn-footer-close-search');
+    if (footerCloseBtn) {
+      footerCloseBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeModal('search-modal');
+      };
+    }
+
     if (clearBtn) {
-      clearBtn.onclick = () => {
+      clearBtn.onclick = (e) => {
+        e.stopPropagation();
         if (searchInput) {
           searchInput.value = '';
           searchInput.focus();
@@ -4369,19 +4387,41 @@ class ZeroChartApp {
       };
     }
 
+    // Click on modal backdrop outside panel
     if (searchModal) {
-      searchModal.onclick = (e) => {
-        if (e.target === searchModal) this.closeModal('search-modal');
-      };
+      searchModal.addEventListener('pointerdown', (e) => {
+        if (e.target === searchModal) {
+          this.closeModal('search-modal');
+        }
+      });
+      searchModal.addEventListener('click', (e) => {
+        if (e.target === searchModal) {
+          this.closeModal('search-modal');
+        }
+      });
     }
+
+    // Global document outside click listener
+    document.addEventListener('pointerdown', (e) => {
+      if (searchModal && searchModal.classList.contains('show')) {
+        const modalContent = searchModal.querySelector('.tv-search-modal');
+        const isInside = modalContent && modalContent.contains(e.target);
+        const isTrigger = e.target.closest('#btn-open-search') || e.target.closest('#btn-wl-add') || e.target.closest('.tv-symbol-box') || e.target.closest('#header-symbol-text');
+        if (!isInside && !isTrigger) {
+          this.closeModal('search-modal');
+        }
+      }
+    });
 
     // Category Tabs Switching
     stBtns.forEach((btn) => {
-      btn.onclick = () => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
         stBtns.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         activeCat = btn.dataset.cat || 'all';
         performSearch(searchInput?.value || '', activeCat);
+        searchInput?.focus();
       };
     });
 
@@ -4457,6 +4497,25 @@ class ZeroChartApp {
     });
   }
 
+  openModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) {
+      el.classList.add('show');
+      el.style.display = 'flex';
+    }
+  }
+
+  closeModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) {
+      el.classList.remove('show');
+      el.style.display = 'none';
+      el.querySelectorAll('input, textarea, select').forEach((inp) => {
+        try { inp.blur(); } catch (_) {}
+      });
+    }
+  }
+
   addRecentSearch(inst) {
     if (!inst || !inst.symbol) return;
     const cleanSym = inst.symbol.toUpperCase().trim();
@@ -4479,10 +4538,14 @@ class ZeroChartApp {
 
   selectAndSwitchSymbol(inst) {
     if (!inst) return;
-    this.addRecentSearch(inst);
-    this.switchInstrument(inst);
+    const fullInst = findInstrument(inst.symbol) || inst;
+    this.addRecentSearch(fullInst);
     this.closeModal('search-modal');
-    this.showToast(`Switched chart to ${inst.displaySymbol || inst.symbol}`, 1800);
+    if (document.activeElement) {
+      try { document.activeElement.blur(); } catch (_) {}
+    }
+    this.switchInstrument(fullInst);
+    this.showToast(`Switched chart to ${fullInst.displaySymbol || fullInst.symbol}`, 1800);
   }
 
   highlightSearchMatch(text, query) {
