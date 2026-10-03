@@ -474,8 +474,8 @@ class ZeroChartApp {
     // 15. Responsive Layout & Legend Offset Sync on Resize
     window.addEventListener('resize', () => {
       const isMob = window.innerWidth <= 768;
-      const legTop = isMob ? 30 : 14;
-      const legLeft = 60;
+      const legTop = isMob ? 40 : 14;
+      const legLeft = 64;
       this.panes.forEach((p, idx) => {
         try {
           p.widget?.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
@@ -822,8 +822,8 @@ class ZeroChartApp {
     if (!container) return;
 
     const isMobile = window.innerWidth <= 768;
-    const legTop = isMobile ? 30 : 14;
-    const legLeft = 60;
+    const legTop = isMobile ? 40 : 14;
+    const legLeft = 64;
     const chartTheme = this.getChartTheme(this.currentTheme);
     const defaultBars = isMobile ? 75 : 140;
 
@@ -4967,8 +4967,8 @@ class ZeroChartApp {
 
       // Position top legend offset
       const isMob = window.innerWidth <= 768;
-      const legTop = isMob ? 30 : 14;
-      const legLeft = 60;
+      const legTop = isMob ? 40 : 14;
+      const legLeft = 64;
       pane.widget.chart.setLegendOffset({
         top: isCollapsed ? -9999 : legTop,
         left: legLeft,
