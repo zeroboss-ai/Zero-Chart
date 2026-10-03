@@ -3633,13 +3633,15 @@ html, body {
 /* ─── TRADINGVIEW-STYLE INDICATOR LEGEND GROUP CONTROLLER ─── */
 .tv-ind-group-ctrl {
   position: absolute;
-  top: 38px;
-  left: 54px;
-  z-index: 30;
+  top: 34px;
+  left: 8px;
+  z-index: 25;
   display: inline-flex;
   align-items: center;
   gap: 3px;
   padding: 2px 6px;
+  height: 20px;
+  box-sizing: border-box;
   border-radius: 4px;
   background: rgba(19, 23, 34, 0.88);
   backdrop-filter: blur(8px);
@@ -3731,10 +3733,12 @@ html, body {
 /* Mobile Overrides for Indicator Group Controller */
 @media (max-width: 768px) {
   .tv-ind-group-ctrl {
-    top: 32px !important;
+    top: 50px !important;
     left: 8px !important;
+    height: 20px !important;
     padding: 1px 4px !important;
     font-size: 10px !important;
+    z-index: 25 !important;
   }
 }
 

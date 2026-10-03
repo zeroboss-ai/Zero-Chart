@@ -315,42 +315,6 @@
           <div class="tv-wl-body" id="watchlist-table-body"></div>
         </div>
 
-        <!-- ─── ORDER TICKET TAB ─── -->
-        <div id="panel-trade" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
-          <div class="tv-panel-head">
-            <span>Order Ticket</span>
-            <span style="font-size:12px;color:var(--buy);font-weight:700;" id="trade-sym-title">NIFTY 50</span>
-            <button class="tv-wl-act-btn tv-mob-close-drawer-btn" id="btn-mob-close-trade" title="Close Ticket">✕</button>
-          </div>
-          <div class="tv-trade-box">
-            <div class="tv-side-buttons">
-              <button class="tv-side-btn buy active" id="trade-btn-buy">BUY / LONG</button>
-              <button class="tv-side-btn sell" id="trade-btn-sell">SELL / SHORT</button>
-            </div>
-            <div class="tv-input-group">
-              <label class="tv-input-label">Order Type</label>
-              <select class="tv-input-field" id="trade-type">
-                <option value="MARKET">Market</option>
-                <option value="LIMIT">Limit</option>
-                <option value="STOP">Stop (SL-L)</option>
-                <option value="STOP_MARKET">Stop Market (SL-M)</option>
-              </select>
-            </div>
-            <div class="tv-input-group">
-              <label class="tv-input-label">Quantity / Lots</label>
-              <input type="number" class="tv-input-field" id="trade-qty" value="1" min="1" step="1" />
-            </div>
-            <div class="tv-input-group">
-              <label class="tv-input-label">Price</label>
-              <input type="number" class="tv-input-field" id="trade-price" step="any" placeholder="Market Price" />
-            </div>
-            <button class="tv-side-btn buy active" id="trade-submit-btn" style="width:100%;margin-top:6px;">Place Buy Market</button>
-            <div style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.4;">
-              Interactive order lines appear directly on chart canvas. Drag brackets to modify.
-            </div>
-          </div>
-        </div>
-
         <!-- ─── ALERTS TAB ─── -->
         <div id="panel-alerts" class="tv-tab-pane" style="display:none;flex-direction:column;height:100%;">
           <div class="tv-panel-head">

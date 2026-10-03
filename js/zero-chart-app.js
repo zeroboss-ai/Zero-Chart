@@ -474,8 +474,8 @@ class ZeroChartApp {
     // 15. Responsive Layout & Legend Offset Sync on Resize
     window.addEventListener('resize', () => {
       const isMob = window.innerWidth <= 768;
-      const legTop = isMob ? 36 : 42;
-      const legLeft = isMob ? 8 : 54;
+      const legTop = isMob ? 30 : 14;
+      const legLeft = 60;
       this.panes.forEach((p, idx) => {
         try {
           p.widget?.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
@@ -821,10 +821,10 @@ class ZeroChartApp {
     const container = document.getElementById(pane.containerId);
     if (!container) return;
 
-    const legTop = window.innerWidth <= 768 ? 36 : 42;
-    const legLeft = window.innerWidth <= 768 ? 8 : 54;
-    const chartTheme = this.getChartTheme(this.currentTheme);
     const isMobile = window.innerWidth <= 768;
+    const legTop = isMobile ? 30 : 14;
+    const legLeft = 60;
+    const chartTheme = this.getChartTheme(this.currentTheme);
     const defaultBars = isMobile ? 75 : 140;
 
     pane.widget = createWidget(container, {
@@ -876,19 +876,6 @@ class ZeroChartApp {
           exchange: s.exchange,
           name: s.name,
         }));
-      },
-      onOrder: async (orderReq) => {
-        console.log('[ZeroChart] Order placement on pane', paneIndex, orderReq);
-        const res = await this.orderEngine.placeOrder({
-          symbol: pane.instrument.symbol,
-          side: orderReq.side,
-          type: orderReq.type,
-          qty: orderReq.qty || 1,
-          price: orderReq.price,
-        });
-        if (res.ok) {
-          console.log('[ZeroChart] Sandbox order placed:', res);
-        }
       },
       onAlert: (req) => {
         console.log('[ZeroChart] Alert requested from context menu:', req);
@@ -4980,8 +4967,8 @@ class ZeroChartApp {
 
       // Position top legend offset
       const isMob = window.innerWidth <= 768;
-      const legTop = isMob ? 36 : 42;
-      const legLeft = isMob ? 8 : 54;
+      const legTop = isMob ? 30 : 14;
+      const legLeft = 60;
       pane.widget.chart.setLegendOffset({
         top: isCollapsed ? -9999 : legTop,
         left: legLeft,
