@@ -222,6 +222,9 @@ class ZeroChartApp {
     this.oiCustomMin = null;
     this.oiCustomMax = null;
 
+    // Indicator Legend Collapse & Master Hide State
+    this.isIndicatorLegendCollapsed = [false, false, false, false];
+
     // Search Engine State (Smooth Pro Fuzzy Search & Recent Searches)
     let recSearches = [];
     try {
@@ -470,11 +473,13 @@ class ZeroChartApp {
 
     // 15. Responsive Layout & Legend Offset Sync on Resize
     window.addEventListener('resize', () => {
-      const legTop = window.innerWidth <= 768 ? 10 : 42;
-      const legLeft = window.innerWidth <= 768 ? 10 : 54;
-      this.panes.forEach((p) => {
+      const isMob = window.innerWidth <= 768;
+      const legTop = isMob ? 36 : 42;
+      const legLeft = isMob ? 8 : 54;
+      this.panes.forEach((p, idx) => {
         try {
           p.widget?.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
+          this.updateIndicatorGroupController(idx);
         } catch (_) {}
       });
     });
@@ -816,8 +821,8 @@ class ZeroChartApp {
     const container = document.getElementById(pane.containerId);
     if (!container) return;
 
-    const legTop = window.innerWidth <= 768 ? 10 : 42;
-    const legLeft = window.innerWidth <= 768 ? 10 : 54;
+    const legTop = window.innerWidth <= 768 ? 36 : 42;
+    const legLeft = window.innerWidth <= 768 ? 8 : 54;
     const chartTheme = this.getChartTheme(this.currentTheme);
     const isMobile = window.innerWidth <= 768;
     const defaultBars = isMobile ? 75 : 140;
@@ -1035,6 +1040,46 @@ class ZeroChartApp {
       container.appendChild(watermark);
     }
 
+    // Mount TradingView-style Indicator Group Controller (Collapse Pill + Master Eye)
+    let indGroupCtrl = container.querySelector(`.tv-ind-group-ctrl[data-pane="${paneIndex}"]`);
+    if (!indGroupCtrl) {
+      indGroupCtrl = document.createElement('div');
+      indGroupCtrl.className = 'tv-ind-group-ctrl';
+      indGroupCtrl.dataset.pane = paneIndex;
+      indGroupCtrl.style.display = 'none';
+      indGroupCtrl.innerHTML = `
+        <button type="button" class="tv-ind-pill-btn" id="btn-ind-toggle-legend-${paneIndex}" title="Collapse/Expand indicator values">
+          <svg class="tv-ind-chevron" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+            <path d="M2.5 3.5L5 6L7.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <span id="ind-count-${paneIndex}">0</span>
+        </button>
+        <button type="button" class="tv-ind-eye-btn" id="btn-ind-master-eye-${paneIndex}" title="Hide / Show all indicators">
+          <svg class="eye-open-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <svg class="eye-closed-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+        </button>
+      `;
+      container.appendChild(indGroupCtrl);
+
+      const pillBtn = indGroupCtrl.querySelector(`#btn-ind-toggle-legend-${paneIndex}`);
+      pillBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleIndicatorLegendCollapse(paneIndex);
+      });
+
+      const eyeBtn = indGroupCtrl.querySelector(`#btn-ind-master-eye-${paneIndex}`);
+      eyeBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleMasterIndicatorVisibility(paneIndex);
+      });
+    }
+
     // Wire click on pane wrapper to make it active
     container.addEventListener('pointerdown', () => {
       if (this.activePaneIndex !== paneIndex) {
@@ -1057,6 +1102,7 @@ class ZeroChartApp {
       this.restoreGlobalIndicators(paneIndex);
       this.restoreSymbolDrawings(paneIndex, pane.instrument.symbol);
       this.syncAlertPriceLines(paneIndex);
+      this.updateIndicatorGroupController(paneIndex);
     }, 200);
 
     // Auto-save drawings on drawing modifications (per-symbol)
@@ -1072,12 +1118,13 @@ class ZeroChartApp {
     }
 
     // Auto-save global indicators on indicator modifications (global across symbols)
-    const autoSaveIndicators = () => {
+    const handleIndicatorsChanged = () => {
       this.saveGlobalIndicators(paneIndex);
+      this.updateIndicatorGroupController(paneIndex);
     };
     for (const evt of ['indicatorAdded', 'indicatorRemoved', 'indicatorSettings']) {
       try {
-        pane.widget.chart.on(evt, autoSaveIndicators);
+        pane.widget.chart.on(evt, handleIndicatorsChanged);
       } catch (_) {}
     }
   }
@@ -4874,7 +4921,10 @@ class ZeroChartApp {
     if (!pane?.widget?.chart) return;
     try {
       const current = pane.widget.chart.indicators();
-      if (current.length > 0) return; // already loaded
+      if (current.length > 0) {
+        this.updateIndicatorGroupController(paneIndex);
+        return;
+      }
       const saved = localStorage.getItem('zerochart_global_indicators');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -4886,6 +4936,78 @@ class ZeroChartApp {
           }
         }
       }
+    } catch (_) {}
+    this.updateIndicatorGroupController(paneIndex);
+  }
+
+  updateIndicatorGroupController(paneIndex = 0) {
+    const pane = this.panes[paneIndex];
+    const container = document.getElementById(pane?.containerId);
+    if (!container || !pane?.widget?.chart) return;
+
+    const ctrl = container.querySelector(`.tv-ind-group-ctrl[data-pane="${paneIndex}"]`);
+    if (!ctrl) return;
+
+    try {
+      const indicators = pane.widget.chart.indicators() || [];
+      const count = indicators.length;
+      if (count === 0) {
+        ctrl.style.display = 'none';
+        return;
+      }
+      ctrl.style.display = 'inline-flex';
+
+      // Update count
+      const countEl = ctrl.querySelector(`#ind-count-${paneIndex}`);
+      if (countEl) countEl.textContent = count;
+
+      // Update collapsed state
+      const isCollapsed = !!this.isIndicatorLegendCollapsed[paneIndex];
+      ctrl.classList.toggle('collapsed', isCollapsed);
+
+      // Check if any indicators are visible
+      const anyVisible = indicators.some((i) => i.visible());
+      const eyeBtn = ctrl.querySelector(`#btn-ind-master-eye-${paneIndex}`);
+      const eyeOpen = eyeBtn?.querySelector('.eye-open-icon');
+      const eyeClosed = eyeBtn?.querySelector('.eye-closed-icon');
+
+      if (eyeBtn) {
+        eyeBtn.classList.toggle('is-hidden', !anyVisible);
+        eyeBtn.title = anyVisible ? 'Hide all indicators' : 'Show all indicators';
+      }
+      if (eyeOpen) eyeOpen.style.display = anyVisible ? 'inline-block' : 'none';
+      if (eyeClosed) eyeClosed.style.display = anyVisible ? 'none' : 'inline-block';
+
+      // Position top legend offset
+      const isMob = window.innerWidth <= 768;
+      const legTop = isMob ? 36 : 42;
+      const legLeft = isMob ? 8 : 54;
+      pane.widget.chart.setLegendOffset({
+        top: isCollapsed ? -9999 : legTop,
+        left: legLeft,
+      });
+    } catch (_) {}
+  }
+
+  toggleIndicatorLegendCollapse(paneIndex = 0) {
+    this.isIndicatorLegendCollapsed[paneIndex] = !this.isIndicatorLegendCollapsed[paneIndex];
+    this.updateIndicatorGroupController(paneIndex);
+  }
+
+  toggleMasterIndicatorVisibility(paneIndex = 0) {
+    const pane = this.panes[paneIndex];
+    if (!pane?.widget?.chart) return;
+    try {
+      const indicators = pane.widget.chart.indicators() || [];
+      if (indicators.length === 0) return;
+      const anyVisible = indicators.some((i) => i.visible());
+      const nextVisible = !anyVisible;
+      for (const ind of indicators) {
+        try {
+          ind.setVisible(nextVisible);
+        } catch (_) {}
+      }
+      this.updateIndicatorGroupController(paneIndex);
     } catch (_) {}
   }
 

@@ -3554,6 +3554,190 @@ html, body {
   color: #5b6472 !important;
 }
 
+/* Study Templates Modal Light Theme */
+[data-theme="light"] #template-manager-modal .tv-modal-content {
+  background: #ffffff !important;
+  border: 1px solid #e0e3eb !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12) !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] #template-manager-modal .tv-modal-content > div:first-child {
+  background: #f8f9fd !important;
+  border-bottom: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] #template-manager-modal .tv-template-card,
+[data-theme="light"] .tv-template-card {
+  background: #f8f9fd !important;
+  border: 1px solid #e0e3eb !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-template-card:hover {
+  background: #f0f3fa !important;
+  border-color: #2962ff !important;
+}
+
+[data-theme="light"] #template-manager-modal input[type="text"],
+[data-theme="light"] #txt-new-template-name {
+  background: #ffffff !important;
+  border: 1px solid #d1d4dc !important;
+  color: #131722 !important;
+}
+
+[data-theme="light"] #template-manager-modal input[type="text"]:focus,
+[data-theme="light"] #txt-new-template-name:focus {
+  border-color: #2962ff !important;
+  background: #ffffff !important;
+}
+
+[data-theme="light"] #current-active-indicators-preview {
+  color: #5b6472 !important;
+}
+
+[data-theme="light"] #template-manager-modal [style*="background:var(--bg-card)"] {
+  background: #f8f9fd !important;
+  border-color: #e0e3eb !important;
+}
+
+/* Layout Manager & Menus Light Theme */
+[data-theme="light"] .tv-dropdown-menu {
+  background: #ffffff !important;
+  border: 1px solid #e0e3eb !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12) !important;
+}
+
+[data-theme="light"] .tv-menu-item {
+  color: #131722 !important;
+}
+
+[data-theme="light"] .tv-menu-item:hover {
+  background: #f0f3fa !important;
+}
+
+[data-theme="light"] .tv-saved-layout-item {
+  background: #f8f9fd !important;
+  border: 1px solid #e0e3eb !important;
+}
+
+[data-theme="light"] .tv-saved-layout-item:hover {
+  background: #f0f3fa !important;
+  border-color: #2962ff !important;
+}
+
+[data-theme="light"] .tv-sync-row:hover {
+  background: #f0f3fa !important;
+}
+
+/* ─── TRADINGVIEW-STYLE INDICATOR LEGEND GROUP CONTROLLER ─── */
+.tv-ind-group-ctrl {
+  position: absolute;
+  top: 38px;
+  left: 54px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(19, 23, 34, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  user-select: none;
+  transition: all 0.15s ease;
+  pointer-events: auto;
+}
+
+[data-theme="light"] .tv-ind-group-ctrl {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 1px solid #e0e3eb !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+  color: #5b6472 !important;
+}
+
+.tv-ind-group-ctrl:hover {
+  border-color: var(--accent);
+  color: var(--text-bright);
+}
+
+[data-theme="light"] .tv-ind-group-ctrl:hover {
+  color: #131722 !important;
+}
+
+.tv-ind-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono);
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  transition: background 0.1s ease;
+}
+
+.tv-ind-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-bright);
+}
+
+[data-theme="light"] .tv-ind-pill-btn:hover {
+  background: #f0f3fa;
+  color: #131722;
+}
+
+.tv-ind-chevron {
+  transition: transform 0.15s ease;
+}
+
+.tv-ind-group-ctrl.collapsed .tv-ind-chevron {
+  transform: rotate(-90deg);
+}
+
+.tv-ind-eye-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all 0.12s ease;
+}
+
+.tv-ind-eye-btn:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .tv-ind-eye-btn:hover {
+  background: #f0f3fa;
+  color: #2962ff;
+}
+
+.tv-ind-eye-btn.is-hidden {
+  color: #f23645 !important;
+}
+
+/* Mobile Overrides for Indicator Group Controller */
+@media (max-width: 768px) {
+  .tv-ind-group-ctrl {
+    top: 32px !important;
+    left: 8px !important;
+    padding: 1px 4px !important;
+    font-size: 10px !important;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    ECONOMIC CALENDAR & FINANCIAL NEWS PANELS
    ═══════════════════════════════════════════════════════════════════ */
