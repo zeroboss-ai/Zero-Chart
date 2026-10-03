@@ -6472,11 +6472,11 @@ class ZeroChartApp {
               <div class="title">Strike: ${hovered.strike.toLocaleString()} ${hovered.isATM ? '⭐ ATM' : ''}</div>
               <div class="row"><span>🟢 Put OI ${this.oiShowTotal ? '' : 'Chg'}:</span> <b>${this.oiShowTotal ? putOIStr : putChgStr}</b></div>
               <div class="row"><span>🔴 Call OI ${this.oiShowTotal ? '' : 'Chg'}:</span> <b>${this.oiShowTotal ? callOIStr : callChgStr}</b></div>
-              <div class="row" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:2px;">
+              <div class="row" style="border-top:1px solid var(--border-subtle);padding-top:3px;margin-top:2px;">
                 <span>Net Diff (PE-CE):</span> <b style="color:${hovered.netDiff >= 0 ? '#00e676' : '#ff1744'};">${sign}${diffStr}</b>
               </div>
               <div class="row"><span>Strike PCR:</span> <b>${hovered.strikePCR.toFixed(2)}</b></div>
-              <div class="row"><span>Call IV / Put IV:</span> <b style="color:var(--text-muted);">${hovered.callIV}% / ${hovered.putIV}%</b></div>
+              <div class="row"><span>Call IV / Put IV:</span> <b>${hovered.callIV}% / ${hovered.putIV}%</b></div>
             `;
             this.drawOIHistogramCanvas(this._lastOIData);
           } else if (tooltip) {
@@ -6973,10 +6973,16 @@ class ZeroChartApp {
     const zeroY = isTotal ? (padTop + chartH) : (padTop + (maxPos / totalRange) * chartH);
 
     // 1. Draw Background Grid Lines & Y-Axis Ticks
+    const isLight = document.body.getAttribute('data-theme') === 'light';
+    const gridColor = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)';
+    const textColor = isLight ? '#5b6472' : '#787b86';
+    const baselineColor = isLight ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.25)';
+    const atmColor = isLight ? '#0288d1' : '#29b6f6';
+
     const numGridLines = 6;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
-    ctx.fillStyle = '#787b86';
+    ctx.fillStyle = textColor;
     ctx.font = '10.5px monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
@@ -7005,14 +7011,14 @@ class ZeroChartApp {
     ctx.save();
     ctx.translate(14, padTop + chartH / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillStyle = '#787b86';
+    ctx.fillStyle = textColor;
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(isTotal ? 'Total Open Interest' : 'Call / Put OI Change', 0, 0);
     ctx.restore();
 
     // Zero Baseline Line
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.strokeStyle = baselineColor;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(padLeft, zeroY);
@@ -7052,7 +7058,7 @@ class ZeroChartApp {
       ctx.fillRect(slotCenterX + gap / 2, callY, barW, Math.max(1, callHeight));
 
       // X-Axis Strike Label
-      ctx.fillStyle = r.isATM ? '#29b6f6' : '#787b86';
+      ctx.fillStyle = r.isATM ? atmColor : textColor;
       ctx.font = r.isATM ? 'bold 10.5px monospace' : '10px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -7097,7 +7103,7 @@ class ZeroChartApp {
 
       ctx.save();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = '#29b6f6';
+      ctx.strokeStyle = atmColor;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(spotX, padTop);
@@ -7110,12 +7116,12 @@ class ZeroChartApp {
       ctx.font = 'bold 11px sans-serif';
       const textW = ctx.measureText(tagText).width + 14;
 
-      ctx.fillStyle = 'rgba(41, 182, 246, 0.95)';
+      ctx.fillStyle = isLight ? 'rgba(2, 136, 209, 0.95)' : 'rgba(41, 182, 246, 0.95)';
       ctx.beginPath();
       ctx.roundRect(spotX - textW / 2, padTop - 18, textW, 18, 4);
       ctx.fill();
 
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(tagText, spotX, padTop - 9);
