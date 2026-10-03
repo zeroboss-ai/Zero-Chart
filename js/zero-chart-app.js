@@ -473,12 +473,8 @@ class ZeroChartApp {
 
     // 15. Responsive Layout & Legend Offset Sync on Resize
     window.addEventListener('resize', () => {
-      const isMob = window.innerWidth <= 768;
-      const legTop = isMob ? 40 : 14;
-      const legLeft = 64;
-      this.panes.forEach((p, idx) => {
+      this.panes.forEach((_, idx) => {
         try {
-          p.widget?.chart?.setLegendOffset?.({ top: legTop, left: legLeft });
           this.updateIndicatorGroupController(idx);
         } catch (_) {}
       });
@@ -822,8 +818,8 @@ class ZeroChartApp {
     if (!container) return;
 
     const isMobile = window.innerWidth <= 768;
-    const legTop = isMobile ? 40 : 14;
-    const legLeft = 64;
+    const legTop = isMobile ? 57 : 37;
+    const legLeft = isMobile ? 60 : (paneIndex === 0 ? 56 : 60);
     const chartTheme = this.getChartTheme(this.currentTheme);
     const defaultBars = isMobile ? 75 : 140;
 
@@ -1053,6 +1049,10 @@ class ZeroChartApp {
         </button>
       `;
       container.appendChild(indGroupCtrl);
+
+      const isMob = window.innerWidth <= 768;
+      indGroupCtrl.style.top = `${isMob ? 56 : 36}px`;
+      indGroupCtrl.style.left = `${isMob ? 8 : (paneIndex === 0 ? 54 : 8)}px`;
 
       const pillBtn = indGroupCtrl.querySelector(`#btn-ind-toggle-legend-${paneIndex}`);
       pillBtn?.addEventListener('click', (e) => {
@@ -4965,10 +4965,15 @@ class ZeroChartApp {
       if (eyeOpen) eyeOpen.style.display = anyVisible ? 'inline-block' : 'none';
       if (eyeClosed) eyeClosed.style.display = anyVisible ? 'none' : 'inline-block';
 
-      // Position top legend offset
+      // Position top legend offset & pill
       const isMob = window.innerWidth <= 768;
-      const legTop = isMob ? 40 : 14;
-      const legLeft = 64;
+      const pillTop = isMob ? 56 : 36;
+      const pillLeft = isMob ? 8 : (paneIndex === 0 ? 54 : 8);
+      ctrl.style.top = `${pillTop}px`;
+      ctrl.style.left = `${pillLeft}px`;
+
+      const legTop = isMob ? 57 : 37;
+      const legLeft = isMob ? 60 : (paneIndex === 0 ? 56 : 60);
       pane.widget.chart.setLegendOffset({
         top: isCollapsed ? -9999 : legTop,
         left: legLeft,
