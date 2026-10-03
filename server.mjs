@@ -971,7 +971,7 @@ async function refreshBinanceQuotes(symbols = []) {
 // ─── 4.5. GLOBAL INDICES & GIFT NIFTY LIVE QUOTES ───
 const GLOBAL_INDICES_SYMBOLS = new Set([
   'GIFT NIFTY', 'GIFTNIFTY',
-  'DOW JONES', 'DOW', 'DJI',
+  'DOW JONES', 'DOW', 'DJI', 'DJIA',
   'S&P 500', 'SP500', 'SPX',
   'NASDAQ', 'NASDAQ 100', 'NDX',
   'RUSSELL 2000', 'RUSSELL2000', 'RUT',
@@ -987,9 +987,11 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   // Forex & Currency Pairs
   'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURINR', 'GBPINR', 'JPYINR',
   // Global Commodities & Futures
-  'BRENT', 'BRENT CRUDE', 'WTI CRUDE', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'COPPER', 'NATURALGAS',
-  'GOLD FUT', 'SILVER FUT', 'CRUDEOIL FUT', 'NATURALGAS FUT', 'COPPER FUT', 'ZINC FUT', 'ALUMINIUM FUT',
-  'MCXBULLDEX', 'MCXMETLDEX', 'US10Y', 'TNX', 'PAXGUSDT',
+  'GOLD', 'GOLD FUT', 'GOLD MCX', 'MCXGOLDEX', 'SILVER', 'SILVER FUT', 'SILVERM FUT', 'MCXSILVDEX',
+  'CRUDE OIL', 'CRUDEOIL', 'CRUDE OIL FUT', 'CRUDEOIL FUT', 'WTI CRUDE', 'BRENT', 'BRENT CRUDE', 'MCXCRUDEX', 'MCXENRGDEX',
+  'NATURAL GAS', 'NATURAL GAS FUT', 'NATURALGAS', 'NATURALGAS FUT',
+  'COPPER', 'COPPER FUT', 'ZINC', 'ZINC FUT', 'ALUMINIUM', 'ALUMINIUM FUT', 'ALI', 'ALI FUT',
+  'XAUUSD', 'XAGUSD', 'XPTUSD', 'MCXBULLDEX', 'MCXMETLDEX', 'US10Y', 'TNX', 'PAXGUSDT',
   // CME / COMEX / CBOT / NYMEX Futures
   'ES', 'ES FUT', 'NQ', 'NQ FUT', 'YM', 'YM FUT', 'RTY', 'RTY FUT',
   'GC', 'GC FUT', 'SI', 'SI FUT', 'HG', 'HG FUT',
@@ -997,6 +999,7 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'ZN', 'ZN FUT', 'ZB', 'ZB FUT',
   'ZC', 'ZC FUT', 'ZW', 'ZW FUT', 'ZS', 'ZS FUT'
 ]);
+
 
 // ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY & GLOBAL) ───
 async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5m', barCount = 350) {
@@ -1178,12 +1181,40 @@ async function refreshGlobalIndices() {
               const closes = q?.close?.filter(c => c != null) || [];
               const ltp = meta?.regularMarketPrice || closes[closes.length - 1];
               if (!Number.isFinite(ltp) || ltp <= 0) break;
-              const prev = meta?.chartPreviousClose || meta?.previousClose || (closes.length > 1 ? closes[closes.length - 2] : ltp);
-              const chg = +(ltp - prev).toFixed(2);
-              const chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
-
               const isForex = ticker.endsWith('=X');
               const dec = isForex ? (ticker.includes('JPY') ? 3 : 4) : (ticker === 'DX-Y.NYB' ? 3 : 2);
+
+              // Calculate true 1-day previous close and day change
+              // Note: meta.chartPreviousClose is 5 trading days old (start of chart range), NEVER use for daily change!
+              let prev = null;
+              if (closes.length > 1) {
+                prev = closes[closes.length - 2];
+              } else if (Number.isFinite(meta?.previousClose) && meta.previousClose > 0) {
+                prev = meta.previousClose;
+              }
+
+              let chg = 0;
+              let chgPct = 0;
+
+              if (Number.isFinite(meta?.fulldayChange)) {
+                chg = +Number(meta.fulldayChange).toFixed(dec);
+                const pct = meta.regularMarketChangePercent ?? meta.fulldayChangePercent;
+                chgPct = Number.isFinite(pct) ? +Number(pct).toFixed(2) : (prev && prev > 0 ? +((chg / prev) * 100).toFixed(2) : 0);
+                if (!prev || prev <= 0) {
+                  prev = +(ltp - chg).toFixed(dec);
+                }
+              } else if (prev && prev > 0) {
+                chg = +(ltp - prev).toFixed(dec);
+                chgPct = +((chg / prev) * 100).toFixed(2);
+              } else if (Number.isFinite(meta?.regularMarketChangePercent)) {
+                chgPct = +Number(meta.regularMarketChangePercent).toFixed(2);
+                chg = +(ltp * (chgPct / 100)).toFixed(dec);
+                prev = +(ltp - chg).toFixed(dec);
+              } else {
+                prev = ltp;
+                chg = 0;
+                chgPct = 0;
+              }
 
               const quoteObj = {
                 ltp: +ltp.toFixed(dec),
@@ -1191,7 +1222,7 @@ async function refreshGlobalIndices() {
                 high: +(meta?.regularMarketDayHigh || ltp).toFixed(dec),
                 low: +(meta?.regularMarketDayLow || ltp).toFixed(dec),
                 close: +ltp.toFixed(dec),
-                prevClose: +prev.toFixed(dec),
+                prevClose: +Number(prev).toFixed(dec),
                 chg: chg,
                 chgPct: chgPct,
                 time: Math.floor(now / 1000),
@@ -1932,9 +1963,26 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   if (bars.length > 0) {
     const lastBar = bars[bars.length - 1];
     const ltp = result.meta?.regularMarketPrice || lastBar.close;
-    const prevClose = result.meta?.previousClose || lastBar.open;
-    const netChg = +(ltp - prevClose).toFixed(2);
-    const pctChg = prevClose !== 0 ? +((netChg / prevClose) * 100).toFixed(2) : 0;
+
+    // Preserve or compute true daily previous close and change instead of falling back to intraday bar open
+    const existing = quoteCache.get(symNorm);
+    let prevClose = existing?.prevClose;
+    let netChg = existing?.chg;
+    let pctChg = existing?.chgPct;
+
+    if (Number.isFinite(result.meta?.fulldayChange)) {
+      netChg = +Number(result.meta.fulldayChange).toFixed(2);
+      pctChg = +Number(result.meta.regularMarketChangePercent ?? result.meta.fulldayChangePercent ?? 0).toFixed(2);
+      prevClose = +(ltp - netChg).toFixed(2);
+    } else if (Number.isFinite(result.meta?.previousClose) && result.meta.previousClose > 0) {
+      prevClose = result.meta.previousClose;
+      netChg = +(ltp - prevClose).toFixed(2);
+      pctChg = prevClose !== 0 ? +((netChg / prevClose) * 100).toFixed(2) : 0;
+    } else if (!prevClose || !Number.isFinite(netChg)) {
+      prevClose = lastBar.open;
+      netChg = +(ltp - prevClose).toFixed(2);
+      pctChg = prevClose !== 0 ? +((netChg / prevClose) * 100).toFixed(2) : 0;
+    }
 
     quoteCache.set(symNorm, {
       ltp: ltp,
