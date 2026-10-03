@@ -11,13 +11,13 @@ import {
   mountSettingsDialog,
   mountObjectsPanel,
   openShortcutsPanel,
-} from '../lib/openalgo-charts.widget.mjs?v=2.7.0';
-import { ReplayController } from '../lib/openalgo-charts.mjs?v=2.7.0';
-import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.0';
-import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.0';
-import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.0';
-import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.7.0';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.7.0';
+} from '../lib/openalgo-charts.widget.mjs?v=2.7.1';
+import { ReplayController } from '../lib/openalgo-charts.mjs?v=2.7.1';
+import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.1';
+import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.1';
+import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.1';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.7.1';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.7.1';
 
 // Register all indicators immediately
 try {
