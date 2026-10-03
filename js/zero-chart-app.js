@@ -11,13 +11,13 @@ import {
   mountSettingsDialog,
   mountObjectsPanel,
   openShortcutsPanel,
-} from '../lib/openalgo-charts.widget.mjs?v=2.7.1';
-import { ReplayController } from '../lib/openalgo-charts.mjs?v=2.7.1';
-import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.1';
-import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.1';
-import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.1';
-import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.7.1';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.7.1';
+} from '../lib/openalgo-charts.widget.mjs?v=2.7.3';
+import { ReplayController } from '../lib/openalgo-charts.mjs?v=2.7.3';
+import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.3';
+import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.3';
+import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.3';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.7.3';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.7.3';
 
 // Register all indicators immediately
 try {
@@ -818,8 +818,8 @@ class ZeroChartApp {
     if (!container) return;
 
     const isMobile = window.innerWidth <= 768;
-    const legTop = isMobile ? 57 : 37;
-    const legLeft = isMobile ? 60 : (paneIndex === 0 ? 56 : 60);
+    const legTop = isMobile ? 46 : 8;
+    const legLeft = 10;
     const chartTheme = this.getChartTheme(this.currentTheme);
     const defaultBars = isMobile ? 75 : 140;
 

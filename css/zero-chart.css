@@ -3459,6 +3459,20 @@ html, body {
   color: #131722 !important;
 }
 
+[data-theme="light"] .oac-widget .oac-statusline .is-up > b,
+[data-theme="light"] .oac-widget .oac-statusline__chg.is-up > b,
+.oac-widget .oac-statusline .is-up > b,
+.oac-widget .oac-statusline__chg.is-up > b {
+  color: #089981 !important;
+}
+
+[data-theme="light"] .oac-widget .oac-statusline .is-down > b,
+[data-theme="light"] .oac-widget .oac-statusline__chg.is-down > b,
+.oac-widget .oac-statusline .is-down > b,
+.oac-widget .oac-statusline__chg.is-down > b {
+  color: #f23645 !important;
+}
+
 /* Search Modal */
 [data-theme="light"] .tv-search-modal-content {
   background: #ffffff !important;
