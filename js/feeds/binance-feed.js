@@ -207,16 +207,13 @@ export class BinanceFeed {
    * Fetch 24-hour ticker statistics for symbols
    */
   async fetch24hrTickers(symbols = []) {
-    let query = '';
-    if (symbols && symbols.length > 0) {
-      const symArray = symbols.map((s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
-      query = `?symbols=${encodeURIComponent(JSON.stringify(symArray))}`;
-    }
+    const symSet = new Set((symbols || []).map((s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')).filter(Boolean));
     for (const host of BINANCE_REST_ENDPOINTS) {
       try {
-        const resp = await fetch(`${host}/api/v3/ticker/24hr${query}`, {
+        const resp = await fetch(`${host}/api/v3/ticker/24hr`, {
           method: 'GET',
           headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(4000),
         });
         if (!resp.ok) continue;
         const data = await resp.json();
@@ -224,6 +221,7 @@ export class BinanceFeed {
         const result = {};
         for (const item of list) {
           if (!item || !item.symbol) continue;
+          if (symSet.size > 0 && !symSet.has(item.symbol)) continue;
           const last = parseFloat(item.lastPrice);
           const open = parseFloat(item.openPrice);
           const chg = parseFloat(item.priceChange);
@@ -249,13 +247,11 @@ export class BinanceFeed {
 
   /**
    * Subscribe to real-time 24hr miniTickers for multiple symbols in a single lightweight stream
+   * Uses Binance official !miniTicker@arr all-market stream (1-second tick updates for all pairs)
    */
   subscribe24hrMiniTickers(symbols, onTicker) {
-    const symList = (symbols || []).map((s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-    if (symList.length === 0) return () => {};
-
-    const streamNames = symList.map((s) => `${s}@miniTicker`).join('/');
-    const wsUrl = `wss://stream.binance.com:9443/stream?streams=${streamNames}`;
+    const symSet = new Set((symbols || []).map((s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')).filter(Boolean));
+    const wsUrl = 'wss://stream.binance.com:9443/ws/!miniTicker@arr';
 
     let isSubscribed = true;
     let ws = null;
@@ -268,25 +264,27 @@ export class BinanceFeed {
         ws.onmessage = (event) => {
           if (!isSubscribed) return;
           try {
-            const msg = JSON.parse(event.data);
-            const d = msg.data || msg;
-            if (d && d.s) {
-              const last = parseFloat(d.c);
-              const open = parseFloat(d.o);
-              const high = parseFloat(d.h);
-              const low = parseFloat(d.l);
-              const chg = last - open;
-              const chgPct = open !== 0 ? ((last - open) / open) * 100 : 0;
-              if (typeof onTicker === 'function') {
-                onTicker({
-                  symbol: d.s,
-                  last,
-                  open,
-                  high,
-                  low,
-                  chg,
-                  chgPct,
-                });
+            const data = JSON.parse(event.data);
+            const list = Array.isArray(data) ? data : [data];
+            for (const d of list) {
+              if (d && d.s && (symSet.size === 0 || symSet.has(d.s))) {
+                const last = parseFloat(d.c);
+                const open = parseFloat(d.o);
+                const high = parseFloat(d.h);
+                const low = parseFloat(d.l);
+                const chg = last - open;
+                const chgPct = open !== 0 ? ((last - open) / open) * 100 : 0;
+                if (typeof onTicker === 'function') {
+                  onTicker({
+                    symbol: d.s,
+                    last,
+                    open,
+                    high,
+                    low,
+                    chg,
+                    chgPct,
+                  });
+                }
               }
             }
           } catch (_) {}

@@ -1675,21 +1675,6 @@ class ZeroChartApp {
       });
     }
 
-    // Also keep sub-second 1m kline subscription for candle bar ticks
-    cryptoSymbols.forEach((inst) => {
-      this.multiFeed.binanceFeed.subscribeBars(inst.symbol, '1m', (bar) => {
-        const current = this.livePrices.get(inst.symbol);
-        const prev = current?.prevClose;
-        if (prev && Number.isFinite(prev) && prev > 0) {
-          const chg = +(bar.close - prev).toFixed(inst.precision);
-          const chgPct = +((chg / prev) * 100).toFixed(2);
-          this.updateLivePrice(inst, bar.close, chg, chgPct, prev);
-        } else {
-          this.updateLivePrice(inst, bar.close, current?.chg || 0, current?.chgPct || 0);
-        }
-      });
-    });
-
     // 2. High-speed centralized batch poller for all active watchlist & trading quotes
     let isPolling = false;
     const pollQuotes = async () => {
@@ -1703,8 +1688,21 @@ class ZeroChartApp {
             activeSymbols.push(p.instrument.symbol);
           }
         });
+
+        // Filter out Binance-fed crypto symbols that are already receiving live WebSocket ticks
+        // This prevents the HTTP poller from racing with and overwriting live sub-second Binance ticks
+        const symbolsToFetch = activeSymbols.filter(s => {
+          const inst = findInstrument(s);
+          if (inst?.feedType === 'binance' && this.livePrices.has(inst.symbol)) {
+            return false;
+          }
+          return true;
+        });
+
+        if (symbolsToFetch.length === 0) return;
+
         const activeSym = this.currentInstrument?.symbol || '';
-        const symQuery = encodeURIComponent(activeSymbols.join(','));
+        const symQuery = encodeURIComponent(symbolsToFetch.join(','));
         const resp = await fetch(`/api/market/quotes?active=${encodeURIComponent(activeSym)}&symbols=${symQuery}`, {
           signal: AbortSignal.timeout(2000),
         });
@@ -1714,6 +1712,10 @@ class ZeroChartApp {
             for (const [sym, q] of Object.entries(json.quotes)) {
               const inst = findInstrument(sym);
               if (inst && q.ltp) {
+                // NEVER overwrite a live Binance WebSocket price with a stale server HTTP poll quote
+                if (inst.feedType === 'binance' && this.livePrices.has(inst.symbol)) {
+                  continue;
+                }
                 const prev = q.prevClose || this.livePrices.get(inst.symbol)?.prevClose || (inst.feedType === 'binance' ? null : inst.basePrice);
                 let chg = q.chg;
                 let chgPct = q.chgPct;

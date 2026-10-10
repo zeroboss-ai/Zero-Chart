@@ -922,21 +922,17 @@ async function refreshBinanceQuotes(symbols = []) {
       const endpoints = [
         'https://data-api.binance.vision/api/v3/ticker/24hr',
         'https://api.binance.com/api/v3/ticker/24hr',
-        'https://fapi.binance.com/fapi/v1/ticker/24hr',
+        'https://api1.binance.com/api/v3/ticker/24hr',
       ];
       for (const endpoint of endpoints) {
         try {
-          const isFutures = endpoint.includes('fapi');
-          const url = (!isFutures && symArray.length > 0 && symArray.length <= 20)
-            ? `${endpoint}?symbols=${encodeURIComponent(JSON.stringify(symArray))}`
-            : endpoint;
-          const resp = await fetch(url, {
+          const resp = await fetch(endpoint, {
             headers: { Accept: 'application/json' },
             signal: AbortSignal.timeout(3500),
           });
           if (!resp.ok) continue;
           const data = await resp.json();
-          if (Array.isArray(data)) {
+          if (Array.isArray(data) && data.length > 0) {
             for (const item of data) {
               if (!item || !item.symbol) continue;
               const last = parseFloat(item.lastPrice);
@@ -956,6 +952,7 @@ async function refreshBinanceQuotes(symbols = []) {
               });
             }
             lastBinanceFetchTime = Date.now();
+            break; // Stop after first successful endpoint
           }
         } catch (_) {}
       }
