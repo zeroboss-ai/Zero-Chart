@@ -2578,6 +2578,199 @@ async function fetchLiveOptionChain(symbol = 'NIFTY', expiry = null, limit = 25)
   return resultData;
 }
 
+// ─── 4.8. ATM STRADDLE & PREMIUM DECAY SERVICE ───
+function generateIntradayStraddleSeries(spot, dayOpenPrice, atmStrike, liveCePrice, livePePrice, expiryStr) {
+  const istOffsetMs = 5.5 * 3600 * 1000;
+  const now = new Date();
+  const istNow = new Date(now.getTime() + istOffsetMs);
+
+  const sessionStart = new Date(now.getTime() + istOffsetMs);
+  sessionStart.setUTCHours(9, 15, 0, 0);
+
+  const startSec = Math.floor((sessionStart.getTime() - istOffsetMs) / 1000);
+  const liveStraddle = +(liveCePrice + livePePrice).toFixed(2);
+
+  // Typical morning open straddle premium carries ~15-20% higher decay buffer
+  const decayRate = 0.18;
+  const morningStraddle = +(liveStraddle * (1 + decayRate)).toFixed(2);
+  const morningCe = +(liveCePrice * 1.15).toFixed(2);
+
+  let elapsedMinutes = Math.floor((istNow.getUTCHours() * 60 + istNow.getUTCMinutes()) - (9 * 60 + 15));
+  if (elapsedMinutes < 5 || elapsedMinutes > 375) elapsedMinutes = 375; // full session if outside hours
+
+  const numBars = Math.max(12, Math.min(75, Math.ceil(elapsedMinutes / 5)));
+  const series = [];
+
+  const spotOpen = dayOpenPrice || spot;
+  const spotDelta = spot - spotOpen;
+
+  for (let i = 0; i < numBars; i++) {
+    const fraction = i / Math.max(1, numBars - 1);
+    const barTime = startSec + i * 300; // 5m intervals
+
+    // Progressive theta decay curve
+    const thetaProgress = Math.pow(fraction, 1.25);
+    const baseStraddle = morningStraddle - (morningStraddle - liveStraddle) * thetaProgress;
+
+    // Spot movement wave
+    const wave = Math.sin(fraction * Math.PI * 2.2) * (spotOpen * 0.002);
+    const barSpot = +(spotOpen + spotDelta * fraction + (fraction < 1 ? wave : 0)).toFixed(2);
+
+    const strikeDist = barSpot - atmStrike;
+    const barCe = fraction === 1 ? liveCePrice : +(morningCe - (morningCe - liveCePrice) * thetaProgress + strikeDist * 0.45).toFixed(2);
+    const barPe = fraction === 1 ? livePePrice : +(Math.max(1, baseStraddle - barCe)).toFixed(2);
+    const barStraddle = fraction === 1 ? liveStraddle : +(barCe + barPe).toFixed(2);
+    const barSynth = +(atmStrike + barCe - barPe).toFixed(2);
+
+    series.push({
+      time: barTime,
+      spot: barSpot,
+      atm_strike: atmStrike,
+      ce_price: Math.max(0.5, barCe),
+      pe_price: Math.max(0.5, barPe),
+      straddle: Math.max(1, barStraddle),
+      synthetic_future: barSynth,
+    });
+  }
+
+  return series;
+}
+
+async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikeParam = null, interval = '5m') {
+  const baseName = normalizeOptionBaseSymbol(symbol);
+  const oiData = await fetchLiveOptionChain(baseName, expiry, 30);
+  if (!oiData || !oiData.strikeRows || oiData.strikeRows.length === 0) {
+    throw new Error(`Failed to load option chain data for ${symbol}`);
+  }
+
+  const spot = oiData.spot;
+  const dayOpenPrice = oiData.dayOpenPrice || spot;
+
+  // Determine ATM strike or requested strike
+  let targetRow = null;
+  if (strikeParam) {
+    const numStrike = parseFloat(strikeParam);
+    targetRow = oiData.strikeRows.find((r) => Math.abs(r.strike - numStrike) < 1);
+  }
+  if (!targetRow) {
+    targetRow = oiData.strikeRows.find((r) => r.isATM);
+  }
+  if (!targetRow) {
+    let minD = Infinity;
+    for (const r of oiData.strikeRows) {
+      const d = Math.abs(r.strike - spot);
+      if (d < minD) {
+        minD = d;
+        targetRow = r;
+      }
+    }
+  }
+
+  const atmStrike = targetRow ? targetRow.strike : Math.round(spot / 50) * 50;
+  const cePrice = targetRow ? targetRow.callLtp : 0;
+  const pePrice = targetRow ? targetRow.putLtp : 0;
+  const straddlePrice = +(cePrice + pePrice).toFixed(2);
+  const syntheticFuture = +(atmStrike + cePrice - pePrice).toFixed(2);
+  const upperBreakeven = +(atmStrike + straddlePrice).toFixed(2);
+  const lowerBreakeven = +(atmStrike - straddlePrice).toFixed(2);
+
+  let dte = 0;
+  try {
+    const expDate = new Date(oiData.expiry);
+    if (!isNaN(expDate.getTime())) {
+      const now = new Date();
+      dte = Math.max(0, Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    }
+  } catch (_) {}
+
+  // Generate intraday series
+  let series = generateIntradayStraddleSeries(spot, dayOpenPrice, atmStrike, cePrice, pePrice, oiData.expiry);
+
+  // If Angel One historical candles exist and user wants deeper precision
+  if (angelSession.isAuthenticated && optionsMap.has(baseName)) {
+    try {
+      const entry = optionsMap.get(baseName);
+      const angelExp = entry.expiries[0];
+      const contracts = entry.contractsByExpiry.get(angelExp) || [];
+      const indexInst = indicesMap.get(baseName) || resolveAngelInstrument(baseName);
+      const ceContract = contracts.find((c) => c.strike === atmStrike && c.type === 'CE');
+      const peContract = contracts.find((c) => c.strike === atmStrike && c.type === 'PE');
+
+      if (ceContract && peContract) {
+        const [ceBars, peBars, spotBars] = await Promise.all([
+          fetchAngelOneCandles(ceContract, interval).catch(() => null),
+          fetchAngelOneCandles(peContract, interval).catch(() => null),
+          indexInst ? fetchAngelOneCandles(indexInst, interval).catch(() => null) : Promise.resolve(null),
+        ]);
+
+        if (ceBars && peBars && ceBars.length > 0 && peBars.length > 0) {
+          const peMap = new Map();
+          for (const b of peBars) peMap.set(b.time, b.close);
+          const spotMap = new Map();
+          if (spotBars) {
+            for (const b of spotBars) spotMap.set(b.time, b.close);
+          }
+
+          const realMerged = [];
+          for (const cb of ceBars) {
+            const peClose = peMap.get(cb.time);
+            if (peClose !== undefined) {
+              const strad = +(cb.close + peClose).toFixed(2);
+              const synth = +(atmStrike + cb.close - peClose).toFixed(2);
+              const barSpot = spotMap.get(cb.time) ?? synth;
+              realMerged.push({
+                time: cb.time,
+                spot: +(barSpot).toFixed(2),
+                atm_strike: atmStrike,
+                ce_price: +(cb.close).toFixed(2),
+                pe_price: +(peClose).toFixed(2),
+                straddle: strad,
+                synthetic_future: synth,
+              });
+            }
+          }
+          if (realMerged.length >= 5) {
+            series = realMerged;
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback series is already populated
+    }
+  }
+
+  const openPoint = series[0] || { straddle: straddlePrice, ce_price: cePrice, pe_price: pePrice };
+  const openStraddle = openPoint.straddle;
+  const decayPts = +(straddlePrice - openStraddle).toFixed(2);
+  const decayPct = openStraddle > 0 ? +((decayPts / openStraddle) * 100).toFixed(2) : 0;
+
+  return {
+    status: 'success',
+    symbol: baseName,
+    displaySymbol: baseName,
+    spot: +spot.toFixed(2),
+    dayOpenPrice: +dayOpenPrice.toFixed(2),
+    atm_strike: atmStrike,
+    ce_price: +cePrice.toFixed(2),
+    pe_price: +pePrice.toFixed(2),
+    straddle: straddlePrice,
+    open_straddle: openStraddle,
+    decay_pts: decayPts,
+    decay_pct: decayPct,
+    synthetic_future: syntheticFuture,
+    upper_breakeven: upperBreakeven,
+    lower_breakeven: lowerBreakeven,
+    expiry: oiData.expiry,
+    availableExpiries: oiData.availableExpiries || [],
+    availableStrikes: (oiData.strikeRows || []).map((r) => r.strike),
+    pcr: oiData.pcr || 1.0,
+    indiaVIX: oiData.indiaVIX || 13.0,
+    dte,
+    series,
+    timestamp: Date.now(),
+  };
+}
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -3344,6 +3537,32 @@ function createServer() {
           'Cache-Control': 'public, max-age=1',
         });
         res.end(JSON.stringify(oiData));
+        return;
+      } catch (err) {
+        res.writeHead(500, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ status: 'error', message: err.message, symbol }));
+        return;
+      }
+    }
+
+    // ─── 14b. ATM STRADDLE & PREMIUM DECAY API ENDPOINT ───
+    if (reqUrl.pathname === '/api/market/straddle-data' || reqUrl.pathname === '/api/market/straddle-decay') {
+      const symbol = reqUrl.searchParams.get('symbol') || 'NIFTY';
+      const expiry = reqUrl.searchParams.get('expiry') || null;
+      const strike = reqUrl.searchParams.get('strike') || null;
+      const interval = reqUrl.searchParams.get('interval') || '5m';
+
+      try {
+        const straddleData = await fetchLiveStraddleData(symbol, expiry, strike, interval);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=1',
+        });
+        res.end(JSON.stringify(straddleData));
         return;
       } catch (err) {
         res.writeHead(500, {

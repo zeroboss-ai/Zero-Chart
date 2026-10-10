@@ -5193,6 +5193,123 @@ html, body {
   }
 }
 
+/* ─── ATM STRADDLE CHART & PREMIUM DECAY ─── */
+.tv-straddle-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.tv-straddle-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tv-straddle-card .lbl {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-straddle-card .val {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--text-bright);
+}
+
+.tv-straddle-card .val.highlight {
+  color: #00e676;
+}
+
+.tv-straddle-card .val.up {
+  color: #00e676;
+}
+
+.tv-straddle-card .val.dn {
+  color: #ff1744;
+}
+
+.tv-straddle-card .sub {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-straddle-footer-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.tv-straddle-be-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tv-straddle-be-bar .be-lbl {
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.be-progress-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  position: relative;
+  overflow: visible;
+}
+
+.be-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(41, 121, 255, 0.4), rgba(0, 230, 118, 0.6), rgba(41, 121, 255, 0.4));
+  border-radius: 3px;
+}
+
+.be-spot-pin {
+  position: absolute;
+  top: -4px;
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border: 2px solid #2979ff;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px rgba(41, 121, 255, 0.8);
+}
+
+.tv-straddle-toggles label {
+  user-select: none;
+  font-size: 11.5px;
+}
+
+.tv-straddle-toggles input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #00e676;
+}
+
+
 
 
 

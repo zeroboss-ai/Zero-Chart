@@ -770,6 +770,7 @@
           <div class="tv-oi-subtabs" id="oi-subtabs">
             <button class="tv-oi-tab-btn active" data-subtab="oi-change">OI Change</button>
             <button class="tv-oi-tab-btn" data-subtab="open-interest">Open Interest</button>
+            <button class="tv-oi-tab-btn" data-subtab="straddle-decay">ATM Straddle & Decay</button>
             <button class="tv-oi-tab-btn" data-subtab="multistrike-oi">Multistrike OI</button>
             <button class="tv-oi-tab-btn" data-subtab="option-oi-time">Option OI vs Time</button>
             <button class="tv-oi-tab-btn" data-subtab="fut-oi-time">Fut OI vs Time</button>
@@ -870,66 +871,147 @@
 
           <!-- Center Chart & Time Playback Controls -->
           <section class="tv-oi-center-panel">
-            <!-- Chart Header Controls -->
-            <div class="tv-oi-chart-header">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <h3 class="tv-oi-chart-title" id="oi-chart-title">OI Change on Tue, 29 Sep</h3>
-                <button class="tv-oi-help-link" id="btn-oi-how-to-read" type="button">How to read this?</button>
+            <!-- 1. Histogram View for OI Change & Total OI -->
+            <div id="oi-histogram-view" style="display:flex;flex-direction:column;flex:1;min-height:0;gap:8px;">
+              <!-- Chart Header Controls -->
+              <div class="tv-oi-chart-header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <h3 class="tv-oi-chart-title" id="oi-chart-title">OI Change on Tue, 29 Sep</h3>
+                  <button class="tv-oi-help-link" id="btn-oi-how-to-read" type="button">How to read this?</button>
+                </div>
+                <div class="tv-oi-toggle-group">
+                  <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Show Total OI</span>
+                  <label class="tv-switch">
+                    <input type="checkbox" id="toggle-show-total-oi" />
+                    <span class="slider round"></span>
+                  </label>
+                  <span class="tv-new-tag">New</span>
+                </div>
               </div>
-              <div class="tv-oi-toggle-group">
-                <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Show Total OI</span>
-                <label class="tv-switch">
-                  <input type="checkbox" id="toggle-show-total-oi" />
-                  <span class="slider round"></span>
-                </label>
-                <span class="tv-new-tag">New</span>
+
+              <!-- Interactive Canvas Histogram -->
+              <div class="tv-oi-canvas-wrapper" id="oi-canvas-wrapper">
+                <canvas id="oi-histogram-canvas"></canvas>
+                <div class="tv-oi-tooltip" id="oi-chart-tooltip" style="display:none;"></div>
+              </div>
+
+              <!-- Legend -->
+              <div class="tv-oi-legend">
+                <div class="legend-item"><span class="dot put"></span> <span id="lbl-put-legend">Put OI chg</span></div>
+                <div class="legend-item"><span class="dot call"></span> <span id="lbl-call-legend">Call OI chg</span></div>
+              </div>
+
+              <!-- Intraday Time Range Slider -->
+              <div class="tv-oi-time-slider-box">
+                <div class="tv-oi-time-labels">
+                  <span id="oi-time-start-lbl">9:15 AM</span>
+                  <span id="oi-time-current-lbl" style="color:var(--accent);font-weight:700;">3:30 PM (Full Day)</span>
+                  <span id="oi-time-end-lbl">3:30 PM</span>
+                </div>
+                <input type="range" class="tv-oi-slider" id="oi-time-range-slider" min="0" max="75" value="75" step="1" />
+              </div>
+
+              <!-- Time Preset Buttons -->
+              <div class="tv-oi-time-presets" id="oi-time-presets">
+                <button class="tv-oi-tp-btn" data-time="5m">Last 5 mins</button>
+                <button class="tv-oi-tp-btn" data-time="10m">Last 10 mins</button>
+                <button class="tv-oi-tp-btn" data-time="15m">Last 15 mins</button>
+                <button class="tv-oi-tp-btn" data-time="30m">Last 30 mins</button>
+                <button class="tv-oi-tp-btn" data-time="1h">Last 1 Hr</button>
+                <button class="tv-oi-tp-btn" data-time="2h">Last 2 Hrs</button>
+                <button class="tv-oi-tp-btn" data-time="3h">Last 3 Hrs</button>
+                <button class="tv-oi-tp-btn active" data-time="full">Full Day</button>
+              </div>
+
+              <!-- Summary Footer Card -->
+              <div class="tv-oi-summary-card">
+                <div class="tv-oi-sum-tag" id="oi-summary-date-tag">Change on Tue, 29 Sep</div>
+                <div class="tv-oi-sum-metrics">
+                  <div class="metric"><span class="lbl">Call OI change:</span> <b class="val dn" id="oi-sum-call-chg">-3.85Cr</b></div>
+                  <div class="metric"><span class="lbl">Put OI change:</span> <b class="val up" id="oi-sum-put-chg">+1.45Cr</b></div>
+                </div>
+                <div class="tv-oi-sum-prices">
+                  <div class="price-row"><span class="lbl" id="oi-sum-sym-open-lbl">NIFTY at 9:15 AM:</span> <b id="oi-sum-open-price">22,780.25</b></div>
+                  <div class="price-row"><span class="lbl" id="oi-sum-sym-close-lbl">NIFTY at 3:30 PM:</span> <b id="oi-sum-close-price">22,716.20</b></div>
+                </div>
               </div>
             </div>
 
-            <!-- Interactive Canvas Histogram -->
-            <div class="tv-oi-canvas-wrapper" id="oi-canvas-wrapper">
-              <canvas id="oi-histogram-canvas"></canvas>
-              <div class="tv-oi-tooltip" id="oi-chart-tooltip" style="display:none;"></div>
-            </div>
-
-            <!-- Legend -->
-            <div class="tv-oi-legend">
-              <div class="legend-item"><span class="dot put"></span> <span id="lbl-put-legend">Put OI chg</span></div>
-              <div class="legend-item"><span class="dot call"></span> <span id="lbl-call-legend">Call OI chg</span></div>
-            </div>
-
-            <!-- Intraday Time Range Slider -->
-            <div class="tv-oi-time-slider-box">
-              <div class="tv-oi-time-labels">
-                <span id="oi-time-start-lbl">9:15 AM</span>
-                <span id="oi-time-current-lbl" style="color:var(--accent);font-weight:700;">3:30 PM (Full Day)</span>
-                <span id="oi-time-end-lbl">3:30 PM</span>
+            <!-- 2. Dedicated ATM Straddle Chart & Premium Decay View -->
+            <div id="oi-straddle-view" style="display:none;flex-direction:column;flex:1;min-height:0;gap:8px;">
+              <!-- Straddle Header Bar -->
+              <div class="tv-oi-chart-header" style="flex-wrap:wrap;gap:8px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <h3 class="tv-oi-chart-title" id="straddle-chart-title">NIFTY ATM Straddle & Premium Decay</h3>
+                  <span class="tv-oi-pcr-pill" id="straddle-atm-badge" style="background:rgba(0,230,118,0.15);color:#00e676;font-weight:700;">ATM 22,500</span>
+                </div>
+                
+                <!-- Series Visibility Checkbox Toggles -->
+                <div class="tv-straddle-toggles" style="display:flex;align-items:center;gap:12px;font-size:12px;">
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text);">
+                    <input type="checkbox" id="toggle-straddle-line" checked />
+                    <span style="color:#00e676;font-weight:700;">● Straddle (CE+PE)</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text);">
+                    <input type="checkbox" id="toggle-spot-line" checked />
+                    <span style="color:var(--text-bright);font-weight:700;" id="lbl-straddle-spot-toggle">● Spot</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text);">
+                    <input type="checkbox" id="toggle-synth-line" checked />
+                    <span style="color:#2979ff;font-weight:700;">╌ Synthetic Fut</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text);">
+                    <input type="checkbox" id="toggle-legs-line" />
+                    <span style="color:#ff9100;font-weight:700;">╌ CE / PE Legs</span>
+                  </label>
+                </div>
               </div>
-              <input type="range" class="tv-oi-slider" id="oi-time-range-slider" min="0" max="75" value="75" step="1" />
-            </div>
 
-            <!-- Time Preset Buttons -->
-            <div class="tv-oi-time-presets" id="oi-time-presets">
-              <button class="tv-oi-tp-btn" data-time="5m">Last 5 mins</button>
-              <button class="tv-oi-tp-btn" data-time="10m">Last 10 mins</button>
-              <button class="tv-oi-tp-btn" data-time="15m">Last 15 mins</button>
-              <button class="tv-oi-tp-btn" data-time="30m">Last 30 mins</button>
-              <button class="tv-oi-tp-btn" data-time="1h">Last 1 Hr</button>
-              <button class="tv-oi-tp-btn" data-time="2h">Last 2 Hrs</button>
-              <button class="tv-oi-tp-btn" data-time="3h">Last 3 Hrs</button>
-              <button class="tv-oi-tp-btn active" data-time="full">Full Day</button>
-            </div>
-
-            <!-- Summary Footer Card -->
-            <div class="tv-oi-summary-card">
-              <div class="tv-oi-sum-tag" id="oi-summary-date-tag">Change on Tue, 29 Sep</div>
-              <div class="tv-oi-sum-metrics">
-                <div class="metric"><span class="lbl">Call OI change:</span> <b class="val dn" id="oi-sum-call-chg">-3.85Cr</b></div>
-                <div class="metric"><span class="lbl">Put OI change:</span> <b class="val up" id="oi-sum-put-chg">+1.45Cr</b></div>
+              <!-- Key Straddle Metrics Ribbon -->
+              <div class="tv-straddle-metrics-grid">
+                <div class="tv-straddle-card">
+                  <span class="lbl">Straddle Premium</span>
+                  <b class="val highlight" id="straddle-val-ltp">₹213.75</b>
+                  <span class="sub" id="straddle-val-open">Open: ₹529.00</span>
+                </div>
+                <div class="tv-straddle-card">
+                  <span class="lbl">Total Theta Decay</span>
+                  <b class="val up" id="straddle-val-decay">-₹315.25 (-59.6%)</b>
+                  <span class="sub" id="straddle-val-decay-sub">From Day Open</span>
+                </div>
+                <div class="tv-straddle-card">
+                  <span class="lbl">ATM CE / PE Leg</span>
+                  <b class="val" id="straddle-val-legs" style="font-size:12.5px;"><span style="color:#00e5ff;" id="straddle-leg-ce">C: ₹138</span> | <span style="color:#ff9100;" id="straddle-leg-pe">P: ₹75</span></b>
+                  <span class="sub" id="straddle-val-pcr">PCR: 1.35</span>
+                </div>
+                <div class="tv-straddle-card">
+                  <span class="lbl">Synthetic Future</span>
+                  <b class="val" id="straddle-val-synth">22,562.25</b>
+                  <span class="sub" id="straddle-val-spot">Spot: 22,520.45</span>
+                </div>
+                <div class="tv-straddle-card">
+                  <span class="lbl">Breakeven Range</span>
+                  <b class="val" id="straddle-val-be" style="font-size:12px;">22,286 — 22,714</b>
+                  <span class="sub" id="straddle-val-range-sub">± ₹213.75 Breakeven</span>
+                </div>
               </div>
-              <div class="tv-oi-sum-prices">
-                <div class="price-row"><span class="lbl" id="oi-sum-sym-open-lbl">NIFTY at 9:15 AM:</span> <b id="oi-sum-open-price">22,780.25</b></div>
-                <div class="price-row"><span class="lbl" id="oi-sum-sym-close-lbl">NIFTY at 3:30 PM:</span> <b id="oi-sum-close-price">22,716.20</b></div>
+
+              <!-- Interactive Dual-Axis Straddle Canvas -->
+              <div class="tv-oi-canvas-wrapper" id="straddle-canvas-wrapper" style="flex:1;min-height:280px;position:relative;">
+                <canvas id="oi-straddle-canvas"></canvas>
+                <div class="tv-oi-tooltip" id="oi-straddle-tooltip" style="display:none;position:absolute;z-index:15;pointer-events:none;"></div>
+              </div>
+
+              <!-- Visual Breakeven Range Bar & Legend -->
+              <div class="tv-straddle-footer-bar">
+                <div class="tv-straddle-be-bar">
+                  <span class="be-lbl" id="straddle-lbl-lower-be">Lower BE: 22,286.25</span>
+                  <div class="be-progress-track">
+                    <div class="be-progress-fill" id="straddle-be-fill" style="width:50%;"></div>
+                    <div class="be-spot-pin" id="straddle-be-pin" style="left:50%;" title="Current Spot"></div>
+                  </div>
+                  <span class="be-lbl" id="straddle-lbl-upper-be">Upper BE: 22,713.75</span>
+                </div>
               </div>
             </div>
           </section>
@@ -979,6 +1061,6 @@
 
   </div>
 
-  <script type="module" src="js/zero-chart-app.js?v=2.7.3"></script>
+  <script type="module" src="js/zero-chart-app.js?v=2.7.4"></script>
 </body>
 </html>

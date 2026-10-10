@@ -6501,6 +6501,82 @@ class ZeroChartApp {
       });
     }
 
+    // 16. Straddle Canvas Interactive Crosshair & Tooltip
+    const stradCanvas = document.getElementById('oi-straddle-canvas');
+    const stradTooltip = document.getElementById('oi-straddle-tooltip');
+    if (stradCanvas) {
+      const handlePointerMove = (e) => {
+        if (!this._lastStraddleData?.series?.length) return;
+        const rect = stradCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        const padLeft = 68;
+        const padRight = 68;
+        const chartW = rect.width - padLeft - padRight;
+        if (x < padLeft || x > rect.width - padRight) {
+          if (stradTooltip) stradTooltip.style.display = 'none';
+          this._straddleHoverIdx = null;
+          this.drawStraddleCanvas(this._lastStraddleData);
+          return;
+        }
+
+        const series = this._lastStraddleData.series;
+        const fraction = (x - padLeft) / chartW;
+        const idx = Math.max(0, Math.min(series.length - 1, Math.round(fraction * (series.length - 1))));
+        this._straddleHoverIdx = idx;
+
+        const p = series[idx];
+        if (p && stradTooltip) {
+          const d = new Date(p.time * 1000);
+          const ist = new Date(d.getTime() + 5.5 * 3600 * 1000);
+          const hh = ist.getUTCHours().toString().padStart(2, '0');
+          const mm = ist.getUTCMinutes().toString().padStart(2, '0');
+          const ampm = ist.getUTCHours() >= 12 ? 'PM' : 'AM';
+          const timeStr = `${hh}:${mm} ${ampm}`;
+
+          stradTooltip.style.display = 'flex';
+          stradTooltip.style.left = `${Math.min(rect.width - 220, Math.max(10, x - 100))}px`;
+          stradTooltip.style.top = `${Math.max(10, Math.min(rect.height - 150, y - 70))}px`;
+          stradTooltip.innerHTML = `
+            <div class="title" style="font-weight:700;margin-bottom:3px;border-bottom:1px solid var(--border-subtle);padding-bottom:3px;">
+              ⏱️ ${timeStr} (IST) &bull; ATM ${p.atm_strike}
+            </div>
+            <div class="row"><span>🟢 Straddle Price:</span> <b style="color:#00e676;">₹${p.straddle.toFixed(2)}</b></div>
+            <div class="row"><span>🔹 ${p.atm_strike} Call:</span> <b style="color:#00e5ff;">₹${p.ce_price.toFixed(2)}</b></div>
+            <div class="row"><span>🔸 ${p.atm_strike} Put:</span> <b style="color:#ff9100;">₹${p.pe_price.toFixed(2)}</b></div>
+            <div class="row"><span>╌ Synthetic Fut:</span> <b style="color:#2979ff;">${p.synthetic_future.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+            <div class="row"><span>● Spot Price:</span> <b>${p.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+          `;
+          this.drawStraddleCanvas(this._lastStraddleData);
+        }
+      };
+
+      stradCanvas.addEventListener('mousemove', handlePointerMove);
+      stradCanvas.addEventListener('mouseleave', () => {
+        if (stradTooltip) stradTooltip.style.display = 'none';
+        this._straddleHoverIdx = null;
+        if (this._lastStraddleData) this.drawStraddleCanvas(this._lastStraddleData);
+      });
+      stradCanvas.addEventListener('touchmove', handlePointerMove, { passive: true });
+      stradCanvas.addEventListener('touchend', () => {
+        if (stradTooltip) stradTooltip.style.display = 'none';
+        this._straddleHoverIdx = null;
+      });
+    }
+
+    // 17. Straddle Series Visibility Checkboxes
+    ['toggle-straddle-line', 'toggle-spot-line', 'toggle-synth-line', 'toggle-legs-line'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.onchange = () => {
+          if (this._lastStraddleData) this.drawStraddleCanvas(this._lastStraddleData);
+        };
+      }
+    });
+
     // Auto resize canvas on window resize
     window.addEventListener('resize', () => {
       const modal = document.getElementById('oi-analytics-modal');
@@ -6920,6 +6996,18 @@ class ZeroChartApp {
     if (sumOpenLbl) sumOpenLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 9:15 AM:`;
     if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 3:40 PM:`;
 
+    const histView = document.getElementById('oi-histogram-view');
+    const straddleView = document.getElementById('oi-straddle-view');
+    if (this.oiActiveSubtab === 'straddle-decay') {
+      if (histView) histView.style.display = 'none';
+      if (straddleView) straddleView.style.display = 'flex';
+      await this.renderStraddleDashboard();
+      return;
+    } else {
+      if (histView) histView.style.display = 'flex';
+      if (straddleView) straddleView.style.display = 'none';
+    }
+
     // 7. Draw Canvas Histogram
     requestAnimationFrame(() => this.drawOIHistogramCanvas(data));
   }
@@ -7130,6 +7218,325 @@ class ZeroChartApp {
     }
   }
 
+  async renderStraddleDashboard() {
+    try {
+      const sym = this.oiActiveSymbol || 'NIFTY';
+      const exp = this.oiSelectedExpiry || '';
+      const resp = await fetch(`/api/market/straddle-data?symbol=${encodeURIComponent(sym)}&expiry=${encodeURIComponent(exp)}&interval=5m`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (!data || data.status !== 'success') throw new Error(data?.message || 'Straddle API error');
+
+      this._lastStraddleData = data;
+
+      // 1. Update Straddle Header & Badges
+      const titleEl = document.getElementById('straddle-chart-title');
+      const atmBadge = document.getElementById('straddle-atm-badge');
+      if (titleEl) titleEl.textContent = `${data.symbol} ATM Straddle & Premium Decay (${data.expiry})`;
+      if (atmBadge) atmBadge.textContent = `ATM ${data.atm_strike.toLocaleString()}`;
+
+      // 2. Metrics Ribbon
+      const valLtp = document.getElementById('straddle-val-ltp');
+      const valOpen = document.getElementById('straddle-val-open');
+      const valDecay = document.getElementById('straddle-val-decay');
+      const legCe = document.getElementById('straddle-leg-ce');
+      const legPe = document.getElementById('straddle-leg-pe');
+      const valPcr = document.getElementById('straddle-val-pcr');
+      const valSynth = document.getElementById('straddle-val-synth');
+      const valSpot = document.getElementById('straddle-val-spot');
+      const valBe = document.getElementById('straddle-val-be');
+      const rangeSub = document.getElementById('straddle-val-range-sub');
+
+      if (valLtp) valLtp.textContent = `₹${data.straddle.toFixed(2)}`;
+      if (valOpen) valOpen.textContent = `Open: ₹${data.open_straddle.toFixed(2)}`;
+      if (valDecay) {
+        const sign = data.decay_pts >= 0 ? '+' : '';
+        valDecay.textContent = `${sign}₹${data.decay_pts.toFixed(2)} (${sign}${data.decay_pct}%)`;
+        valDecay.className = `val ${data.decay_pts <= 0 ? 'up' : 'dn'}`;
+      }
+      if (legCe) legCe.textContent = `C: ₹${data.ce_price.toFixed(2)}`;
+      if (legPe) legPe.textContent = `P: ₹${data.pe_price.toFixed(2)}`;
+      if (valPcr) valPcr.textContent = `PCR: ${data.pcr.toFixed(2)} | DTE: ${data.dte}d`;
+      if (valSynth) valSynth.textContent = data.synthetic_future.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (valSpot) valSpot.textContent = `Spot: ${data.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (valBe) valBe.textContent = `${data.lower_breakeven.toLocaleString()} — ${data.upper_breakeven.toLocaleString()}`;
+      if (rangeSub) rangeSub.textContent = `± ₹${data.straddle.toFixed(2)} Breakeven`;
+
+      // 3. Breakeven Visual Progress Bar
+      const lblLower = document.getElementById('straddle-lbl-lower-be');
+      const lblUpper = document.getElementById('straddle-lbl-upper-be');
+      const pin = document.getElementById('straddle-be-pin');
+
+      if (lblLower) lblLower.textContent = `Lower BE: ${data.lower_breakeven.toLocaleString()}`;
+      if (lblUpper) lblUpper.textContent = `Upper BE: ${data.upper_breakeven.toLocaleString()}`;
+      if (pin && data.upper_breakeven > data.lower_breakeven) {
+        const range = data.upper_breakeven - data.lower_breakeven;
+        const pct = Math.max(0, Math.min(100, ((data.spot - data.lower_breakeven) / range) * 100));
+        pin.style.left = `${pct}%`;
+      }
+
+      // 4. Draw Canvas
+      requestAnimationFrame(() => this.drawStraddleCanvas(data));
+    } catch (err) {
+      console.warn('[Straddle Dashboard] Render error:', err);
+    }
+  }
+
+  drawStraddleCanvas(data) {
+    const canvas = document.getElementById('oi-straddle-canvas');
+    if (!canvas) return;
+
+    const wrapper = canvas.parentElement;
+    const width = wrapper.clientWidth || 900;
+    const height = wrapper.clientHeight || 360;
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+
+    const series = data.series;
+    if (!series || series.length === 0) return;
+
+    const isLight = document.body.classList.contains('theme-light');
+    const colorGrid = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.07)';
+    const colorAxis = isLight ? '#64748b' : '#94a3b8';
+    const colorSpot = isLight ? '#0f172a' : '#f8fafc';
+    const colorStraddle = '#00e676';
+    const colorSynth = '#2979ff';
+    const colorCe = '#00e5ff';
+    const colorPe = '#ff9100';
+
+    const showStraddle = document.getElementById('toggle-straddle-line')?.checked ?? true;
+    const showSpot = document.getElementById('toggle-spot-line')?.checked ?? true;
+    const showSynth = document.getElementById('toggle-synth-line')?.checked ?? true;
+    const showLegs = document.getElementById('toggle-legs-line')?.checked ?? false;
+
+    const padLeft = 68;
+    const padRight = 68;
+    const padTop = 24;
+    const padBottom = 28;
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
+
+    if (chartW <= 20 || chartH <= 20) return;
+
+    // Spot & Synthetic scale range (Left Axis)
+    let minSpot = Infinity;
+    let maxSpot = -Infinity;
+    series.forEach((p) => {
+      if (p.spot < minSpot) minSpot = p.spot;
+      if (p.spot > maxSpot) maxSpot = p.spot;
+      if (showSynth) {
+        if (p.synthetic_future < minSpot) minSpot = p.synthetic_future;
+        if (p.synthetic_future > maxSpot) maxSpot = p.synthetic_future;
+      }
+    });
+    const spotMargin = Math.max(10, (maxSpot - minSpot) * 0.08);
+    minSpot -= spotMargin;
+    maxSpot += spotMargin;
+    if (minSpot === maxSpot) { minSpot -= 10; maxSpot += 10; }
+
+    // Straddle & Legs scale range (Right Axis)
+    let minStrad = Infinity;
+    let maxStrad = -Infinity;
+    series.forEach((p) => {
+      if (p.straddle < minStrad) minStrad = p.straddle;
+      if (p.straddle > maxStrad) maxStrad = p.straddle;
+      if (showLegs) {
+        if (p.ce_price < minStrad) minStrad = p.ce_price;
+        if (p.pe_price < minStrad) minStrad = p.pe_price;
+        if (p.ce_price > maxStrad) maxStrad = p.ce_price;
+        if (p.pe_price > maxStrad) maxStrad = p.pe_price;
+      }
+    });
+    minStrad = Math.max(0, minStrad * 0.85);
+    maxStrad = maxStrad * 1.1;
+    if (minStrad >= maxStrad) maxStrad = minStrad + 50;
+
+    const getX = (idx) => padLeft + (idx / Math.max(1, series.length - 1)) * chartW;
+    const getYSpot = (val) => padTop + chartH - ((val - minSpot) / (maxSpot - minSpot)) * chartH;
+    const getYStrad = (val) => padTop + chartH - ((val - minStrad) / (maxStrad - minStrad)) * chartH;
+
+    // 1. Draw Grid Lines
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = colorGrid;
+    ctx.fillStyle = colorAxis;
+    ctx.font = '10px ui-monospace, SFMono-Regular, monospace';
+
+    const numRows = 5;
+    for (let r = 0; r <= numRows; r++) {
+      const y = padTop + (r / numRows) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(width - padRight, y);
+      ctx.stroke();
+
+      const spotVal = maxSpot - (r / numRows) * (maxSpot - minSpot);
+      ctx.textAlign = 'right';
+      ctx.fillText(spotVal.toFixed(0), padLeft - 6, y + 3.5);
+
+      const stradVal = maxStrad - (r / numRows) * (maxStrad - minStrad);
+      ctx.textAlign = 'left';
+      ctx.fillText(`₹${stradVal.toFixed(0)}`, width - padRight + 6, y + 3.5);
+    }
+
+    // Time ticks along X axis
+    const timeStep = Math.max(1, Math.floor(series.length / 5));
+    for (let i = 0; i < series.length; i += timeStep) {
+      const x = getX(i);
+      ctx.beginPath();
+      ctx.moveTo(x, padTop);
+      ctx.lineTo(x, height - padBottom);
+      ctx.stroke();
+
+      const p = series[i];
+      const d = new Date(p.time * 1000);
+      const ist = new Date(d.getTime() + 5.5 * 3600 * 1000);
+      const hh = ist.getUTCHours().toString().padStart(2, '0');
+      const mm = ist.getUTCMinutes().toString().padStart(2, '0');
+      ctx.textAlign = 'center';
+      ctx.fillText(`${hh}:${mm}`, x, height - padBottom + 16);
+    }
+
+    // 2. Draw Spot Curve
+    if (showSpot) {
+      ctx.save();
+      ctx.strokeStyle = colorSpot;
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      series.forEach((p, idx) => {
+        const x = getX(idx);
+        const y = getYSpot(p.spot);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3. Draw Synthetic Future (Dashed Royal Blue)
+    if (showSynth) {
+      ctx.save();
+      ctx.strokeStyle = colorSynth;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      series.forEach((p, idx) => {
+        const x = getX(idx);
+        const y = getYSpot(p.synthetic_future);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 4. Draw CE / PE Legs if enabled
+    if (showLegs) {
+      // CE Leg (Cyan)
+      ctx.save();
+      ctx.strokeStyle = colorCe;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      series.forEach((p, idx) => {
+        const x = getX(idx);
+        const y = getYStrad(p.ce_price);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // PE Leg (Orange)
+      ctx.strokeStyle = colorPe;
+      ctx.beginPath();
+      series.forEach((p, idx) => {
+        const x = getX(idx);
+        const y = getYStrad(p.pe_price);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 5. Draw Primary ATM Straddle Curve (Emerald Green with Gradient Fill)
+    if (showStraddle) {
+      ctx.save();
+      const grad = ctx.createLinearGradient(0, padTop, 0, height - padBottom);
+      grad.addColorStop(0, 'rgba(0, 230, 118, 0.22)');
+      grad.addColorStop(1, 'rgba(0, 230, 118, 0.01)');
+
+      ctx.beginPath();
+      series.forEach((p, idx) => {
+        const x = getX(idx);
+        const y = getYStrad(p.straddle);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.lineTo(getX(series.length - 1), height - padBottom);
+      ctx.lineTo(getX(0), height - padBottom);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Straddle Line stroke
+      ctx.strokeStyle = colorStraddle;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      series.forEach((p, idx) => {
+        const x = getX(idx);
+        const y = getYStrad(p.straddle);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 6. Draw Crosshair Hover Indicator if active
+    if (this._straddleHoverIdx !== undefined && this._straddleHoverIdx !== null && series[this._straddleHoverIdx]) {
+      const idx = this._straddleHoverIdx;
+      const p = series[idx];
+      const hX = getX(idx);
+
+      ctx.save();
+      ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(hX, padTop);
+      ctx.lineTo(hX, height - padBottom);
+      ctx.stroke();
+
+      // Draw dot on Straddle
+      if (showStraddle) {
+        ctx.fillStyle = colorStraddle;
+        ctx.beginPath();
+        ctx.arc(hX, getYStrad(p.straddle), 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Draw dot on Spot
+      if (showSpot) {
+        ctx.fillStyle = colorSpot;
+        ctx.beginPath();
+        ctx.arc(hX, getYSpot(p.spot), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Draw dot on Synthetic
+      if (showSynth) {
+        ctx.fillStyle = colorSynth;
+        ctx.beginPath();
+        ctx.arc(hX, getYSpot(p.synthetic_future), 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
   loadOISidebarPanel() {
     const container = document.getElementById('oi-sidebar-body');
     if (!container) return;
@@ -7180,15 +7587,27 @@ class ZeroChartApp {
         </div>
       </div>
 
-      <!-- 4. Launch Full Analytics Dashboard Button -->
+      <!-- 4. Launch Full Analytics Dashboard Buttons -->
       <button class="tv-inst-plot-btn" id="btn-sb-launch-oi-full" style="width:100%;margin-top:6px;">
         <span>📊 Open Full OI Dashboard (Expanded)</span>
+      </button>
+      <button class="tv-inst-plot-btn" id="btn-sb-launch-straddle" style="width:100%;margin-top:6px;background:rgba(0,230,118,0.12);border-color:#00e676;color:#00e676;">
+        <span>📉 ATM Straddle Chart & Premium Decay</span>
       </button>
     `;
 
     const btnLaunch = document.getElementById('btn-sb-launch-oi-full');
     if (btnLaunch) {
       btnLaunch.onclick = () => this.openOIDashboard();
+    }
+    const btnStraddle = document.getElementById('btn-sb-launch-straddle');
+    if (btnStraddle) {
+      btnStraddle.onclick = () => {
+        this.oiActiveSubtab = 'straddle-decay';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'straddle-decay'));
+        this.openOIDashboard();
+      };
     }
   }
 }
