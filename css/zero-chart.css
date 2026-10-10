@@ -89,6 +89,13 @@ html, body {
   border-bottom: 1px solid var(--border);
   z-index: 100;
   height: 36px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tv-topbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* ─── ZERO CHART PRO BRANDING & LOGO ─── */
@@ -283,11 +290,31 @@ html, body {
   font-weight: 700;
 }
 
+@media (max-width: 1440px) {
+  #btn-open-templates span,
+  #btn-toggle-replay span {
+    display: none;
+  }
+  .tv-top-btn {
+    padding: 3px 5px;
+    gap: 4px;
+    font-size: 11.5px;
+  }
+  .tv-tf-btn {
+    padding: 3px 4px;
+    font-size: 11px;
+  }
+  #active-layout-title {
+    max-width: 75px !important;
+  }
+}
+
 .tv-topbar-right {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
 }
 
 .tv-broker-status {
@@ -4456,6 +4483,34 @@ html, body {
   box-shadow: 0 0 10px rgba(41, 182, 246, 0.3);
 }
 
+/* Dedicated Topbar Straddle Button */
+.tv-top-btn--straddle {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.18) 0%, rgba(245, 124, 0, 0.14) 100%) !important;
+  border: 1px solid rgba(255, 152, 0, 0.4) !important;
+  color: #ff9800 !important;
+  gap: 6px !important;
+  font-weight: 700 !important;
+}
+
+.tv-top-btn--straddle:hover {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.28) 0%, rgba(245, 124, 0, 0.22) 100%) !important;
+  border-color: #ffb74d !important;
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.35);
+}
+
+body.light-theme .tv-top-btn--straddle {
+  background: rgba(255, 152, 0, 0.12) !important;
+  border-color: rgba(230, 81, 0, 0.4) !important;
+  color: #e65100 !important;
+}
+
+/* Hide Objects button and Live badges per user request */
+#btn-open-objects,
+.tv-oi-badge-live,
+#broker-status-badge {
+  display: none !important;
+}
+
 .tv-oi-badge-live {
   font-size: 8.5px;
   font-weight: 800;
@@ -4722,6 +4777,150 @@ html, body {
   border-radius: 3px;
   background: rgba(41, 98, 255, 0.18);
   color: #29b6f6;
+}
+
+/* Split row for Expiries and ATM Straddle Card */
+.tv-oi-panel-row-split {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tv-oi-section--expiries {
+  min-width: 0;
+}
+
+/* ATM Straddle Quick Price Card */
+.tv-oi-mob-straddle-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 7px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.tv-oi-mob-straddle-card:hover {
+  border-color: #ff9800;
+  background: rgba(255, 152, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.tv-oi-mob-straddle-card:active {
+  transform: translateY(0);
+}
+
+.tv-mob-straddle-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tv-mob-straddle-title-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #ff9800;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tv-mob-straddle-strike-pill {
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--mono);
+  background: rgba(255, 152, 0, 0.15);
+  color: #ff9800;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.tv-mob-straddle-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 1px 0;
+}
+
+.tv-mob-straddle-price-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.tv-mob-straddle-cur {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.tv-mob-straddle-price {
+  font-size: 19px;
+  font-weight: 800;
+  font-family: var(--mono);
+  color: var(--text-bright);
+  line-height: 1.1;
+  letter-spacing: -0.2px;
+}
+
+.tv-mob-straddle-decay {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-muted);
+}
+
+.tv-mob-straddle-decay.decay {
+  color: #00e676;
+}
+
+.tv-mob-straddle-decay.gain {
+  color: #ff5252;
+}
+
+.tv-mob-straddle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 8px;
+  background: #ff9800;
+  color: #000000;
+  font-weight: 700;
+  font-size: 11px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+  width: 100%;
+}
+
+.tv-mob-straddle-btn:hover {
+  opacity: 0.9;
+}
+
+body.light-theme .tv-mob-straddle-btn {
+  background: #f57c00;
+  color: #ffffff;
+}
+
+body.light-theme .tv-mob-straddle-title-group {
+  color: #e65100;
+}
+
+body.light-theme .tv-mob-straddle-strike-pill {
+  background: rgba(230, 81, 0, 0.12);
+  color: #e65100;
 }
 
 .tv-oi-link-btn {
@@ -5195,7 +5394,23 @@ html, body {
   .tv-oi-left-panel {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 220px;
+    max-height: 250px;
+    padding: 10px 12px;
+  }
+
+  .tv-oi-panel-row-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .tv-oi-section--expiries {
+    min-width: 0;
+  }
+
+  .tv-oi-expiries-list {
+    max-height: 125px;
   }
 
   .tv-oi-summary-card {

@@ -80,12 +80,6 @@
         <span>Templates</span>
       </button>
 
-      <!-- Object Tree / Active Indicators Manager -->
-      <button class="tv-top-btn" id="btn-open-objects" title="Object Tree & Active Indicators">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6M9 16h6"/></svg>
-        <span>Objects</span>
-      </button>
-
       <!-- Alert Button (Create & Manage Price Alerts) -->
       <button class="tv-top-btn tv-top-btn--alert" id="btn-open-alert" title="Create Alert (Alt+A)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -129,20 +123,19 @@
         </button>
       </div>
 
-      <!-- Dedicated Option OI Analytics Topbar Trigger -->
-      <button class="tv-top-btn tv-top-btn--oi" id="btn-open-oi-dashboard" title="Open Interest (OI) & Option Analytics Suite">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 20h18"/></svg>
-        <span style="font-weight:700;">Option OI</span>
-        <span class="tv-oi-badge-live">LIVE</span>
-      </button>
-
       <!-- Top Right Header Area -->
       <div class="tv-topbar-right">
-        <!-- Live Real-Time Feed Status Indicator -->
-        <div class="tv-broker-status live" id="broker-status-badge" title="Live Market Feed Active">
-          <span class="tv-live-pulse-dot"></span>
-          <span id="broker-status-text" style="letter-spacing:0.5px;font-size:11px;">LIVE</span>
-        </div>
+        <!-- Dedicated Option OI Analytics Topbar Trigger -->
+        <button class="tv-top-btn tv-top-btn--oi" id="btn-open-oi-dashboard" title="Open Interest (OI) & Option Analytics Suite">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 20h18"/></svg>
+          <span style="font-weight:700;">Option OI</span>
+        </button>
+
+        <!-- Dedicated ATM Straddle Chart Topbar Trigger -->
+        <button class="tv-top-btn tv-top-btn--straddle" id="btn-topbar-straddle" title="ATM Straddle Chart & Premium Decay">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M19 9l-5 5-4-4-3 3"/><circle cx="19" cy="9" r="2"/></svg>
+          <span style="font-weight:700;">Straddle</span>
+        </button>
 
         <!-- PWA Install App Button -->
         <button class="tv-top-btn tv-top-btn--install" id="btn-install-pwa" title="Install Zero Chart as App" style="display:none;">
@@ -821,11 +814,35 @@
               </label>
             </div>
 
-            <!-- Expiries Checkboxes List -->
-            <div class="tv-oi-section">
-              <div class="tv-oi-section-head">Expiries Included</div>
-              <div class="tv-oi-expiries-list" id="oi-expiries-list">
-                <!-- Dynamically generated expiries -->
+            <!-- Expiries & ATM Straddle Split Row (Mobile 2-column, Desktop stacked) -->
+            <div class="tv-oi-panel-row-split">
+              <!-- Expiries Checkboxes List -->
+              <div class="tv-oi-section tv-oi-section--expiries">
+                <div class="tv-oi-section-head">Expiries Included</div>
+                <div class="tv-oi-expiries-list" id="oi-expiries-list">
+                  <!-- Dynamically generated expiries -->
+                </div>
+              </div>
+
+              <!-- ATM Straddle Price Card & Action Button -->
+              <div class="tv-oi-mob-straddle-card" id="btn-mob-open-straddle" role="button" tabindex="0" title="Click to open ATM Straddle Chart">
+                <div class="tv-mob-straddle-top">
+                  <div class="tv-mob-straddle-title-group">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M19 9l-5 5-4-4-3 3"/></svg>
+                    <span class="tv-mob-straddle-heading">ATM Straddle</span>
+                  </div>
+                  <span class="tv-mob-straddle-strike-pill" id="mob-straddle-pill-atm">ATM --</span>
+                </div>
+                <div class="tv-mob-straddle-metric">
+                  <div class="tv-mob-straddle-price-wrap">
+                    <span class="tv-mob-straddle-price" id="mob-straddle-val-price">--</span>
+                  </div>
+                  <div class="tv-mob-straddle-decay" id="mob-straddle-val-decay">--</div>
+                </div>
+                <button type="button" class="tv-mob-straddle-btn" id="btn-mob-straddle-view">
+                  <span>Straddle Chart</span>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
               </div>
             </div>
 

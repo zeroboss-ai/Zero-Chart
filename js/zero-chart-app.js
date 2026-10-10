@@ -6221,10 +6221,48 @@ class ZeroChartApp {
   // ═══════════════════════════════════════════════════════════════
 
   initOIAnalytics() {
-    // 1. Topbar Trigger
+    // 1. Topbar Option OI Trigger
     const btnOpenTop = document.getElementById('btn-open-oi-dashboard');
     if (btnOpenTop) {
-      btnOpenTop.onclick = () => this.openOIDashboard();
+      btnOpenTop.onclick = () => {
+        this.oiActiveSubtab = 'oi-change';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'oi-change'));
+        this.openOIDashboard();
+      };
+    }
+
+    // 1b. Dedicated Topbar Straddle Trigger
+    const btnTopStraddle = document.getElementById('btn-topbar-straddle');
+    if (btnTopStraddle) {
+      btnTopStraddle.onclick = () => {
+        this.oiActiveSubtab = 'straddle-decay';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'straddle-decay'));
+        this.openOIDashboard();
+      };
+    }
+
+    // 1c. Mobile & Left-Panel ATM Straddle Price Card Triggers
+    const btnMobStraddle = document.getElementById('btn-mob-open-straddle');
+    if (btnMobStraddle) {
+      btnMobStraddle.onclick = () => {
+        this.oiActiveSubtab = 'straddle-decay';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'straddle-decay'));
+        this.renderOIDashboard();
+      };
+    }
+
+    const btnMobView = document.getElementById('btn-mob-straddle-view');
+    if (btnMobView) {
+      btnMobView.onclick = (e) => {
+        e.stopPropagation();
+        this.oiActiveSubtab = 'straddle-decay';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'straddle-decay'));
+        this.renderOIDashboard();
+      };
     }
 
     // 2. Fullscreen Expand from Sidebar
@@ -6969,6 +7007,9 @@ class ZeroChartApp {
     if (minValEl) minValEl.textContent = data.minStrike.toLocaleString();
     if (maxValEl) maxValEl.textContent = data.maxStrike.toLocaleString();
 
+    // Update Mobile & Left-Panel ATM Straddle Quick Card
+    this.updateMobileStraddleCard(data);
+
     // 3. Dynamic Expiries List with Real Exchange Expiries
     const expiriesContainer = document.getElementById('oi-expiries-list');
     if (expiriesContainer) {
@@ -7323,6 +7364,18 @@ class ZeroChartApp {
       }
       if (valSpot) valSpot.textContent = data.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+      // Mobile & Left-Panel Straddle Card Sync
+      const mobAtmPill = document.getElementById('mob-straddle-pill-atm');
+      const mobPriceEl = document.getElementById('mob-straddle-val-price');
+      const mobDecayEl = document.getElementById('mob-straddle-val-decay');
+      if (mobAtmPill) mobAtmPill.textContent = `ATM ${data.atm_strike.toLocaleString()}`;
+      if (mobPriceEl) mobPriceEl.textContent = `₹${data.straddle.toFixed(2)}`;
+      if (mobDecayEl) {
+        const sign = data.decay_pts >= 0 ? '+' : '';
+        mobDecayEl.textContent = `${sign}₹${data.decay_pts.toFixed(2)} (${sign}${data.decay_pct}%)`;
+        mobDecayEl.className = `tv-mob-straddle-decay ${data.decay_pts <= 0 ? 'decay' : 'gain'}`;
+      }
+
       // 4. Dedicated Straddle Strikes Table Matching Image 2
       const tableBody = document.getElementById('straddle-table-body');
       const beRange = document.getElementById('straddle-table-be-range');
@@ -7372,6 +7425,56 @@ class ZeroChartApp {
     } catch (err) {
       console.warn('[Straddle Dashboard] Render error:', err);
     }
+  }
+
+  updateMobileStraddleCard(data) {
+    if (!data) return;
+    const atmPill = document.getElementById('mob-straddle-pill-atm');
+    const priceEl = document.getElementById('mob-straddle-val-price');
+    const decayEl = document.getElementById('mob-straddle-val-decay');
+    if (!priceEl) return;
+
+    // 1. Find ATM strike row from current chain
+    let atmRow = null;
+    if (data.strikeRows && data.strikeRows.length > 0) {
+      atmRow = data.strikeRows.find((r) => r.isATM);
+      if (!atmRow) {
+        let minD = Infinity;
+        data.strikeRows.forEach((r) => {
+          const d = Math.abs(r.strike - data.spot);
+          if (d < minD) { minD = d; atmRow = r; }
+        });
+      }
+    }
+
+    const atmStrike = atmRow ? atmRow.strike : Math.round(data.spot / 50) * 50;
+    if (atmPill) atmPill.textContent = `ATM ${atmStrike.toLocaleString()}`;
+
+    if (atmRow && (atmRow.callLtp != null || atmRow.putLtp != null)) {
+      const callLtp = Number(atmRow.callLtp) || 0;
+      const putLtp = Number(atmRow.putLtp) || 0;
+      const combPrice = +(callLtp + putLtp).toFixed(2);
+      priceEl.textContent = `₹${combPrice.toFixed(2)}`;
+    }
+
+    // 2. Query live straddle API for accurate intraday decay and metrics
+    const sym = this.oiActiveSymbol || 'NIFTY';
+    const exp = this.oiSelectedExpiry || '';
+    fetch(`/api/market/straddle-data?symbol=${encodeURIComponent(sym)}&expiry=${encodeURIComponent(exp)}&strike=${encodeURIComponent(atmStrike)}&interval=5m`)
+      .then((r) => r.json())
+      .then((sData) => {
+        if (sData && sData.status === 'success') {
+          this._lastStraddleData = sData;
+          if (priceEl) priceEl.textContent = `₹${sData.straddle.toFixed(2)}`;
+          if (atmPill) atmPill.textContent = `ATM ${sData.atm_strike.toLocaleString()}`;
+          if (decayEl) {
+            const sign = sData.decay_pts >= 0 ? '+' : '';
+            decayEl.textContent = `${sign}₹${sData.decay_pts.toFixed(2)} (${sign}${sData.decay_pct}%)`;
+            decayEl.className = `tv-mob-straddle-decay ${sData.decay_pts <= 0 ? 'decay' : 'gain'}`;
+          }
+        }
+      })
+      .catch(() => {});
   }
 
   drawStraddleCanvas(data) {
