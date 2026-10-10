@@ -2763,6 +2763,18 @@ async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikePara
     expiry: oiData.expiry,
     availableExpiries: oiData.availableExpiries || [],
     availableStrikes: (oiData.strikeRows || []).map((r) => r.strike),
+    nearbyStrikes: (() => {
+      const idx = (oiData.strikeRows || []).findIndex((r) => r.strike === atmStrike);
+      const s = Math.max(0, (idx >= 0 ? idx : 0) - 3);
+      const e = Math.min((oiData.strikeRows || []).length, (idx >= 0 ? idx : 0) + 4);
+      return (oiData.strikeRows || []).slice(s, e).map((r) => ({
+        strike: r.strike,
+        callLtp: +r.callLtp.toFixed(2),
+        putLtp: +r.putLtp.toFixed(2),
+        straddle: +(r.callLtp + r.putLtp).toFixed(2),
+        isATM: r.strike === atmStrike,
+      }));
+    })(),
     pcr: oiData.pcr || 1.0,
     indiaVIX: oiData.indiaVIX || 13.0,
     dte,

@@ -6513,8 +6513,8 @@ class ZeroChartApp {
         const x = clientX - rect.left;
         const y = clientY - rect.top;
 
-        const padLeft = 68;
-        const padRight = 68;
+        const padLeft = 70;
+        const padRight = 72;
         const chartW = rect.width - padLeft - padRight;
         if (x < padLeft || x > rect.width - padRight) {
           if (stradTooltip) stradTooltip.style.display = 'none';
@@ -6538,17 +6538,24 @@ class ZeroChartApp {
           const timeStr = `${hh}:${mm} ${ampm}`;
 
           stradTooltip.style.display = 'flex';
-          stradTooltip.style.left = `${Math.min(rect.width - 220, Math.max(10, x - 100))}px`;
-          stradTooltip.style.top = `${Math.max(10, Math.min(rect.height - 150, y - 70))}px`;
+          const tooltipW = 215;
+          // Flip tooltip to the left if hovering on right half so it never covers the right price axis or badge
+          let tipLeft = x + 16;
+          if (x > rect.width * 0.52) {
+            tipLeft = x - tooltipW - 16;
+          }
+          tipLeft = Math.max(10, Math.min(rect.width - tooltipW - 10, tipLeft));
+          stradTooltip.style.left = `${tipLeft}px`;
+          stradTooltip.style.top = `${Math.max(10, Math.min(rect.height - 150, y - 60))}px`;
           stradTooltip.innerHTML = `
             <div class="title" style="font-weight:700;margin-bottom:3px;border-bottom:1px solid var(--border-subtle);padding-bottom:3px;">
-              ⏱️ ${timeStr} (IST) &bull; ATM ${p.atm_strike}
+              ⏱️ ${timeStr} &bull; ATM ${p.atm_strike}
             </div>
-            <div class="row"><span>🟢 Straddle Price:</span> <b style="color:#00e676;">₹${p.straddle.toFixed(2)}</b></div>
-            <div class="row"><span>🔹 ${p.atm_strike} Call:</span> <b style="color:#00e5ff;">₹${p.ce_price.toFixed(2)}</b></div>
-            <div class="row"><span>🔸 ${p.atm_strike} Put:</span> <b style="color:#ff9100;">₹${p.pe_price.toFixed(2)}</b></div>
-            <div class="row"><span>╌ Synthetic Fut:</span> <b style="color:#2979ff;">${p.synthetic_future.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
-            <div class="row"><span>● Spot Price:</span> <b>${p.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+            <div class="row"><span>Net Premium:</span> <b style="color:#2563eb;font-size:12.5px;">₹${p.straddle.toFixed(2)}</b></div>
+            <div class="row"><span>Call LTP:</span> <b style="color:#10b981;">₹${p.ce_price.toFixed(2)}</b></div>
+            <div class="row"><span>Put LTP:</span> <b style="color:#f59e0b;">₹${p.pe_price.toFixed(2)}</b></div>
+            <div class="row"><span>Fair Price:</span> <b style="color:#0284c7;">${p.synthetic_future.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+            <div class="row"><span>Spot Price:</span> <b>${p.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
           `;
           this.drawStraddleCanvas(this._lastStraddleData);
         }
@@ -6565,6 +6572,24 @@ class ZeroChartApp {
         if (stradTooltip) stradTooltip.style.display = 'none';
         this._straddleHoverIdx = null;
       });
+    }
+
+    // 16b. Straddle Symbol and Expiry Dropdown Listeners
+    const stradSymSelect = document.getElementById('straddle-select-symbol');
+    if (stradSymSelect) {
+      stradSymSelect.onchange = (e) => {
+        this.oiActiveSymbol = e.target.value;
+        this.oiSelectedExpiry = '';
+        this.straddleSelectedStrike = null;
+        this.renderStraddleDashboard();
+      };
+    }
+    const stradExpSelect = document.getElementById('straddle-select-expiry');
+    if (stradExpSelect) {
+      stradExpSelect.onchange = (e) => {
+        this.oiSelectedExpiry = e.target.value;
+        this.renderStraddleDashboard();
+      };
     }
 
     // 17. Straddle Series Visibility Checkboxes
@@ -7222,30 +7247,57 @@ class ZeroChartApp {
     try {
       const sym = this.oiActiveSymbol || 'NIFTY';
       const exp = this.oiSelectedExpiry || '';
-      const resp = await fetch(`/api/market/straddle-data?symbol=${encodeURIComponent(sym)}&expiry=${encodeURIComponent(exp)}&interval=5m`);
+      const stParam = this.straddleSelectedStrike ? `&strike=${encodeURIComponent(this.straddleSelectedStrike)}` : '';
+      const resp = await fetch(`/api/market/straddle-data?symbol=${encodeURIComponent(sym)}&expiry=${encodeURIComponent(exp)}${stParam}&interval=5m`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       if (!data || data.status !== 'success') throw new Error(data?.message || 'Straddle API error');
 
       this._lastStraddleData = data;
 
-      // 1. Update Straddle Header & Badges
+      // 1. Sync & Populate Dropdowns
+      const symSelect = document.getElementById('straddle-select-symbol');
+      if (symSelect && symSelect.value !== data.symbol) {
+        symSelect.value = data.symbol;
+      }
+
+      const expSelect = document.getElementById('straddle-select-expiry');
+      if (expSelect && data.availableExpiries && data.availableExpiries.length > 0) {
+        expSelect.innerHTML = data.availableExpiries.map((expVal) => {
+          let label = expVal;
+          try {
+            const d = new Date(expVal);
+            if (!isNaN(d.getTime())) {
+              label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' });
+            }
+          } catch (_) {}
+          const sel = (expVal === data.expiry) ? 'selected' : '';
+          return `<option value="${expVal}" ${sel}>${label}</option>`;
+        }).join('');
+      }
+
+      // 2. Centered Title Header Matching Image 2
       const titleEl = document.getElementById('straddle-chart-title');
+      const subtitleEl = document.getElementById('straddle-chart-subtitle');
       const atmBadge = document.getElementById('straddle-atm-badge');
-      if (titleEl) titleEl.textContent = `${data.symbol} ATM Straddle & Premium Decay (${data.expiry})`;
+      if (titleEl) titleEl.textContent = 'ATM Premiums';
+      if (subtitleEl) {
+        const ts = data.timestamp ? new Date(data.timestamp) : new Date();
+        const dd = String(ts.getDate()).padStart(2, '0');
+        const mm = String(ts.getMonth() + 1).padStart(2, '0');
+        const yyyy = ts.getFullYear();
+        const hh = String(ts.getHours()).padStart(2, '0');
+        const min = String(ts.getMinutes()).padStart(2, '0');
+        const ss = String(ts.getSeconds()).padStart(2, '0');
+        subtitleEl.textContent = `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss}`;
+      }
       if (atmBadge) atmBadge.textContent = `ATM ${data.atm_strike.toLocaleString()}`;
 
-      // 2. Metrics Ribbon
+      // 3. Top Metrics Summary
       const valLtp = document.getElementById('straddle-val-ltp');
       const valOpen = document.getElementById('straddle-val-open');
       const valDecay = document.getElementById('straddle-val-decay');
-      const legCe = document.getElementById('straddle-leg-ce');
-      const legPe = document.getElementById('straddle-leg-pe');
-      const valPcr = document.getElementById('straddle-val-pcr');
-      const valSynth = document.getElementById('straddle-val-synth');
       const valSpot = document.getElementById('straddle-val-spot');
-      const valBe = document.getElementById('straddle-val-be');
-      const rangeSub = document.getElementById('straddle-val-range-sub');
 
       if (valLtp) valLtp.textContent = `₹${data.straddle.toFixed(2)}`;
       if (valOpen) valOpen.textContent = `Open: ₹${data.open_straddle.toFixed(2)}`;
@@ -7254,15 +7306,40 @@ class ZeroChartApp {
         valDecay.textContent = `${sign}₹${data.decay_pts.toFixed(2)} (${sign}${data.decay_pct}%)`;
         valDecay.className = `val ${data.decay_pts <= 0 ? 'up' : 'dn'}`;
       }
-      if (legCe) legCe.textContent = `C: ₹${data.ce_price.toFixed(2)}`;
-      if (legPe) legPe.textContent = `P: ₹${data.pe_price.toFixed(2)}`;
-      if (valPcr) valPcr.textContent = `PCR: ${data.pcr.toFixed(2)} | DTE: ${data.dte}d`;
-      if (valSynth) valSynth.textContent = data.synthetic_future.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      if (valSpot) valSpot.textContent = `Spot: ${data.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      if (valBe) valBe.textContent = `${data.lower_breakeven.toLocaleString()} — ${data.upper_breakeven.toLocaleString()}`;
-      if (rangeSub) rangeSub.textContent = `± ₹${data.straddle.toFixed(2)} Breakeven`;
+      if (valSpot) valSpot.textContent = data.spot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-      // 3. Breakeven Visual Progress Bar
+      // 4. Dedicated Straddle Strikes Table Matching Image 2
+      const tableBody = document.getElementById('straddle-table-body');
+      const beRange = document.getElementById('straddle-table-be-range');
+      if (beRange) beRange.textContent = `±₹${data.straddle.toFixed(2)} Range`;
+
+      if (tableBody && data.nearbyStrikes && data.nearbyStrikes.length > 0) {
+        tableBody.innerHTML = data.nearbyStrikes.map((r) => {
+          const isAtm = r.strike === data.atm_strike;
+          const isSelected = this.straddleSelectedStrike && Math.abs(r.strike - parseFloat(this.straddleSelectedStrike)) < 1;
+          const classes = [isAtm ? 'is-atm' : '', isSelected ? 'is-selected' : ''].filter(Boolean).join(' ');
+          return `
+            <tr class="${classes}" data-strike="${r.strike}">
+              <td style="text-align:right;">${r.callLtp.toFixed(2)}</td>
+              <td style="text-align:center;" class="strike-cell">${r.strike.toLocaleString()}</td>
+              <td style="text-align:right;">${r.putLtp.toFixed(2)}</td>
+              <td style="text-align:right;font-weight:700;">${r.straddle.toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        tableBody.querySelectorAll('tr').forEach((tr) => {
+          tr.onclick = () => {
+            const st = tr.getAttribute('data-strike');
+            if (st) {
+              this.straddleSelectedStrike = st;
+              this.renderStraddleDashboard();
+            }
+          };
+        });
+      }
+
+      // 5. Mini Breakeven Bar
       const lblLower = document.getElementById('straddle-lbl-lower-be');
       const lblUpper = document.getElementById('straddle-lbl-upper-be');
       const pin = document.getElementById('straddle-be-pin');
@@ -7275,7 +7352,7 @@ class ZeroChartApp {
         pin.style.left = `${pct}%`;
       }
 
-      // 4. Draw Canvas
+      // 6. Draw Canvas
       requestAnimationFrame(() => this.drawStraddleCanvas(data));
     } catch (err) {
       console.warn('[Straddle Dashboard] Render error:', err);
@@ -7300,28 +7377,38 @@ class ZeroChartApp {
     const series = data.series;
     if (!series || series.length === 0) return;
 
-    const isLight = document.body.classList.contains('theme-light');
+    const isLight = document.body.classList.contains('theme-light') || !document.body.classList.contains('theme-dark');
     const colorGrid = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.07)';
     const colorAxis = isLight ? '#64748b' : '#94a3b8';
-    const colorSpot = isLight ? '#0f172a' : '#f8fafc';
-    const colorStraddle = '#00e676';
-    const colorSynth = '#2979ff';
-    const colorCe = '#00e5ff';
-    const colorPe = '#ff9100';
+    const colorSpot = isLight ? '#334155' : '#cbd5e1';
+    const colorStraddle = '#2563eb'; // Royal Blue matching Image 2 reference design
+    const colorSynth = '#0284c7';
+    const colorCe = '#10b981';
+    const colorPe = '#f59e0b';
 
     const showStraddle = document.getElementById('toggle-straddle-line')?.checked ?? true;
     const showSpot = document.getElementById('toggle-spot-line')?.checked ?? true;
     const showSynth = document.getElementById('toggle-synth-line')?.checked ?? true;
     const showLegs = document.getElementById('toggle-legs-line')?.checked ?? false;
 
-    const padLeft = 68;
-    const padRight = 68;
-    const padTop = 24;
-    const padBottom = 28;
+    const padLeft = 70;
+    const padRight = 72;
+    const padTop = 32;
+    const padBottom = 30;
     const chartW = width - padLeft - padRight;
     const chartH = height - padTop - padBottom;
 
     if (chartW <= 20 || chartH <= 20) return;
+
+    // Axis Header Labels matching Image 2 reference design
+    ctx.save();
+    ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = isLight ? '#64748b' : '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText('Spot price', padLeft - 6, padTop - 12);
+    ctx.textAlign = 'right';
+    ctx.fillText('Net premium', width - padRight + 6, padTop - 12);
+    ctx.restore();
 
     // Spot & Synthetic scale range (Left Axis)
     let minSpot = Infinity;
@@ -7380,7 +7467,7 @@ class ZeroChartApp {
 
       const stradVal = maxStrad - (r / numRows) * (maxStrad - minStrad);
       ctx.textAlign = 'left';
-      ctx.fillText(`₹${stradVal.toFixed(0)}`, width - padRight + 6, y + 3.5);
+      ctx.fillText(stradVal.toFixed(0), width - padRight + 6, y + 3.5);
     }
 
     // Time ticks along X axis
@@ -7405,7 +7492,7 @@ class ZeroChartApp {
     if (showSpot) {
       ctx.save();
       ctx.strokeStyle = colorSpot;
-      ctx.lineWidth = 2.0;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
       series.forEach((p, idx) => {
         const x = getX(idx);
@@ -7417,7 +7504,7 @@ class ZeroChartApp {
       ctx.restore();
     }
 
-    // 3. Draw Synthetic Future (Dashed Royal Blue)
+    // 3. Draw Synthetic Future (Dashed Cyan/Sky Blue)
     if (showSynth) {
       ctx.save();
       ctx.strokeStyle = colorSynth;
@@ -7436,7 +7523,7 @@ class ZeroChartApp {
 
     // 4. Draw CE / PE Legs if enabled
     if (showLegs) {
-      // CE Leg (Cyan)
+      // CE Leg
       ctx.save();
       ctx.strokeStyle = colorCe;
       ctx.lineWidth = 1.2;
@@ -7450,7 +7537,7 @@ class ZeroChartApp {
       });
       ctx.stroke();
 
-      // PE Leg (Orange)
+      // PE Leg
       ctx.strokeStyle = colorPe;
       ctx.beginPath();
       series.forEach((p, idx) => {
@@ -7463,12 +7550,12 @@ class ZeroChartApp {
       ctx.restore();
     }
 
-    // 5. Draw Primary ATM Straddle Curve (Emerald Green with Gradient Fill)
+    // 5. Draw Primary ATM Straddle Curve (Royal Blue with subtle gradient)
     if (showStraddle) {
       ctx.save();
       const grad = ctx.createLinearGradient(0, padTop, 0, height - padBottom);
-      grad.addColorStop(0, 'rgba(0, 230, 118, 0.22)');
-      grad.addColorStop(1, 'rgba(0, 230, 118, 0.01)');
+      grad.addColorStop(0, 'rgba(37, 99, 235, 0.12)');
+      grad.addColorStop(1, 'rgba(37, 99, 235, 0.00)');
 
       ctx.beginPath();
       series.forEach((p, idx) => {
@@ -7483,9 +7570,11 @@ class ZeroChartApp {
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Straddle Line stroke
+      // Blue stroke line
       ctx.strokeStyle = colorStraddle;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.4;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
       ctx.beginPath();
       series.forEach((p, idx) => {
         const x = getX(idx);
@@ -7495,6 +7584,34 @@ class ZeroChartApp {
       });
       ctx.stroke();
       ctx.restore();
+
+      // Right Axis Prominent Straddle Pill Badge (Image 2 [ 200.15 ])
+      const curPoint = series[series.length - 1];
+      if (curPoint) {
+        const badgeY = getYStrad(curPoint.straddle);
+        const badgeText = curPoint.straddle.toFixed(2);
+        ctx.save();
+        ctx.font = 'bold 11px ui-monospace, SFMono-Regular, monospace';
+        const tw = ctx.measureText(badgeText).width;
+        const pillW = Math.max(54, tw + 14);
+        const pillH = 20;
+        const pillX = width - padRight + 2;
+
+        ctx.fillStyle = '#2563eb';
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(pillX, badgeY - pillH / 2, pillW, pillH, 4);
+          ctx.fill();
+        } else {
+          ctx.fillRect(pillX, badgeY - pillH / 2, pillW, pillH);
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, pillX + pillW / 2, badgeY);
+        ctx.restore();
+      }
     }
 
     // 6. Draw Crosshair Hover Indicator if active
