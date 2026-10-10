@@ -6602,11 +6602,19 @@ class ZeroChartApp {
       }
     });
 
-    // Auto resize canvas on window resize
+    // Auto resize canvas on window resize with debounce to prevent resize thrashing
+    let oiResizeTimer = null;
     window.addEventListener('resize', () => {
       const modal = document.getElementById('oi-analytics-modal');
       if (modal && modal.classList.contains('show')) {
-        this.renderOIDashboard();
+        if (oiResizeTimer) clearTimeout(oiResizeTimer);
+        oiResizeTimer = setTimeout(() => {
+          if (this.oiActiveSubtab === 'straddle-decay') {
+            if (this._lastStraddleData) this.drawStraddleCanvas(this._lastStraddleData);
+          } else {
+            this.renderOIDashboard();
+          }
+        }, 120);
       }
     });
   }
@@ -6919,6 +6927,25 @@ class ZeroChartApp {
   }
 
   async renderOIDashboard() {
+    const histView = document.getElementById('oi-histogram-view');
+    const straddleView = document.getElementById('oi-straddle-view');
+    const leftPanel = document.querySelector('.tv-oi-left-panel');
+    const mainLayout = document.querySelector('.tv-oi-main-layout');
+
+    if (this.oiActiveSubtab === 'straddle-decay') {
+      if (histView) histView.style.display = 'none';
+      if (straddleView) straddleView.style.display = 'flex';
+      if (leftPanel) leftPanel.style.display = 'none';
+      if (mainLayout) mainLayout.classList.add('straddle-mode');
+      await this.renderStraddleDashboard();
+      return;
+    } else {
+      if (histView) histView.style.display = 'flex';
+      if (straddleView) straddleView.style.display = 'none';
+      if (leftPanel) leftPanel.style.display = 'flex';
+      if (mainLayout) mainLayout.classList.remove('straddle-mode');
+    }
+
     // 1. Fetch Real Live Data from Server Endpoint
     await this.fetchOptionChainData(this.oiActiveSymbol, this.oiSelectedExpiry);
     const data = this.getOIOptionChainData();
@@ -7020,18 +7047,6 @@ class ZeroChartApp {
     if (sumClosePriceEl) sumClosePriceEl.textContent = data.interpolatedSpot.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
     if (sumOpenLbl) sumOpenLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 9:15 AM:`;
     if (sumCloseLbl) sumCloseLbl.textContent = `${data.inst.displaySymbol || data.inst.symbol} at 3:40 PM:`;
-
-    const histView = document.getElementById('oi-histogram-view');
-    const straddleView = document.getElementById('oi-straddle-view');
-    if (this.oiActiveSubtab === 'straddle-decay') {
-      if (histView) histView.style.display = 'none';
-      if (straddleView) straddleView.style.display = 'flex';
-      await this.renderStraddleDashboard();
-      return;
-    } else {
-      if (histView) histView.style.display = 'flex';
-      if (straddleView) straddleView.style.display = 'none';
-    }
 
     // 7. Draw Canvas Histogram
     requestAnimationFrame(() => this.drawOIHistogramCanvas(data));
@@ -7364,13 +7379,27 @@ class ZeroChartApp {
     if (!canvas) return;
 
     const wrapper = canvas.parentElement;
-    const width = wrapper.clientWidth || 900;
-    const height = wrapper.clientHeight || 360;
-    const dpr = window.devicePixelRatio || 1;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    const width = Math.floor(rect.width);
+    const height = Math.floor(rect.height);
 
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    // Hard safety guard: avoid rendering when hidden or in an invalid layout
+    if (width <= 50 || height <= 50 || width > 4000 || height > 4000) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetW = Math.round(width * dpr);
+    const targetH = Math.round(height * dpr);
+
+    // Only set buffer dimensions when size actually changed (prevents DOM reflow / resize loops)
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.resetTransform ? ctx.resetTransform() : ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
