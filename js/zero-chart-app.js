@@ -4036,6 +4036,9 @@ class ZeroChartApp {
 
     if (mobNavOI) {
       mobNavOI.onclick = () => {
+        this.oiActiveSubtab = 'oi-change';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'oi-change'));
         this.openOIDashboard();
         updateMobNav('mob-nav-oi');
       };
@@ -6261,6 +6264,17 @@ class ZeroChartApp {
         this.oiActiveSubtab = 'straddle-decay';
         const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
         subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'straddle-decay'));
+        this.renderOIDashboard();
+      };
+    }
+
+    // 1d. Back to Option OI from Straddle Trigger
+    const btnBackToOI = document.getElementById('btn-straddle-back-to-oi');
+    if (btnBackToOI) {
+      btnBackToOI.onclick = () => {
+        this.oiActiveSubtab = 'oi-change';
+        const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+        subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === 'oi-change'));
         this.renderOIDashboard();
       };
     }

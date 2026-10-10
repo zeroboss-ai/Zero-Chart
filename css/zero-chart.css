@@ -5433,6 +5433,47 @@ body.light-theme .tv-mob-straddle-strike-pill {
   flex-wrap: wrap;
 }
 
+.tv-straddle-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, rgba(41, 98, 255, 0.18) 0%, rgba(0, 230, 118, 0.12) 100%);
+  border: 1px solid rgba(41, 98, 255, 0.4);
+  border-radius: 6px;
+  color: #29b6f6;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.tv-straddle-back-btn:hover {
+  background: linear-gradient(135deg, rgba(41, 98, 255, 0.28) 0%, rgba(0, 230, 118, 0.22) 100%);
+  border-color: #29b6f6;
+  box-shadow: 0 0 8px rgba(41, 182, 246, 0.35);
+  color: #ffffff;
+  transform: translateX(-1px);
+}
+
+.tv-straddle-back-btn:active {
+  transform: translateX(0);
+}
+
+body.light-theme .tv-straddle-back-btn {
+  background: rgba(41, 98, 255, 0.1);
+  border-color: rgba(41, 98, 255, 0.35);
+  color: #1e40af;
+}
+
+body.light-theme .tv-straddle-back-btn:hover {
+  background: rgba(41, 98, 255, 0.18);
+  color: #1d4ed8;
+}
+
 .tv-straddle-select {
   background: var(--bg);
   color: var(--text-bright);
