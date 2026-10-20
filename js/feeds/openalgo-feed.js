@@ -203,35 +203,6 @@ export class OpenAlgoLiveFeed {
     }
   }
 
-  _dispatchRealtimeTick(symKey, ltp) {
-    for (const [subKey, cb] of this._wsSubscriptions.entries()) {
-      const [subSym, subInterval] = subKey.split('_');
-      if (subSym === symKey) {
-        const intervalSecs = getIntervalSeconds(subInterval);
-        const nowSec = Math.floor(Date.now() / 1000);
-        const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
-
-        let bar = this._lastBars.get(subKey);
-        if (bar && (bar.time === bucketTime || nowSec < bar.time + intervalSecs)) {
-          bar.high = Math.max(bar.high, ltp);
-          bar.low = Math.min(bar.low, ltp);
-          bar.close = ltp;
-        } else {
-          bar = {
-            time: bucketTime,
-            open: bar ? bar.close : ltp,
-            high: ltp,
-            low: ltp,
-            close: ltp,
-            volume: 1,
-          };
-          this._lastBars.set(subKey, bar);
-        }
-        cb({ ...bar });
-      }
-    }
-  }
-
   async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 500) {
     let symbol = 'NIFTY 50';
     let exchange = 'NSE';
@@ -443,7 +414,7 @@ export class OpenAlgoLiveFeed {
           const json = await resp.json();
           const q = json.quotes?.[symKey];
           if (q && q.ltp) {
-            this._dispatchRealtimeTick(symKey, q.ltp);
+            this._dispatchRealtimeTick(symKey, q.ltp, q.time);
           }
         }
       } catch (_) {}
@@ -460,7 +431,7 @@ export class OpenAlgoLiveFeed {
     };
   }
 
-  _dispatchRealtimeTick(symbol, ltp) {
+  _dispatchRealtimeTick(symbol, ltp, quoteTime) {
     const symKey = (symbol || '').toUpperCase().trim();
     const price = +ltp;
     if (!price || isNaN(price) || price <= 0) return;
@@ -480,28 +451,42 @@ export class OpenAlgoLiveFeed {
       if (isMatch) {
         const intervalSecs = getIntervalSeconds(interval);
         const nowSec = Math.floor(Date.now() / 1000);
-        const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
+        const effectiveTime = (typeof quoteTime === 'number' && quoteTime > 0) ? quoteTime : nowSec;
 
         let bar = this._lastBars.get(subKey);
-        if (bar && bar.time === bucketTime) {
-          bar.high = Math.max(bar.high, price);
-          bar.low = Math.min(bar.low, price);
-          bar.close = price;
-          bar.volume = (bar.volume || 0) + 1;
-        } else if (!bar || bucketTime > bar.time) {
-          const openPrice = bar ? bar.close : price;
-          bar = {
-            time: bucketTime,
-            open: openPrice,
-            high: Math.max(openPrice, price),
-            low: Math.min(openPrice, price),
-            close: price,
-            volume: 1,
-          };
-          this._lastBars.set(subKey, bar);
-        }
-        if (typeof onTick === 'function') {
-          onTick({ ...bar });
+        // If the quote timestamp is older than 10 minutes or outside session, NEVER mint a fake forward-dated candle!
+        const isStale = (nowSec - effectiveTime) > 600;
+
+        if (bar) {
+          const bucketTime = Math.floor(effectiveTime / intervalSecs) * intervalSecs;
+
+          // Case 1: Update current candle (close, high, low) without spawning a new future bar
+          if (bucketTime <= bar.time || isStale) {
+            bar.high = Math.max(bar.high, price);
+            bar.low = Math.min(bar.low, price);
+            bar.close = price;
+            if (typeof onTick === 'function') {
+              onTick({ ...bar });
+            }
+            return;
+          }
+
+          // Case 2: Genuine new candle ONLY if market is actively open and quote is fresh
+          if (bucketTime > bar.time && !isStale) {
+            const openPrice = bar.close;
+            bar = {
+              time: bucketTime,
+              open: openPrice,
+              high: Math.max(openPrice, price),
+              low: Math.min(openPrice, price),
+              close: price,
+              volume: 1,
+            };
+            this._lastBars.set(subKey, bar);
+            if (typeof onTick === 'function') {
+              onTick({ ...bar });
+            }
+          }
         }
       }
     }

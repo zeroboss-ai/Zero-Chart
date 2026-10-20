@@ -149,6 +149,8 @@ const nseEquitiesMap = new Map(); // 'MUTHOOTFIN' -> scrip
 const nseTokensMap = new Map();    // token -> scrip
 const futuresMap = new Map();       // 'NIFTY' -> [futures sorted by expiry]
 const commoditiesMap = new Map();   // 'GOLD' -> [mcx scrips sorted by expiry]
+const mcxSymbolsMap = new Map();     // 'GOLD04DEC26FUT' -> scrip
+const mcxTokensMap = new Map();      // token -> scrip
 const optionsMap = new Map();       // 'NIFTY' -> { expiries: [], contractsByExpiry: Map() }
 const indicesMap = new Map([
   ['NIFTY 50', { token: '99926000', symbol: 'NIFTY', exch_seg: 'NSE', name: 'NIFTY 50' }],
@@ -377,6 +379,8 @@ function indexInstruments(instruments) {
         });
       }
     } else if (item.exch_seg === 'MCX') {
+      mcxSymbolsMap.set(item.symbol.toUpperCase(), item);
+      mcxTokensMap.set(String(item.token), item);
       if (item.instrumenttype === 'AMXIDX') {
         indicesMap.set(item.symbol.toUpperCase(), item);
         indicesMap.set(item.name.toUpperCase(), item);
@@ -388,14 +392,21 @@ function indexInstruments(instruments) {
     }
   }
 
-  // Sort futures and commodities by nearest active expiry
+  const todayCutoff = Date.now() - 24 * 3600 * 1000;
+
+  // Filter and sort futures and commodities by nearest active (non-expired) expiry
   for (const [k, list] of futuresMap.entries()) {
-    list.sort((a, b) => parseExpiryDate(a.expiry) - parseExpiryDate(b.expiry));
+    const active = list.filter(item => parseExpiryDate(item.expiry) >= todayCutoff);
+    const targetList = active.length > 0 ? active : list;
+    targetList.sort((a, b) => parseExpiryDate(a.expiry) - parseExpiryDate(b.expiry));
+    futuresMap.set(k, targetList);
   }
   for (const [k, list] of commoditiesMap.entries()) {
-    list.sort((a, b) => parseExpiryDate(a.expiry) - parseExpiryDate(b.expiry));
+    const active = list.filter(item => parseExpiryDate(item.expiry) >= todayCutoff);
+    const targetList = active.length > 0 ? active : list;
+    targetList.sort((a, b) => parseExpiryDate(a.expiry) - parseExpiryDate(b.expiry));
+    commoditiesMap.set(k, targetList);
   }
-  const todayCutoff = Date.now() - 24 * 3600 * 1000;
   for (const [name, entry] of optionsMap.entries()) {
     const allExps = Array.from(entry.contractsByExpiry.keys());
     const validExps = allExps.filter(exp => parseExpiryDate(exp) >= todayCutoff);
@@ -445,6 +456,9 @@ function resolveAngelInstrument(symbol) {
   const norm = (symbol || '').toUpperCase().trim();
   if (indicesMap.has(norm)) return indicesMap.get(norm);
 
+  // Exact MCX symbol match (e.g. 'GOLD04DEC26FUT', 'CRUDEOIL19NOV26FUT')
+  if (mcxSymbolsMap.has(norm)) return mcxSymbolsMap.get(norm);
+
   // Check direct NSE equity
   if (nseEquitiesMap.has(norm)) return nseEquitiesMap.get(norm);
 
@@ -464,6 +478,12 @@ function resolveAngelInstrument(symbol) {
     if (futList && futList.length > 0) {
       return futList[0]; // Nearest active future
     }
+  }
+
+  // Check direct commodity name (e.g. 'GOLD', 'SILVER', 'CRUDEOIL', 'NATURALGAS', 'COPPER', 'ZINC')
+  if (commoditiesMap.has(norm)) {
+    const list = commoditiesMap.get(norm);
+    if (list && list.length > 0) return list[0];
   }
 
   // Check direct commodity name only if explicitly tagged MCX
@@ -994,22 +1014,54 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'NVDA', 'AAPL', 'MSFT', 'TSLA', 'GOOGL', 'AMZN', 'META', 'AMD', 'NFLX', 'COIN',
   // Forex & Currency Pairs
   'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURINR', 'GBPINR', 'JPYINR',
-  // Global Commodities & Futures
-  'GOLD', 'GOLD FUT', 'GOLD MCX', 'MCXGOLDEX', 'SILVER', 'SILVER FUT', 'SILVERM FUT', 'MCXSILVDEX',
-  'CRUDE OIL', 'CRUDEOIL', 'CRUDE OIL FUT', 'CRUDEOIL FUT', 'WTI CRUDE', 'BRENT', 'BRENT CRUDE', 'MCXCRUDEX', 'MCXENRGDEX',
-  'NATURAL GAS', 'NATURAL GAS FUT', 'NATURALGAS', 'NATURALGAS FUT',
-  'COPPER', 'COPPER FUT', 'ZINC', 'ZINC FUT', 'ALUMINIUM', 'ALUMINIUM FUT', 'ALI', 'ALI FUT',
-  'XAUUSD', 'XAGUSD', 'XPTUSD', 'MCXBULLDEX', 'MCXMETLDEX', 'US10Y', 'TNX', 'PAXGUSDT',
   // CME / COMEX / CBOT / NYMEX Futures
   'ES', 'ES FUT', 'NQ', 'NQ FUT', 'YM', 'YM FUT', 'RTY', 'RTY FUT',
   'GC', 'GC FUT', 'SI', 'SI FUT', 'HG', 'HG FUT',
   'CL', 'CL FUT', 'NG', 'NG FUT',
   'ZN', 'ZN FUT', 'ZB', 'ZB FUT',
-  'ZC', 'ZC FUT', 'ZW', 'ZW FUT', 'ZS', 'ZS FUT'
+  'ZC', 'ZC FUT', 'ZW', 'ZW FUT', 'ZS', 'ZS FUT',
+  'XPTUSD', 'US10Y', 'TNX'
 ]);
 
 
-// ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY & GLOBAL) ───
+const TV_SYMBOLS_MAP = {
+  'GIFT NIFTY': 'NSEIX:NIFTY1!',
+  'GIFTNIFTY': 'NSEIX:NIFTY1!',
+  'XAUUSD': 'TVC:GOLD',
+  'GOLD (SPOT)': 'TVC:GOLD',
+  'SPOT GOLD': 'TVC:GOLD',
+  'PAXGUSDT': 'TVC:GOLD',
+  'PAXG': 'TVC:GOLD',
+  'TVC:GOLD': 'TVC:GOLD',
+  'XAGUSD': 'TVC:SILVER',
+  'SILVER (SPOT)': 'TVC:SILVER',
+  'SPOT SILVER': 'TVC:SILVER',
+  'TVC:SILVER': 'TVC:SILVER',
+  'WTI CRUDE': 'TVC:USOIL',
+  'CRUDE OIL': 'TVC:USOIL',
+  'CRUDEOIL': 'TVC:USOIL',
+  'USOIL': 'TVC:USOIL',
+  'TVC:USOIL': 'TVC:USOIL',
+  'BRENT CRUDE': 'TVC:UKOIL',
+  'BRENT': 'TVC:UKOIL',
+  'UKOIL': 'TVC:UKOIL',
+  'TVC:UKOIL': 'TVC:UKOIL',
+  'NATURAL GAS': 'NYMEX:NG1!',
+  'NATURALGAS': 'NYMEX:NG1!',
+  'HENRY HUB': 'NYMEX:NG1!',
+  'NG1!': 'NYMEX:NG1!',
+  'TVC:NATURALGAS': 'NYMEX:NG1!',
+  'COPPER (COMEX)': 'COMEX:HG1!',
+  'HG1!': 'COMEX:HG1!',
+  'TVC:COPPER': 'COMEX:HG1!',
+  'EURUSD': 'FX:EURUSD',
+  'USDINR': 'FX_IDC:USDINR',
+  'DXY': 'TVC:DXY',
+  'DOLLAR INDEX': 'TVC:DXY',
+  'US10Y': 'TVC:US10Y',
+};
+
+// ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY, SPOT COMMODITIES & GLOBAL) ───
 async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5m', barCount = 350) {
   return new Promise((resolve) => {
     let resolved = false;
@@ -1069,13 +1121,15 @@ async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5
 
     ws.onmessage = (event) => {
       const str = event.data.toString();
-      if (str.includes('timescale_update')) {
+      if (str.includes('timescale_update') || str.includes('"du"')) {
         try {
           const msgs = str.split(/~m~\d+~m~/).filter(Boolean);
           for (const m of msgs) {
             const j = JSON.parse(m);
-            if (j.m === 'timescale_update' && j.p?.[1]?.sds_1?.s) {
-              const rawBars = j.p[1].sds_1.s;
+            const seriesData = (j.m === 'timescale_update' && j.p?.[1]?.sds_1?.s) ||
+                               (j.m === 'du' && j.p?.[1]?.sds_1?.s);
+            if (seriesData && seriesData.length > 0) {
+              const rawBars = seriesData;
               const bars = rawBars.map(row => ({
                 time: Math.floor(row.v[0]),
                 open: row.v[1],
@@ -1157,15 +1211,15 @@ async function refreshGlobalIndices() {
         { ticker: 'GBPINR=X', symbols: ['GBPINR'] },
         { ticker: 'JPYINR=X', symbols: ['JPYINR'] },
 
-        // Global Commodities & Futures
-        { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'XAUUSD', 'GOLD FUT', 'GOLD', 'GOLD MCX', 'MCXBULLDEX', 'MCXGOLDEX', 'PAXGUSDT'] },
-        { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'XAGUSD', 'SILVER FUT', 'SILVER', 'SILVERM FUT', 'MCXSILVDEX'] },
-        { ticker: 'PL=F', symbols: ['XPTUSD'] },
-        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'WTI CRUDE', 'CRUDEOIL FUT', 'CRUDE OIL', 'CRUDE OIL FUT', 'CRUDEOIL', 'MCXCRUDEX', 'MCXENRGDEX'] },
-        { ticker: 'BZ=F', symbols: ['BRENT', 'BRENT CRUDE'] },
-        { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COPPER', 'COPPER FUT', 'MCXMETLDEX', 'ZINC FUT', 'ZINC'] },
-        { ticker: 'ALI=F', symbols: ['ALI', 'ALI FUT', 'ALUMINIUM FUT', 'ALUMINIUM'] },
-        { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NATURALGAS', 'NATURALGAS FUT', 'NATURAL GAS', 'NATURAL GAS FUT'] },
+        // CME / COMEX / NYMEX Futures
+        { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'COMEX GOLD'] },
+        { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'COMEX SILVER'] },
+        { ticker: 'PL=F', symbols: ['XPTUSD', 'PL', 'PL FUT'] },
+        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'NYMEX CRUDE'] },
+        { ticker: 'BZ=F', symbols: ['BZ', 'BZ FUT'] },
+        { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COMEX COPPER'] },
+        { ticker: 'ALI=F', symbols: ['ALI', 'ALI FUT'] },
+        { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NYMEX NG'] },
         { ticker: '^TNX', symbols: ['US10Y', 'TNX'] },
 
         // CME / CBOT Indices & Bonds & Ags
@@ -1561,7 +1615,27 @@ function getFallbackNews(category) {
 }
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
+let lastAngelCandleReqTime = 0;
+const ANGEL_CANDLE_INTERVAL_MS = 360;
+let angelCandleQueue = Promise.resolve();
+
 async function fetchAngelOneCandles(angelInst, interval) {
+  return new Promise((resolve, reject) => {
+    angelCandleQueue = angelCandleQueue.catch(() => {}).then(async () => {
+      const wait = Math.max(0, ANGEL_CANDLE_INTERVAL_MS - (Date.now() - lastAngelCandleReqTime));
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      lastAngelCandleReqTime = Date.now();
+      try {
+        const res = await _fetchAngelOneCandlesInternal(angelInst, interval);
+        resolve(res);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
+
+async function _fetchAngelOneCandlesInternal(angelInst, interval) {
   if (Date.now() < angelCandleRateLimitUntil) {
     throw new Error('AngelOne candle rate-limit active cooldown');
   }
@@ -1609,7 +1683,7 @@ async function fetchAngelOneCandles(angelInst, interval) {
 
   const text = await resp.text();
   if (resp.status === 403 || text.includes('exceeding access rate')) {
-    angelCandleRateLimitUntil = Date.now() + 60000;
+    angelCandleRateLimitUntil = Date.now() + 15000;
     throw new Error('AngelOne historical rate limit reached');
   }
 
@@ -1849,18 +1923,19 @@ async function fetchLiveExchangeHistory(symbol, interval) {
     return [];
   }
 
-  // Handle GIFT Nifty — directly fetch official continuous GIFT Nifty futures contract from TradingView (NSEIX:NIFTY1!)
-  if (symNorm === 'GIFT NIFTY' || symNorm === 'GIFTNIFTY') {
+  // 1. Direct TradingView official feeds for GIFT Nifty, Spot Gold, Silver, Crude Oil, Currencies & Indices
+  const tvMapped = TV_SYMBOLS_MAP[symNorm] || (symNorm.startsWith('TVC:') ? symNorm : null);
+  if (tvMapped) {
     try {
-      const tvBars = await fetchTradingViewCandles('NSEIX:NIFTY1!', interval, 350);
+      const tvBars = await fetchTradingViewCandles(tvMapped, interval, 350);
       if (tvBars && tvBars.length > 0) {
         const lastBar = tvBars[tvBars.length - 1];
-        const prevQuote = quoteCache.get('GIFT NIFTY');
+        const prevQuote = quoteCache.get(symNorm);
         const prevClose = (prevQuote && prevQuote.prevClose > 0) ? prevQuote.prevClose : tvBars[0].open;
         const chg = +(lastBar.close - prevClose).toFixed(2);
         const chgPct = prevClose !== 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
 
-        quoteCache.set('GIFT NIFTY', {
+        quoteCache.set(symNorm, {
           ltp: lastBar.close,
           open: tvBars[0].open,
           high: Math.max(...tvBars.slice(-20).map(b => b.high)),
@@ -1872,34 +1947,53 @@ async function fetchLiveExchangeHistory(symbol, interval) {
           time: lastBar.time,
           _fetchTime: Date.now(),
         });
-        quoteCache.set('GIFTNIFTY', quoteCache.get('GIFT NIFTY'));
+        if (symNorm === 'GIFT NIFTY') quoteCache.set('GIFTNIFTY', quoteCache.get('GIFT NIFTY'));
         candleCache.set(cacheKey, { timestamp: Date.now(), data: tvBars });
         return tvBars;
       }
     } catch (tvErr) {
-      console.warn('[GIFT NIFTY TV] Error:', tvErr.message);
+      console.warn(`[TradingView Candlestick] Error for ${symNorm} (${tvMapped}):`, tvErr.message);
     }
     const cachedBars = candleCache.get(cacheKey);
     if (cachedBars?.data) return cachedBars.data;
-    return [];
   }
 
-  // Try AngelOne SmartAPI first if authenticated
+  // 2. Try AngelOne SmartAPI for NSE Equities, Indices, and MCX Commodity Futures
   const angelInst = resolveAngelInstrument(symNorm);
   if (angelInst && angelSession.isAuthenticated && Date.now() >= angelCandleRateLimitUntil) {
     try {
       const angelBars = await fetchAngelOneCandles(angelInst, interval);
       if (angelBars && angelBars.length > 0) {
-        // Also fetch latest LTP to ensure last bar has real-time tick
+        // Also fetch latest LTP to ensure last bar has real-time tick if within active session
         const ltpData = await fetchAngelOneLtp(angelInst);
         if (ltpData && Number.isFinite(ltpData.ltp) && ltpData.ltp > 0) {
           quoteCache.set(symNorm, ltpData);
           const lastBar = angelBars[angelBars.length - 1];
-          if (lastBar && Date.now() / 1000 - lastBar.time < 300) {
+          const intervalSec = mapIntervalToSeconds(interval);
+          // Only update last candle if it is within active trading session (avoid modifying closed past bars)
+          if (lastBar && Date.now() / 1000 < lastBar.time + intervalSec * 1.5) {
             lastBar.close = +ltpData.ltp.toFixed(2);
             lastBar.high = Math.max(lastBar.high, lastBar.open, lastBar.close);
             lastBar.low = Math.min(lastBar.low, lastBar.open, lastBar.close);
           }
+        } else {
+          const lastBar = angelBars[angelBars.length - 1];
+          const prevBar = angelBars.length > 1 ? angelBars[angelBars.length - 2] : lastBar;
+          const prevClose = prevBar.close;
+          const chg = +(lastBar.close - prevClose).toFixed(2);
+          const chgPct = prevClose !== 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
+          quoteCache.set(symNorm, {
+            ltp: lastBar.close,
+            open: lastBar.open,
+            high: lastBar.high,
+            low: lastBar.low,
+            close: lastBar.close,
+            prevClose: prevClose,
+            chg: chg,
+            chgPct: chgPct,
+            time: lastBar.time,
+            _fetchTime: Date.now(),
+          });
         }
         const cleaned = sanitizeCandles(angelBars, interval);
         candleCache.set(cacheKey, { timestamp: Date.now(), data: cleaned });
@@ -3148,11 +3242,16 @@ function createServer() {
           }
         }
 
-        // Global Commodities (Spot Gold, Silver, Forex)
+        // Global Commodities & Currencies (TradingView Live Feeds)
         const topComm = [
-          { symbol: 'PAXGUSDT', name: 'Paxos Spot Gold (XAU/USD)', exchange: 'BINANCE', badge: 'GOLD', color: '#ffb300' },
-          { symbol: 'XAGUSD', name: 'Spot Silver (SI)', exchange: 'FOREX', badge: 'AG', color: '#90a4ae' },
-          { symbol: 'USDINR', name: 'US Dollar / Indian Rupee', exchange: 'NSE', badge: '$₹', color: '#43a047' },
+          { symbol: 'XAUUSD', name: 'Spot Gold USD (TradingView)', exchange: 'TVC', badge: 'GOLD', color: '#ffb300' },
+          { symbol: 'XAGUSD', name: 'Spot Silver USD (TradingView)', exchange: 'TVC', badge: 'SLV', color: '#90a4ae' },
+          { symbol: 'WTI CRUDE', name: 'WTI Crude Oil USD (TradingView)', exchange: 'TVC', badge: 'OIL', color: '#8d6e63' },
+          { symbol: 'BRENT CRUDE', name: 'Brent Crude Oil USD (TradingView)', exchange: 'TVC', badge: 'OIL', color: '#5d4037' },
+          { symbol: 'NATURAL GAS', name: 'Henry Hub Natural Gas (NYMEX)', exchange: 'NYMEX', badge: 'GAS', color: '#ff7043' },
+          { symbol: 'USDINR', name: 'US Dollar / Indian Rupee (TradingView)', exchange: 'FX', badge: '$₹', color: '#43a047' },
+          { symbol: 'EURUSD', name: 'Euro / US Dollar (TradingView)', exchange: 'FX', badge: '€$', color: '#1e88e5' },
+          { symbol: 'PAXGUSDT', name: 'Paxos Spot Gold (Binance Crypto)', exchange: 'BINANCE', badge: 'PAXG', color: '#ffb300' },
         ];
         for (const m of topComm) {
           let score = 0;
@@ -3170,10 +3269,10 @@ function createServer() {
                 name: m.name,
                 exchange: m.exchange,
                 category: 'commodities',
-                feedType: m.symbol === 'PAXGUSDT' ? 'binance' : 'openalgo',
+                feedType: m.symbol === 'PAXGUSDT' ? 'binance' : 'commodity',
                 basePrice: 0,
-                tickSize: 0.05,
-                precision: 2,
+                tickSize: 0.01,
+                precision: m.symbol.includes('USD') && m.symbol.length === 6 ? 4 : 2,
                 badgeText: m.badge,
                 badgeColor: m.color,
               },
@@ -3482,7 +3581,11 @@ function createServer() {
         if (!s) continue;
         let cached = quoteCache.get(s);
 
-        if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
+        if (TV_SYMBOLS_MAP[s]) {
+          if (!cached || now - (cached._fetchTime || 0) > 4000) {
+            fetchLiveExchangeHistory(s, '5m').catch(() => {});
+          }
+        } else if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
           const angelInst = resolveAngelInstrument(s);
           if (angelInst && angelInst.token) {
             tokensToSub.push(String(angelInst.token));
@@ -3490,7 +3593,7 @@ function createServer() {
               tokenToSymbolsMap.set(String(angelInst.token), [s, angelInst.symbol]);
             }
           }
-          if (!cached) {
+          if (!cached || now - (cached._fetchTime || 0) > 4000) {
             fetchLiveExchangeHistory(s, '5m').catch(() => {});
           }
         }

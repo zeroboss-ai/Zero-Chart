@@ -28,7 +28,7 @@ export class MultiAssetFeed {
 
     if (inst) {
       if (inst.feedType === 'binance') return this.binanceFeed;
-      if (inst.feedType === 'commodity') return this.commodityFeed;
+      if (inst.feedType === 'commodity' || inst.feedType === 'global') return this.commodityFeed;
       if (inst.feedType === 'openalgo') return this.openalgoFeed;
       return this.openalgoFeed;
     }
@@ -36,6 +36,19 @@ export class MultiAssetFeed {
     // Auto-detect by symbol name
     if (sym.endsWith('USDT') || sym.endsWith('BUSD') || sym.endsWith('BTC') || sym.endsWith('ETH')) {
       return this.binanceFeed;
+    }
+    if (
+      sym.includes('XAU') ||
+      sym.includes('XAG') ||
+      sym.includes('PAXG') ||
+      sym.includes('SPOT') ||
+      sym === 'WTI CRUDE' ||
+      sym === 'BRENT CRUDE' ||
+      sym === 'BRENT' ||
+      sym === 'US10Y' ||
+      sym === 'DXY'
+    ) {
+      return this.commodityFeed;
     }
     if (
       sym.endsWith('FUT') ||
@@ -50,14 +63,6 @@ export class MultiAssetFeed {
       sym.startsWith('LEAD')
     ) {
       return this.openalgoFeed;
-    }
-    if (
-      sym.includes('XAU') ||
-      sym.includes('XAG') ||
-      sym.includes('PAXG') ||
-      sym === 'BRENT'
-    ) {
-      return this.commodityFeed;
     }
 
     return this.openalgoFeed;
