@@ -12,7 +12,7 @@ import {
   mountObjectsPanel,
   openShortcutsPanel,
 } from '../lib/openalgo-charts.widget.mjs?v=2.7.3';
-import { ReplayController } from '../lib/openalgo-charts.mjs?v=2.7.3';
+import { ReplayController, registerInterval } from '../lib/openalgo-charts.mjs?v=2.7.3';
 import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.3';
 import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.3';
 import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.3';
@@ -25,6 +25,11 @@ try {
 } catch (e) {
   console.warn('[Indicators] Registration warning:', e);
 }
+
+// Register extended interval calendar/custom intervals
+try {
+  registerInterval({ code: '1M', bucketing: { mode: 'interval', seconds: 86400 * 30 } });
+} catch (_) {}
 
 const FAVORITE_TOOL_DEFINITIONS = [
   { id: 'trend-line', name: 'Trend Line', icon: 'M4 20 20 4' },
@@ -1132,10 +1137,31 @@ class ZeroChartApp {
     // Update Topbar UI to reflect active pane state
     this.updateHeaderDisplay();
 
-    // Timeframe selector buttons
-    const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
+    // Timeframe selector buttons & dropdown state
+    const currentInt = (currentPane.interval || '').toLowerCase();
+    let matchedPill = false;
+    const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn:not(.tv-tf-btn--dropdown)');
     tfBtns.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.interval === currentPane.interval);
+      const match = (btn.dataset.interval || '').toLowerCase() === currentInt;
+      btn.classList.toggle('active', match);
+      if (match) matchedPill = true;
+    });
+
+    const tfDropdownBtn = document.getElementById('btn-timeframe-dropdown');
+    const tfDropdownLabel = document.getElementById('tf-dropdown-label');
+    if (tfDropdownBtn && tfDropdownLabel) {
+      if (!matchedPill && currentPane.interval) {
+        tfDropdownLabel.textContent = currentPane.interval;
+        tfDropdownLabel.style.display = 'inline';
+        tfDropdownBtn.classList.add('active');
+      } else {
+        tfDropdownLabel.style.display = 'none';
+        tfDropdownBtn.classList.remove('active');
+      }
+    }
+
+    document.querySelectorAll('#timeframe-dropdown-menu .tv-menu-item').forEach((item) => {
+      item.classList.toggle('active', (item.dataset.interval || '').toLowerCase() === currentInt);
     });
 
     // Chart type label & icon
@@ -3111,13 +3137,48 @@ class ZeroChartApp {
     }
 
     // Timeframe selector buttons
-    const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
+    const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn:not(.tv-tf-btn--dropdown)');
     tfBtns.forEach((btn) => {
       btn.onclick = () => {
         const interval = btn.dataset.interval;
         if (interval) this.setInterval(interval);
       };
     });
+
+    // Timeframe Dropdown Menu
+    const tfDropdownBtn = document.getElementById('btn-timeframe-dropdown');
+    const tfDropdownMenu = document.getElementById('timeframe-dropdown-menu');
+    if (tfDropdownBtn && tfDropdownMenu) {
+      tfDropdownBtn.onclick = (e) => {
+        e.stopPropagation();
+        const isOpen = tfDropdownMenu.classList.toggle('show');
+        tfDropdownBtn.classList.toggle('open', isOpen);
+        if (isOpen) {
+          const rect = tfDropdownBtn.getBoundingClientRect();
+          tfDropdownMenu.style.left = `${Math.max(10, Math.min(rect.left, window.innerWidth - 190))}px`;
+          tfDropdownMenu.style.top = `${rect.bottom + 4}px`;
+        }
+      };
+
+      document.querySelectorAll('#timeframe-dropdown-menu .tv-menu-item').forEach((item) => {
+        item.onclick = (e) => {
+          e.stopPropagation();
+          const interval = item.dataset.interval;
+          if (interval) {
+            this.setInterval(interval);
+          }
+          tfDropdownMenu.classList.remove('show');
+          tfDropdownBtn.classList.remove('open');
+        };
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!tfDropdownMenu.contains(e.target) && !tfDropdownBtn.contains(e.target)) {
+          tfDropdownMenu.classList.remove('show');
+          tfDropdownBtn.classList.remove('open');
+        }
+      });
+    }
 
     // Chart Type Menu
     const chartTypeBtn = document.getElementById('btn-chart-type');
@@ -4136,8 +4197,16 @@ class ZeroChartApp {
     const oiModal = document.getElementById('oi-analytics-modal');
     const layoutMenu = document.getElementById('layout-grid-menu');
     const chartTypeMenu = document.getElementById('chart-type-menu');
+    const tfDropdownMenu = document.getElementById('timeframe-dropdown-menu');
+    const tfDropdownBtn = document.getElementById('btn-timeframe-dropdown');
     const speedMenu = document.getElementById('replay-speed-menu');
     const widgetDialogs = document.querySelectorAll('.oac-dialog, .oac-overlay');
+
+    if (tfDropdownMenu?.classList.contains('show')) {
+      tfDropdownMenu.classList.remove('show');
+      tfDropdownBtn?.classList.remove('open');
+      return;
+    }
 
     if (oiModal?.classList.contains('show')) {
       this.closeOIDashboard();
@@ -5153,8 +5222,32 @@ class ZeroChartApp {
     pane.interval = interval;
     if (paneIndex === this.activePaneIndex) {
       this.currentInterval = interval;
-      const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn');
-      tfBtns.forEach((b) => b.classList.toggle('active', b.dataset.interval === interval));
+      const currentInt = (interval || '').toLowerCase();
+      let matchedPill = false;
+      const tfBtns = document.querySelectorAll('#timeframe-group .tv-tf-btn:not(.tv-tf-btn--dropdown)');
+      tfBtns.forEach((b) => {
+        const match = (b.dataset.interval || '').toLowerCase() === currentInt;
+        b.classList.toggle('active', match);
+        if (match) matchedPill = true;
+      });
+
+      const tfDropdownBtn = document.getElementById('btn-timeframe-dropdown');
+      const tfDropdownLabel = document.getElementById('tf-dropdown-label');
+      if (tfDropdownBtn && tfDropdownLabel) {
+        if (!matchedPill && interval) {
+          tfDropdownLabel.textContent = interval;
+          tfDropdownLabel.style.display = 'inline';
+          tfDropdownBtn.classList.add('active');
+        } else {
+          tfDropdownLabel.style.display = 'none';
+          tfDropdownBtn.classList.remove('active');
+        }
+      }
+
+      document.querySelectorAll('#timeframe-dropdown-menu .tv-menu-item').forEach((item) => {
+        item.classList.toggle('active', (item.dataset.interval || '').toLowerCase() === currentInt);
+      });
+
       try {
         localStorage.setItem('zerochart_last_interval', interval);
       } catch (_) {}

@@ -25,15 +25,22 @@ function setStoredItem(key, val) {
 }
 
 export function getIntervalSeconds(interval) {
-  const norm = (interval || '5m').toLowerCase().trim();
+  const raw = (interval || '5m').trim();
+  const norm = raw.toLowerCase();
   if (norm === '1m' || norm === '1') return 60;
+  if (norm === '2m' || norm === '2') return 120;
   if (norm === '3m' || norm === '3') return 180;
   if (norm === '5m' || norm === '5') return 300;
   if (norm === '15m' || norm === '15') return 900;
   if (norm === '30m' || norm === '30') return 1800;
+  if (norm === '45m' || norm === '45') return 2700;
   if (norm === '1h' || norm === '60m' || norm === '60') return 3600;
+  if (norm === '2h' || norm === '120m' || norm === '120') return 7200;
+  if (norm === '3h' || norm === '180m') return 10800;
+  if (norm === '4h' || norm === '240m' || norm === '240') return 14400;
   if (norm === '1d' || norm === 'd' || norm === 'day') return 86400;
   if (norm === '1w' || norm === 'w' || norm === '1wk') return 604800;
+  if (raw === '1M' || norm === '1mo' || norm === '1month') return 2592000;
   return 300;
 }
 

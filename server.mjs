@@ -723,7 +723,11 @@ function mapInterval(interval) {
   if (norm === '5m' || norm === '5') return '5m';
   if (norm === '15m' || norm === '15') return '15m';
   if (norm === '30m' || norm === '30') return '30m';
+  if (norm === '45m' || norm === '45') return '15m';
   if (norm === '60m' || norm === '1h' || norm === '60') return '60m';
+  if (norm === '2h' || norm === '120m' || norm === '120') return '60m';
+  if (norm === '3h' || norm === '180m') return '60m';
+  if (norm === '4h' || norm === '240m' || norm === '240') return '60m';
   if (norm === '1d' || norm === 'd' || norm === 'day') return '1d';
   if (norm === '1w' || norm === 'w') return '1wk';
   return '5m';
@@ -736,22 +740,29 @@ function mapAngelInterval(interval) {
   if (norm === '5m' || norm === '5') return 'FIVE_MINUTE';
   if (norm === '15m' || norm === '15') return 'FIFTEEN_MINUTE';
   if (norm === '30m' || norm === '30') return 'THIRTY_MINUTE';
-  if (norm === '60m' || norm === '1h' || norm === '60') return 'ONE_HOUR';
+  if (norm === '45m' || norm === '45') return 'FIFTEEN_MINUTE';
+  if (norm === '60m' || norm === '1h' || norm === '2h' || norm === '3h' || norm === '4h' || norm === '60' || norm === '120' || norm === '240') return 'ONE_HOUR';
   if (norm === '1d' || norm === 'd' || norm === 'day' || norm === '1w' || norm === '1wk') return 'ONE_DAY';
   return 'FIVE_MINUTE';
 }
 
 function mapIntervalToSeconds(interval) {
-  const norm = (interval || '5m').toLowerCase().trim();
+  const raw = (interval || '5m').trim();
+  const norm = raw.toLowerCase();
   if (norm === '1m' || norm === '1') return 60;
   if (norm === '2m' || norm === '2') return 120;
   if (norm === '3m' || norm === '3') return 180;
   if (norm === '5m' || norm === '5') return 300;
   if (norm === '15m' || norm === '15') return 900;
   if (norm === '30m' || norm === '30') return 1800;
+  if (norm === '45m' || norm === '45') return 2700;
   if (norm === '60m' || norm === '1h' || norm === '60') return 3600;
+  if (norm === '2h' || norm === '120m' || norm === '120') return 7200;
+  if (norm === '3h' || norm === '180m') return 10800;
+  if (norm === '4h' || norm === '240m' || norm === '240') return 14400;
   if (norm === '1d' || norm === 'd' || norm === 'day') return 86400;
   if (norm === '1w' || norm === 'w' || norm === '1wk') return 604800;
+  if (raw === '1M' || norm === '1mo' || norm === '1month') return 2592000;
   return 300;
 }
 
@@ -1007,13 +1018,19 @@ async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5
     const norm = (interval || '5m').toLowerCase().trim();
     let tvInt = '5';
     if (norm === '1m' || norm === '1') tvInt = '1';
+    else if (norm === '2m' || norm === '2') tvInt = '2';
     else if (norm === '3m' || norm === '3') tvInt = '3';
     else if (norm === '5m' || norm === '5') tvInt = '5';
     else if (norm === '15m' || norm === '15') tvInt = '15';
     else if (norm === '30m' || norm === '30') tvInt = '30';
+    else if (norm === '45m' || norm === '45') tvInt = '45';
     else if (norm === '60m' || norm === '1h' || norm === '60') tvInt = '60';
+    else if (norm === '2h' || norm === '120m') tvInt = '120';
+    else if (norm === '3h' || norm === '180m') tvInt = '180';
+    else if (norm === '4h' || norm === '240m') tvInt = '240';
     else if (norm === '1d' || norm === 'd' || norm === 'day') tvInt = '1D';
     else if (norm === '1w' || norm === 'w' || norm === '1wk') tvInt = '1W';
+    else if (norm === '1m' || norm === '1mo') tvInt = '1M';
 
     let ws = null;
     try {
@@ -1563,7 +1580,7 @@ async function fetchAngelOneCandles(angelInst, interval) {
   if (angelInt === 'ONE_MINUTE') daysBack = 4;
   else if (angelInt === 'THREE_MINUTE' || angelInt === 'FIVE_MINUTE') daysBack = 10;
   else if (angelInt === 'FIFTEEN_MINUTE' || angelInt === 'THIRTY_MINUTE') daysBack = 25;
-  else if (angelInt === 'ONE_HOUR') daysBack = 60;
+  else if (angelInt === 'ONE_HOUR') daysBack = (interval === '4h' || interval === '2h' || interval === '3h') ? 90 : 60;
   else if (angelInt === 'ONE_DAY') daysBack = 365;
 
   const fromDateStr = formatISTDate(new Date(now.getTime() - daysBack * 24 * 3600 * 1000));
@@ -1896,7 +1913,8 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   // Fallback to Yahoo Finance / global exchange feeds
   const mappedTicker = resolveTicker(symNorm);
   const mappedInt = mapInterval(interval);
-  const mappedRng = mappedInt === '1m' ? '2d' : (mappedInt === '1d' ? '1y' : '5d');
+  const normInt = (interval || '').toLowerCase();
+  const mappedRng = mappedInt === '1m' ? '2d' : (mappedInt === '1d' ? '1y' : ((normInt === '4h' || normInt === '2h' || normInt === '3h') ? '60d' : '5d'));
 
   const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
   let json = null;

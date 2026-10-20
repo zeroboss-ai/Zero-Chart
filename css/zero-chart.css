@@ -1516,6 +1516,56 @@ html, body {
   margin: 4px 0;
 }
 
+/* ─── TIMEFRAME DROPDOWN & BUTTONS ─── */
+.tv-timeframe-menu {
+  top: 38px;
+  left: 200px;
+  min-width: 175px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 250;
+}
+
+.tv-timeframe-menu .tv-menu-header {
+  padding: 6px 14px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+.tv-timeframe-menu .tv-menu-header:first-child {
+  border-top: none;
+}
+
+.tv-tf-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.tv-menu-item.active .tv-tf-tag {
+  color: var(--accent);
+}
+
+.tv-tf-btn--dropdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 5px !important;
+}
+
+.tv-tf-btn--dropdown svg {
+  transition: transform 0.15s ease;
+}
+
+.tv-tf-btn--dropdown.open svg {
+  transform: rotate(180deg);
+}
+
 .tv-btn {
   padding: 6px 12px;
   border-radius: 4px;

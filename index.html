@@ -50,13 +50,20 @@
 
       <!-- Timeframe Selector Pills -->
       <div class="tv-timeframe-pills" id="timeframe-group">
-        <button class="tv-tf-btn" data-interval="1m">1m</button>
-        <button class="tv-tf-btn" data-interval="3m">3m</button>
-        <button class="tv-tf-btn active" data-interval="5m">5m</button>
-        <button class="tv-tf-btn" data-interval="15m">15m</button>
-        <button class="tv-tf-btn" data-interval="1h">1h</button>
-        <button class="tv-tf-btn" data-interval="1d">1D</button>
-        <button class="tv-tf-btn" data-interval="1w">1W</button>
+        <button class="tv-tf-btn" data-interval="1m" title="1 Minute">1m</button>
+        <button class="tv-tf-btn" data-interval="3m" title="3 Minutes">3m</button>
+        <button class="tv-tf-btn active" data-interval="5m" title="5 Minutes">5m</button>
+        <button class="tv-tf-btn" data-interval="15m" title="15 Minutes">15m</button>
+        <button class="tv-tf-btn" data-interval="30m" title="30 Minutes">30m</button>
+        <button class="tv-tf-btn" data-interval="1h" title="1 Hour">1h</button>
+        <button class="tv-tf-btn" data-interval="2h" title="2 Hours">2h</button>
+        <button class="tv-tf-btn" data-interval="4h" title="4 Hours">4h</button>
+        <button class="tv-tf-btn" data-interval="1d" title="1 Day">1D</button>
+        <button class="tv-tf-btn" data-interval="1w" title="1 Week">1W</button>
+        <button class="tv-tf-btn tv-tf-btn--dropdown" id="btn-timeframe-dropdown" title="Select Timeframe">
+          <span id="tf-dropdown-label" style="display:none;font-weight:700;margin-right:2px;"></span>
+          <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+        </button>
       </div>
 
       <div class="tv-top-sep"></div>
@@ -480,6 +487,27 @@
           <div id="btn-footer-close-search" style="cursor:pointer;user-select:none;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:4px;" title="Click to close"><span class="tv-search-kbd">Esc</span> Close</div>
         </div>
       </div>
+    </div>
+
+    <!-- ─── 4.5. TIMEFRAME DROPDOWN MENU ─── -->
+    <div class="tv-dropdown-menu tv-timeframe-menu" id="timeframe-dropdown-menu">
+      <div class="tv-menu-header">Minutes</div>
+      <div class="tv-menu-item" data-interval="1m"><span>1 minute</span><span class="tv-tf-tag">1m</span></div>
+      <div class="tv-menu-item" data-interval="2m"><span>2 minutes</span><span class="tv-tf-tag">2m</span></div>
+      <div class="tv-menu-item" data-interval="3m"><span>3 minutes</span><span class="tv-tf-tag">3m</span></div>
+      <div class="tv-menu-item" data-interval="5m"><span>5 minutes</span><span class="tv-tf-tag">5m</span></div>
+      <div class="tv-menu-item" data-interval="15m"><span>15 minutes</span><span class="tv-tf-tag">15m</span></div>
+      <div class="tv-menu-item" data-interval="30m"><span>30 minutes</span><span class="tv-tf-tag">30m</span></div>
+      <div class="tv-menu-item" data-interval="45m"><span>45 minutes</span><span class="tv-tf-tag">45m</span></div>
+      <div class="tv-menu-header">Hours</div>
+      <div class="tv-menu-item" data-interval="1h"><span>1 hour</span><span class="tv-tf-tag">1h</span></div>
+      <div class="tv-menu-item" data-interval="2h"><span>2 hours</span><span class="tv-tf-tag">2h</span></div>
+      <div class="tv-menu-item" data-interval="3h"><span>3 hours</span><span class="tv-tf-tag">3h</span></div>
+      <div class="tv-menu-item" data-interval="4h"><span>4 hours</span><span class="tv-tf-tag">4h</span></div>
+      <div class="tv-menu-header">Days & Weeks</div>
+      <div class="tv-menu-item" data-interval="1d"><span>1 day</span><span class="tv-tf-tag">1D</span></div>
+      <div class="tv-menu-item" data-interval="1w"><span>1 week</span><span class="tv-tf-tag">1W</span></div>
+      <div class="tv-menu-item" data-interval="1M"><span>1 month</span><span class="tv-tf-tag">1M</span></div>
     </div>
 
     <!-- ─── 5. CHART TYPE DROPDOWN MENU ─── -->
