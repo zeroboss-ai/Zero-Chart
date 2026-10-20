@@ -832,19 +832,24 @@ function sanitizeCandles(rawBars, interval = '5m', precision = null) {
 
     const v = Number.isFinite(Number(b.volume)) && Number(b.volume) >= 0 ? Number(b.volume) : 0;
 
+    const roundPrice = (val) => {
+      if (precision !== null) return +val.toFixed(precision);
+      return +Number(val.toFixed(5));
+    };
+
     const existing = map.get(t);
     if (existing) {
-      existing.high = Math.max(existing.high, h);
-      existing.low = Math.min(existing.low, l);
-      existing.close = c;
+      existing.high = Math.max(existing.high, roundPrice(h));
+      existing.low = Math.min(existing.low, roundPrice(l));
+      existing.close = roundPrice(c);
       existing.volume += v;
     } else {
       map.set(t, {
         time: t,
-        open: precision !== null ? +o.toFixed(precision) : (o < 1 ? +o.toFixed(4) : +o.toFixed(2)),
-        high: precision !== null ? +h.toFixed(precision) : (h < 1 ? +h.toFixed(4) : +h.toFixed(2)),
-        low: precision !== null ? +l.toFixed(precision) : (l < 1 ? +l.toFixed(4) : +l.toFixed(2)),
-        close: precision !== null ? +c.toFixed(precision) : (c < 1 ? +c.toFixed(4) : +c.toFixed(2)),
+        open: roundPrice(o),
+        high: roundPrice(h),
+        low: roundPrice(l),
+        close: roundPrice(c),
         volume: v,
       });
     }
@@ -1012,8 +1017,6 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'DXY', 'DOLLAR INDEX',
   // US Mega-Cap Tech
   'NVDA', 'AAPL', 'MSFT', 'TSLA', 'GOOGL', 'AMZN', 'META', 'AMD', 'NFLX', 'COIN',
-  // Forex & Currency Pairs
-  'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURINR', 'GBPINR', 'JPYINR',
   // CME / COMEX / CBOT / NYMEX Futures
   'ES', 'ES FUT', 'NQ', 'NQ FUT', 'YM', 'YM FUT', 'RTY', 'RTY FUT',
   'GC', 'GC FUT', 'SI', 'SI FUT', 'HG', 'HG FUT',
@@ -1054,8 +1057,42 @@ const TV_SYMBOLS_MAP = {
   'COPPER (COMEX)': 'COMEX:HG1!',
   'HG1!': 'COMEX:HG1!',
   'TVC:COPPER': 'COMEX:HG1!',
+  // Major Forex Pairs (TradingView FX)
   'EURUSD': 'FX:EURUSD',
+  'FX:EURUSD': 'FX:EURUSD',
+  'EUR/USD': 'FX:EURUSD',
+  'GBPUSD': 'FX:GBPUSD',
+  'FX:GBPUSD': 'FX:GBPUSD',
+  'GBP/USD': 'FX:GBPUSD',
+  'USDJPY': 'FX:USDJPY',
+  'FX:USDJPY': 'FX:USDJPY',
+  'USD/JPY': 'FX:USDJPY',
+  'AUDUSD': 'FX:AUDUSD',
+  'FX:AUDUSD': 'FX:AUDUSD',
+  'AUD/USD': 'FX:AUDUSD',
+  'USDCAD': 'FX:USDCAD',
+  'FX:USDCAD': 'FX:USDCAD',
+  'USD/CAD': 'FX:USDCAD',
+  'USDCHF': 'FX:USDCHF',
+  'FX:USDCHF': 'FX:USDCHF',
+  'USD/CHF': 'FX:USDCHF',
+  'NZDUSD': 'FX:NZDUSD',
+  'FX:NZDUSD': 'FX:NZDUSD',
+  'NZD/USD': 'FX:NZDUSD',
+
+  // INR Forex Pairs (Forex IDC)
   'USDINR': 'FX_IDC:USDINR',
+  'FX_IDC:USDINR': 'FX_IDC:USDINR',
+  'USD/INR': 'FX_IDC:USDINR',
+  'EURINR': 'FX_IDC:EURINR',
+  'FX_IDC:EURINR': 'FX_IDC:EURINR',
+  'EUR/INR': 'FX_IDC:EURINR',
+  'GBPINR': 'FX_IDC:GBPINR',
+  'FX_IDC:GBPINR': 'FX_IDC:GBPINR',
+  'GBP/INR': 'FX_IDC:GBPINR',
+  'JPYINR': 'FX_IDC:JPYINR',
+  'FX_IDC:JPYINR': 'FX_IDC:JPYINR',
+  'JPY/INR': 'FX_IDC:JPYINR',
   'DXY': 'TVC:DXY',
   'DOLLAR INDEX': 'TVC:DXY',
   'US10Y': 'TVC:US10Y',
@@ -1197,19 +1234,6 @@ async function refreshGlobalIndices() {
         { ticker: 'AMD', symbols: ['AMD'] },
         { ticker: 'NFLX', symbols: ['NFLX'] },
         { ticker: 'COIN', symbols: ['COIN'] },
-
-        // Forex Pairs
-        { ticker: 'USDINR=X', symbols: ['USDINR'] },
-        { ticker: 'EURUSD=X', symbols: ['EURUSD'] },
-        { ticker: 'GBPUSD=X', symbols: ['GBPUSD'] },
-        { ticker: 'USDJPY=X', symbols: ['USDJPY'] },
-        { ticker: 'AUDUSD=X', symbols: ['AUDUSD'] },
-        { ticker: 'USDCAD=X', symbols: ['USDCAD'] },
-        { ticker: 'USDCHF=X', symbols: ['USDCHF'] },
-        { ticker: 'NZDUSD=X', symbols: ['NZDUSD'] },
-        { ticker: 'EURINR=X', symbols: ['EURINR'] },
-        { ticker: 'GBPINR=X', symbols: ['GBPINR'] },
-        { ticker: 'JPYINR=X', symbols: ['JPYINR'] },
 
         // CME / COMEX / NYMEX Futures
         { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'COMEX GOLD'] },
@@ -1924,16 +1948,30 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   }
 
   // 1. Direct TradingView official feeds for GIFT Nifty, Spot Gold, Silver, Crude Oil, Currencies & Indices
-  const tvMapped = TV_SYMBOLS_MAP[symNorm] || (symNorm.startsWith('TVC:') ? symNorm : null);
+  const tvMapped = TV_SYMBOLS_MAP[symNorm] || (symNorm.startsWith('TVC:') || symNorm.startsWith('FX:') || symNorm.startsWith('FX_IDC:') ? symNorm : null);
   if (tvMapped) {
     try {
       const tvBars = await fetchTradingViewCandles(tvMapped, interval, 350);
       if (tvBars && tvBars.length > 0) {
         const lastBar = tvBars[tvBars.length - 1];
         const prevQuote = quoteCache.get(symNorm);
-        const prevClose = (prevQuote && prevQuote.prevClose > 0) ? prevQuote.prevClose : tvBars[0].open;
-        const chg = +(lastBar.close - prevClose).toFixed(2);
-        const chgPct = prevClose !== 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
+        let prevClose = null;
+        if (prevQuote && prevQuote.prevClose > 0 && Math.abs(lastBar.close - prevQuote.prevClose) < lastBar.close * 0.1) {
+          prevClose = prevQuote.prevClose;
+        } else {
+          const nowD = new Date();
+          const todayStartSec = Math.floor(new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime() / 1000);
+          const yesterdayBars = tvBars.filter(b => b.time < todayStartSec);
+          if (yesterdayBars.length > 0) {
+            prevClose = yesterdayBars[yesterdayBars.length - 1].close;
+          } else {
+            prevClose = tvBars[0].open;
+          }
+        }
+        const diff = lastBar.close - prevClose;
+        const dec = lastBar.close < 2 ? 4 : (lastBar.close < 200 && symNorm.includes('JPY') ? 3 : 2);
+        const chg = +diff.toFixed(dec);
+        const chgPct = prevClose !== 0 ? +((diff / prevClose) * 100).toFixed(2) : 0;
 
         quoteCache.set(symNorm, {
           ltp: lastBar.close,
@@ -3247,11 +3285,20 @@ function createServer() {
           { symbol: 'XAUUSD', name: 'Spot Gold USD (TradingView)', exchange: 'TVC', badge: 'GOLD', color: '#ffb300' },
           { symbol: 'XAGUSD', name: 'Spot Silver USD (TradingView)', exchange: 'TVC', badge: 'SLV', color: '#90a4ae' },
           { symbol: 'WTI CRUDE', name: 'WTI Crude Oil USD (TradingView)', exchange: 'TVC', badge: 'OIL', color: '#8d6e63' },
-          { symbol: 'BRENT CRUDE', name: 'Brent Crude Oil USD (TradingView)', exchange: 'TVC', badge: 'OIL', color: '#5d4037' },
-          { symbol: 'NATURAL GAS', name: 'Henry Hub Natural Gas (NYMEX)', exchange: 'NYMEX', badge: 'GAS', color: '#ff7043' },
-          { symbol: 'USDINR', name: 'US Dollar / Indian Rupee (TradingView)', exchange: 'FX', badge: '$₹', color: '#43a047' },
-          { symbol: 'EURUSD', name: 'Euro / US Dollar (TradingView)', exchange: 'FX', badge: '€$', color: '#1e88e5' },
-          { symbol: 'PAXGUSDT', name: 'Paxos Spot Gold (Binance Crypto)', exchange: 'BINANCE', badge: 'PAXG', color: '#ffb300' },
+          { symbol: 'BRENT CRUDE', name: 'Brent Crude Oil USD (TradingView)', exchange: 'TVC', badge: 'OIL', color: '#5d4037', precision: 2 },
+          { symbol: 'NATURAL GAS', name: 'Henry Hub Natural Gas (NYMEX)', exchange: 'NYMEX', badge: 'GAS', color: '#ff7043', precision: 3 },
+          { symbol: 'USDINR', name: 'US Dollar / Indian Rupee (TradingView)', exchange: 'FX', badge: '$₹', color: '#43a047', precision: 4 },
+          { symbol: 'EURUSD', name: 'Euro / US Dollar (TradingView)', exchange: 'FX', badge: '€$', color: '#1e88e5', precision: 4 },
+          { symbol: 'GBPUSD', name: 'British Pound / US Dollar (TradingView)', exchange: 'FX', badge: '£$', color: '#9c27b0', precision: 4 },
+          { symbol: 'USDJPY', name: 'US Dollar / Japanese Yen (TradingView)', exchange: 'FX', badge: '$¥', color: '#e91e63', precision: 3 },
+          { symbol: 'AUDUSD', name: 'Australian Dollar / US Dollar (TradingView)', exchange: 'FX', badge: 'A$', color: '#00897b', precision: 4 },
+          { symbol: 'USDCAD', name: 'US Dollar / Canadian Dollar (TradingView)', exchange: 'FX', badge: 'C$', color: '#d81b60', precision: 4 },
+          { symbol: 'USDCHF', name: 'US Dollar / Swiss Franc (TradingView)', exchange: 'FX', badge: 'CHF', color: '#c2185b', precision: 4 },
+          { symbol: 'NZDUSD', name: 'New Zealand Dollar / US Dollar (TradingView)', exchange: 'FX', badge: 'NZ$', color: '#00acc1', precision: 4 },
+          { symbol: 'EURINR', name: 'Euro / Indian Rupee (TradingView)', exchange: 'FX', badge: '€₹', color: '#1565c0', precision: 4 },
+          { symbol: 'GBPINR', name: 'British Pound / Indian Rupee (TradingView)', exchange: 'FX', badge: '£₹', color: '#6a1b9a', precision: 4 },
+          { symbol: 'JPYINR', name: 'Japanese Yen / Indian Rupee (TradingView)', exchange: 'FX', badge: '¥₹', color: '#b71c1c', precision: 4 },
+          { symbol: 'PAXGUSDT', name: 'Paxos Spot Gold (Binance Crypto)', exchange: 'BINANCE', badge: 'PAXG', color: '#ffb300', precision: 2 },
         ];
         for (const m of topComm) {
           let score = 0;
@@ -3271,8 +3318,8 @@ function createServer() {
                 category: 'commodities',
                 feedType: m.symbol === 'PAXGUSDT' ? 'binance' : 'commodity',
                 basePrice: 0,
-                tickSize: 0.01,
-                precision: m.symbol.includes('USD') && m.symbol.length === 6 ? 4 : 2,
+                tickSize: m.precision === 4 ? 0.0001 : (m.precision === 3 ? 0.001 : 0.01),
+                precision: m.precision || (m.symbol.includes('USD') && m.symbol.length === 6 ? 4 : 2),
                 badgeText: m.badge,
                 badgeColor: m.color,
               },

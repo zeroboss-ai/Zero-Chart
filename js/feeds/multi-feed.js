@@ -46,7 +46,10 @@ export class MultiAssetFeed {
       sym === 'BRENT CRUDE' ||
       sym === 'BRENT' ||
       sym === 'US10Y' ||
-      sym === 'DXY'
+      sym === 'DXY' ||
+      sym.startsWith('FX:') ||
+      sym.startsWith('FX_IDC:') ||
+      ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDINR', 'EURINR', 'GBPINR', 'JPYINR'].includes(sym.replace(/^(FX:|FX_IDC:)/, ''))
     ) {
       return this.commodityFeed;
     }

@@ -328,7 +328,7 @@ export class OpenAlgoLiveFeed {
     const inst = findInstrument(symbol) || findInstrument(symKey);
     const instBasePrice = inst?.basePrice;
     const basePrice = (typeof instBasePrice === 'number' && instBasePrice > 0) ? instBasePrice : (MARKET_BASE_PRICES[symKey] || 1500);
-    const isFx = symKey === 'EURUSD' || symKey === 'USDINR';
+    const isFx = inst?.category === 'forex' || ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'USDINR', 'EURINR', 'GBPINR', 'JPYINR'].includes(symKey.replace(/^(FX:|FX_IDC:)/, ''));
     const decimals = typeof inst?.precision === 'number' ? inst.precision : (isFx ? 4 : isMcxSym ? 2 : 2);
 
     const intervalSecs = getIntervalSeconds(interval);

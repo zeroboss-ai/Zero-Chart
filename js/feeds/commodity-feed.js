@@ -4,7 +4,7 @@
  */
 
 import { BinanceFeed } from './binance-feed.js';
-import { sanitizeBars } from './openalgo-feed.js';
+import { sanitizeBars, getIntervalSeconds } from './openalgo-feed.js';
 
 export class CommodityFeed {
   constructor() {
@@ -107,7 +107,7 @@ export class CommodityFeed {
 
     // High-frequency live quote poller without generating fake nowSec ticks
     let isFetching = false;
-    const intervalSecs = 300;
+    const intervalSecs = getIntervalSeconds(interval);
     const poller = async () => {
       if (isFetching) return;
       isFetching = true;
