@@ -59,7 +59,8 @@ export class CommodityFeed {
     // Fetch real live TradingView / exchange candles from backend
     try {
       const resp = await fetch(
-        `/api/market/history?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}`
+        `/api/market/history?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}`,
+        { signal: AbortSignal.timeout(3500) }
       );
       if (resp.ok) {
         const json = await resp.json();

@@ -259,7 +259,8 @@ export class OpenAlgoLiveFeed {
     // 1. Fetch 100% REAL LIVE Indian exchange candles from server market endpoint
     try {
       const liveResp = await fetch(
-        `/api/market/history?symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}&interval=${encodeURIComponent(interval)}`
+        `/api/market/history?symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}&interval=${encodeURIComponent(interval)}`,
+        { signal: AbortSignal.timeout(3500) }
       );
       if (liveResp.ok) {
         const json = await liveResp.json();
