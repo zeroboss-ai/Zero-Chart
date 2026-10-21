@@ -6776,6 +6776,8 @@ class ZeroChartApp {
     const modal = document.getElementById('oi-analytics-modal');
     if (modal) {
       modal.classList.add('show');
+      const subtabs = document.querySelectorAll('#oi-subtabs .tv-oi-tab-btn');
+      subtabs.forEach((b) => b.classList.toggle('active', b.dataset.subtab === (this.oiActiveSubtab || 'oi-change')));
       this.renderOIDashboard();
     }
     if (window.innerWidth <= 768) {
@@ -7678,8 +7680,9 @@ class ZeroChartApp {
         if (p.pe_price > maxStrad) maxStrad = p.pe_price;
       }
     });
-    minStrad = Math.max(0, minStrad * 0.85);
-    maxStrad = maxStrad * 1.1;
+    const stradMargin = Math.max(6, (maxStrad - minStrad) * 0.08);
+    minStrad = Math.max(0, minStrad - stradMargin);
+    maxStrad = maxStrad + stradMargin;
     if (minStrad >= maxStrad) maxStrad = minStrad + 50;
 
     const getX = (idx) => padLeft + (idx / Math.max(1, series.length - 1)) * chartW;

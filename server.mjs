@@ -243,13 +243,33 @@ const COMMODITY_METAS = {
 
 function parseExpiryDate(expStr) {
   if (!expStr) return 9999999999999;
-  const match = String(expStr).match(/^(\d{2})([A-Z]{3})(\d{4})$/i);
-  if (!match) return 9999999999999;
-  const months = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
-  const d = parseInt(match[1], 10);
-  const m = months[match[2].toUpperCase()] || 0;
-  const y = parseInt(match[3], 10);
-  return new Date(Date.UTC(y, m, d)).getTime();
+  const s = String(expStr).trim();
+  // 1. ISO format: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  // 2. Angel format: 27OCT2026
+  const matchAngel = s.match(/^(\d{2})([A-Z]{3})(\d{4})$/i);
+  if (matchAngel) {
+    const months = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+    const d = parseInt(matchAngel[1], 10);
+    const m = months[matchAngel[2].toUpperCase()] ?? 0;
+    const y = parseInt(matchAngel[3], 10);
+    return new Date(Date.UTC(y, m, d)).getTime();
+  }
+  // 3. NSE format: 27-Oct-2026
+  const matchNSE = s.match(/^(\d{1,2})-([A-Z]{3})-(\d{4})$/i);
+  if (matchNSE) {
+    const months = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+    const d = parseInt(matchNSE[1], 10);
+    const m = months[matchNSE[2].toUpperCase()] ?? 0;
+    const y = parseInt(matchNSE[3], 10);
+    return new Date(Date.UTC(y, m, d)).getTime();
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.getTime();
+  return 9999999999999;
 }
 
 const COMPANY_NAMES = {
@@ -385,13 +405,35 @@ function indexInstruments(instruments) {
     } else if (item.exch_seg === 'MCX') {
       mcxSymbolsMap.set(item.symbol.toUpperCase(), item);
       mcxTokensMap.set(String(item.token), item);
-      if (item.instrumenttype === 'AMXIDX') {
-        indicesMap.set(item.symbol.toUpperCase(), item);
-        indicesMap.set(item.name.toUpperCase(), item);
-      } else if (item.instrumenttype === 'FUTCOM' || item.instrumenttype === 'COMDTY' || item.instrumenttype === 'FUTIDX') {
+      if (item.instrumenttype === 'FUTCOM' || item.instrumenttype === 'COMDTY' || item.instrumenttype === 'FUTIDX') {
         const baseName = item.name.toUpperCase();
         if (!commoditiesMap.has(baseName)) commoditiesMap.set(baseName, []);
         commoditiesMap.get(baseName).push(item);
+      }
+    }
+
+    if (item.instrumenttype === 'AMXIDX') {
+      const symUp = (item.symbol || '').toUpperCase();
+      const nameUp = (item.name || '').toUpperCase();
+      if (symUp) indicesMap.set(symUp, item);
+      if (nameUp) indicesMap.set(nameUp, item);
+      if (item.token === '99926000') {
+        indicesMap.set('NIFTY', item);
+        indicesMap.set('NIFTY 50', item);
+        indicesMap.set('NIFTY50', item);
+      } else if (item.token === '99926009') {
+        indicesMap.set('BANKNIFTY', item);
+        indicesMap.set('BANK NIFTY', item);
+        indicesMap.set('NIFTY BANK', item);
+      } else if (item.token === '99926037') {
+        indicesMap.set('FINNIFTY', item);
+        indicesMap.set('FIN NIFTY', item);
+      } else if (item.token === '99926074') {
+        indicesMap.set('MIDCPNIFTY', item);
+        indicesMap.set('NIFTY MID SELECT', item);
+      } else if (item.token === '99919000') {
+        indicesMap.set('SENSEX', item);
+        indicesMap.set('BSE SENSEX', item);
       }
     }
   }
@@ -1660,26 +1702,37 @@ function getFallbackNews(category) {
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 let lastAngelCandleReqTime = 0;
-const ANGEL_CANDLE_INTERVAL_MS = 450;
+const ANGEL_CANDLE_INTERVAL_MS = 2000;
 let angelCandleQueue = Promise.resolve();
 
-async function fetchAngelOneCandles(angelInst, interval) {
+async function fetchAngelOneCandles(angelInst, interval, customDaysBack = null) {
+  if (!angelInst || !angelInst.token) return null;
+  const cacheKey = `angel_${angelInst.token}_${interval}_${customDaysBack || 'def'}`;
+  const cached = candleCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 25000) {
+    return cached.data;
+  }
+
   return new Promise((resolve, reject) => {
     angelCandleQueue = angelCandleQueue.catch(() => {}).then(async () => {
       const wait = Math.max(0, ANGEL_CANDLE_INTERVAL_MS - (Date.now() - lastAngelCandleReqTime));
       if (wait > 0) await new Promise(r => setTimeout(r, wait));
-      lastAngelCandleReqTime = Date.now();
       try {
-        const res = await _fetchAngelOneCandlesInternal(angelInst, interval);
+        const res = await _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack);
+        lastAngelCandleReqTime = Date.now();
+        if (res && res.length > 0) {
+          candleCache.set(cacheKey, { timestamp: Date.now(), data: res });
+        }
         resolve(res);
       } catch (err) {
+        lastAngelCandleReqTime = Date.now();
         reject(err);
       }
     });
   });
 }
 
-async function _fetchAngelOneCandlesInternal(angelInst, interval) {
+async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack = null) {
   if (Date.now() < angelCandleRateLimitUntil) {
     throw new Error('AngelOne candle rate-limit active cooldown');
   }
@@ -1694,14 +1747,16 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval) {
   const toDateStr = formatISTDate(now);
   
   // Calculate fromDate based on interval (maximize historical bars within AngelOne single-query limits)
-  let daysBack = 30;
-  if (angelInt === 'ONE_MINUTE') daysBack = 25;
-  else if (angelInt === 'THREE_MINUTE') daysBack = 45;
-  else if (angelInt === 'FIVE_MINUTE') daysBack = 80;
-  else if (angelInt === 'FIFTEEN_MINUTE') daysBack = 90;
-  else if (angelInt === 'THIRTY_MINUTE') daysBack = 150;
-  else if (angelInt === 'ONE_HOUR') daysBack = (interval === '4h' || interval === '2h' || interval === '3h') ? 350 : 250;
-  else if (angelInt === 'ONE_DAY') daysBack = 1200;
+  let daysBack = customDaysBack != null ? customDaysBack : 30;
+  if (customDaysBack == null) {
+    if (angelInt === 'ONE_MINUTE') daysBack = 25;
+    else if (angelInt === 'THREE_MINUTE') daysBack = 45;
+    else if (angelInt === 'FIVE_MINUTE') daysBack = 80;
+    else if (angelInt === 'FIFTEEN_MINUTE') daysBack = 90;
+    else if (angelInt === 'THIRTY_MINUTE') daysBack = 150;
+    else if (angelInt === 'ONE_HOUR') daysBack = (interval === '4h' || interval === '2h' || interval === '3h') ? 350 : 250;
+    else if (angelInt === 'ONE_DAY') daysBack = 1200;
+  }
 
   const fromDateStr = formatISTDate(new Date(now.getTime() - daysBack * 24 * 3600 * 1000));
 
@@ -1727,10 +1782,41 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval) {
     }),
   });
 
-  const text = await resp.text();
+  let text = await resp.text();
+  if (resp.status !== 200) {
+    console.warn(`[AngelOne Candles] HTTP ${resp.status} for ${angelInst.symbol || angelInst.name} (${angelInst.token}):`, text.slice(0, 150));
+  }
   if (resp.status === 403 || text.includes('exceeding access rate')) {
-    angelCandleRateLimitUntil = Date.now() + 15000;
-    throw new Error('AngelOne historical rate limit reached');
+    // Retry once after 2500ms penalty cooldown
+    await new Promise(r => setTimeout(r, 2500));
+    const retryResp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/historical/v1/getCandleData', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-UserType': 'USER',
+        'X-SourceID': 'WEB',
+        'X-ClientLocalIP': '127.0.0.1',
+        'X-ClientPublicIP': '127.0.0.1',
+        'X-MACAddress': 'fe80::1',
+        'X-PrivateKey': angelSession.apiKey,
+        'Authorization': `Bearer ${angelSession.jwtToken}`,
+      },
+      body: JSON.stringify({
+        exchange: angelInst.exch_seg || 'NSE',
+        symboltoken: String(angelInst.token),
+        interval: angelInt,
+        fromdate: fromDateStr,
+        todate: toDateStr,
+      }),
+    });
+    const retryText = await retryResp.text();
+    if (retryResp.status === 200) {
+      text = retryText;
+    } else {
+      angelCandleRateLimitUntil = Date.now() + 8000;
+      throw new Error(`AngelOne historical rate limit reached: HTTP ${retryResp.status}`);
+    }
   }
 
   let json;
@@ -2786,7 +2872,6 @@ function generateIntradayStraddleSeries(spot, dayOpenPrice, atmStrike, liveCePri
   // Typical morning open straddle premium carries ~15-20% higher decay buffer
   const decayRate = 0.18;
   const morningStraddle = +(liveStraddle * (1 + decayRate)).toFixed(2);
-  const morningCe = +(liveCePrice * 1.15).toFixed(2);
 
   let elapsedMinutes = Math.floor((istNow.getUTCHours() * 60 + istNow.getUTCMinutes()) - (9 * 60 + 15));
   if (elapsedMinutes < 5 || elapsedMinutes > 375) elapsedMinutes = 375; // full session if outside hours
@@ -2801,18 +2886,37 @@ function generateIntradayStraddleSeries(spot, dayOpenPrice, atmStrike, liveCePri
     const fraction = i / Math.max(1, numBars - 1);
     const barTime = startSec + i * 300; // 5m intervals
 
-    // Progressive theta decay curve
-    const thetaProgress = Math.pow(fraction, 1.25);
-    const baseStraddle = morningStraddle - (morningStraddle - liveStraddle) * thetaProgress;
+    // Multi-cycle spot waves:
+    // Wave 1: Morning opening swing (fast 1.5 hour cycle)
+    // Wave 2: Mid-day consolidation dip/bounce (3 hour cycle)
+    const wave1 = Math.sin(fraction * Math.PI * 3.8) * (spotOpen * 0.0025);
+    const wave2 = Math.cos(fraction * Math.PI * 2.2) * (spotOpen * 0.0018);
+    const wave = (wave1 + wave2) * (1 - fraction * 0.4);
 
-    // Spot movement wave
-    const wave = Math.sin(fraction * Math.PI * 2.2) * (spotOpen * 0.002);
-    const barSpot = +(spotOpen + spotDelta * fraction + (fraction < 1 ? wave : 0)).toFixed(2);
-
+    const barSpot = i === numBars - 1 ? spot : +(spotOpen + spotDelta * fraction + wave).toFixed(2);
     const strikeDist = barSpot - atmStrike;
-    const barCe = fraction === 1 ? liveCePrice : +(morningCe - (morningCe - liveCePrice) * thetaProgress + strikeDist * 0.45).toFixed(2);
-    const barPe = fraction === 1 ? livePePrice : +(Math.max(1, baseStraddle - barCe)).toFixed(2);
-    const barStraddle = fraction === 1 ? liveStraddle : +(barCe + barPe).toFixed(2);
+
+    // Progressive theta decay base
+    const thetaProgress = Math.pow(fraction, 1.25);
+    const baseDecay = morningStraddle - (morningStraddle - liveStraddle) * thetaProgress;
+
+    // Intraday IV fluctuations + gamma convexity when spot drifts from ATM
+    const ivWave = Math.sin(fraction * Math.PI * 3.4) * (liveStraddle * 0.04) * (1 - fraction);
+    const gammaConvexity = (Math.abs(strikeDist) / (atmStrike || 1)) * liveStraddle * 0.9;
+
+    const barStraddle = i === numBars - 1
+      ? liveStraddle
+      : +(Math.max(1, baseDecay + ivWave + gammaConvexity)).toFixed(2);
+
+    // Delta distribution between CE and PE
+    const deltaRatio = Math.max(0.15, Math.min(0.85, 0.5 + (strikeDist / Math.max(80, liveStraddle * 1.8))));
+    const barCe = i === numBars - 1
+      ? liveCePrice
+      : +(barStraddle * deltaRatio).toFixed(2);
+    const barPe = i === numBars - 1
+      ? livePePrice
+      : +(Math.max(0.5, barStraddle - barCe)).toFixed(2);
+
     const barSynth = +(atmStrike + barCe - barPe).toFixed(2);
 
     series.push({
@@ -2829,8 +2933,16 @@ function generateIntradayStraddleSeries(spot, dayOpenPrice, atmStrike, liveCePri
   return series;
 }
 
+const straddleDataCache = new Map();
+
 async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikeParam = null, interval = '5m') {
   const baseName = normalizeOptionBaseSymbol(symbol);
+  const cacheKey = `${baseName}_${expiry || 'near'}_${strikeParam || 'atm'}_${interval}`;
+  const cached = straddleDataCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 15000) {
+    return cached.data;
+  }
+
   const oiData = await fetchLiveOptionChain(baseName, expiry, 30);
   if (!oiData || !oiData.strikeRows || oiData.strikeRows.length === 0) {
     throw new Error(`Failed to load option chain data for ${symbol}`);
@@ -2876,25 +2988,55 @@ async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikePara
     }
   } catch (_) {}
 
-  // Generate intraday series
+  // Generate intraday series (high quality base/fallback)
   let series = generateIntradayStraddleSeries(spot, dayOpenPrice, atmStrike, cePrice, pePrice, oiData.expiry);
 
   // If Angel One historical candles exist and user wants deeper precision
   if (angelSession.isAuthenticated && optionsMap.has(baseName)) {
     try {
       const entry = optionsMap.get(baseName);
-      const angelExp = entry.expiries[0];
-      const contracts = entry.contractsByExpiry.get(angelExp) || [];
+      const targetExp = expiry || oiData.expiry;
+      const targetParsed = parseExpiryDate(targetExp);
+
+      let angelExp = null;
+      if (entry && entry.expiries && entry.expiries.length > 0) {
+        if (targetExp) {
+          angelExp = entry.expiries.find(
+            (e) => e.toUpperCase() === String(targetExp).toUpperCase() || parseExpiryDate(e) === targetParsed
+          );
+          if (!angelExp) {
+            let minDiff = Infinity;
+            for (const e of entry.expiries) {
+              const diff = Math.abs(parseExpiryDate(e) - targetParsed);
+              if (diff < minDiff) {
+                minDiff = diff;
+                angelExp = e;
+              }
+            }
+          }
+        }
+        if (!angelExp) angelExp = entry.expiries[0];
+      }
+
+      const contracts = (angelExp && entry.contractsByExpiry.get(angelExp)) || [];
       const indexInst = indicesMap.get(baseName) || resolveAngelInstrument(baseName);
-      const ceContract = contracts.find((c) => c.strike === atmStrike && c.type === 'CE');
-      const peContract = contracts.find((c) => c.strike === atmStrike && c.type === 'PE');
+      const ceContract = contracts.find((c) => Math.abs(c.strike - atmStrike) < 1 && c.type === 'CE');
+      const peContract = contracts.find((c) => Math.abs(c.strike - atmStrike) < 1 && c.type === 'PE');
 
       if (ceContract && peContract) {
-        const [ceBars, peBars, spotBars] = await Promise.all([
-          fetchAngelOneCandles(ceContract, interval).catch(() => null),
-          fetchAngelOneCandles(peContract, interval).catch(() => null),
-          indexInst ? fetchAngelOneCandles(indexInst, interval).catch(() => null) : Promise.resolve(null),
-        ]);
+        const ceBars = await fetchAngelOneCandles(ceContract, interval, 2).catch((err) => {
+          console.warn(`[Straddle] AngelOne CE candle error: ${err.message}`);
+          return null;
+        });
+        const peBars = await fetchAngelOneCandles(peContract, interval, 2).catch((err) => {
+          console.warn(`[Straddle] AngelOne PE candle error: ${err.message}`);
+          return null;
+        });
+        const spotBars = indexInst
+          ? await fetchAngelOneCandles(indexInst, interval, 2).catch(() => null)
+          : null;
+
+        console.log(`[Straddle] Options fetched -> ceBars: ${ceBars?.length ?? 0}, peBars: ${peBars?.length ?? 0}, spotBars: ${spotBars?.length ?? 0}`);
 
         if (ceBars && peBars && ceBars.length > 0 && peBars.length > 0) {
           const peMap = new Map();
@@ -2904,8 +3046,19 @@ async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikePara
             for (const b of spotBars) spotMap.set(b.time, b.close);
           }
 
+          // Determine the latest session date in IST (YYYY-MM-DD)
+          const latestBarTime = Math.max(ceBars[ceBars.length - 1].time, peBars[peBars.length - 1].time);
+          const latestIstDate = new Date((latestBarTime + 5.5 * 3600) * 1000).toISOString().slice(0, 10);
+
           const realMerged = [];
           for (const cb of ceBars) {
+            const barDate = new Date((cb.time + 5.5 * 3600) * 1000);
+            const barIstDate = barDate.toISOString().slice(0, 10);
+            if (barIstDate !== latestIstDate) continue; // Filter strictly to today's active session
+
+            const istMins = barDate.getUTCHours() * 60 + barDate.getUTCMinutes();
+            if (istMins < 9 * 60 + 15) continue; // 09:15 AM IST onwards
+
             const peClose = peMap.get(cb.time);
             if (peClose !== undefined) {
               const strad = +(cb.close + peClose).toFixed(2);
@@ -2922,13 +3075,37 @@ async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikePara
               });
             }
           }
-          if (realMerged.length >= 5) {
+
+          if (realMerged.length >= 2) {
+            // Calibrate latest bar with live tick
+            const lastBar = realMerged[realMerged.length - 1];
+            if (cePrice > 0 && pePrice > 0) {
+              const nowSec = Math.floor(Date.now() / 1000);
+              if (Math.abs(nowSec - lastBar.time) < 600) {
+                lastBar.ce_price = cePrice;
+                lastBar.pe_price = pePrice;
+                lastBar.straddle = straddlePrice;
+                lastBar.synthetic_future = syntheticFuture;
+                if (spot > 0) lastBar.spot = spot;
+              } else if (nowSec - lastBar.time >= 300) {
+                realMerged.push({
+                  time: nowSec,
+                  spot: spot || lastBar.spot,
+                  atm_strike: atmStrike,
+                  ce_price: cePrice,
+                  pe_price: pePrice,
+                  straddle: straddlePrice,
+                  synthetic_future: syntheticFuture,
+                });
+              }
+            }
             series = realMerged;
+            console.log(`[Straddle] Real intraday candles populated: ${realMerged.length} bars (Session: ${latestIstDate})`);
           }
         }
       }
     } catch (e) {
-      // Fallback series is already populated
+      console.warn('[Straddle] Failed to merge real option candles, using synthetic fallback:', e.message);
     }
   }
 
@@ -2937,7 +3114,7 @@ async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikePara
   const decayPts = +(straddlePrice - openStraddle).toFixed(2);
   const decayPct = openStraddle > 0 ? +((decayPts / openStraddle) * 100).toFixed(2) : 0;
 
-  return {
+  const result = {
     status: 'success',
     symbol: baseName,
     displaySymbol: baseName,
@@ -2974,6 +3151,9 @@ async function fetchLiveStraddleData(symbol = 'NIFTY', expiry = null, strikePara
     series,
     timestamp: Date.now(),
   };
+
+  straddleDataCache.set(cacheKey, { timestamp: Date.now(), data: result });
+  return result;
 }
 
 const MIME_TYPES = {
