@@ -453,23 +453,30 @@ loadInstrumentMaster();
 
 // Find AngelOne instrument metadata for any symbol
 function resolveAngelInstrument(symbol) {
-  const norm = (symbol || '').toUpperCase().trim();
+  let norm = (symbol || '').toUpperCase().trim();
+  if (!norm) return null;
+
+  // 1. Direct exact match
   if (indicesMap.has(norm)) return indicesMap.get(norm);
-
-  // Exact MCX symbol match (e.g. 'GOLD04DEC26FUT', 'CRUDEOIL19NOV26FUT')
   if (mcxSymbolsMap.has(norm)) return mcxSymbolsMap.get(norm);
-
-  // Check direct NSE equity
   if (nseEquitiesMap.has(norm)) return nseEquitiesMap.get(norm);
 
+  // 2. Strip exchange prefix like 'NSE:', 'BSE:', 'MCX:', 'NFO:', 'CDS:', 'INDEX:'
+  const unprefix = norm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+
+  if (indicesMap.has(unprefix)) return indicesMap.get(unprefix);
+  if (mcxSymbolsMap.has(unprefix)) return mcxSymbolsMap.get(unprefix);
+  if (nseEquitiesMap.has(unprefix)) return nseEquitiesMap.get(unprefix);
+
   // Check alias
-  if (ALIAS_MAP[norm] && nseEquitiesMap.has(ALIAS_MAP[norm])) {
-    return nseEquitiesMap.get(ALIAS_MAP[norm]);
+  const alias = ALIAS_MAP[norm] || ALIAS_MAP[unprefix];
+  if (alias && nseEquitiesMap.has(alias)) {
+    return nseEquitiesMap.get(alias);
   }
 
   // Check MCX commodities & NFO futures
-  if (norm.endsWith(' FUT') || norm.endsWith('FUT') || norm.endsWith('1!')) {
-    const base = norm.replace(/\s*FUT$|\s*1!$/i, '').trim();
+  if (unprefix.endsWith(' FUT') || unprefix.endsWith('FUT') || unprefix.endsWith('1!')) {
+    const base = unprefix.replace(/\s*FUT$|\s*1!$/i, '').trim();
     if (commoditiesMap.has(base)) {
       const list = commoditiesMap.get(base);
       if (list && list.length > 0) return list[0];
@@ -481,14 +488,14 @@ function resolveAngelInstrument(symbol) {
   }
 
   // Check direct commodity name (e.g. 'GOLD', 'SILVER', 'CRUDEOIL', 'NATURALGAS', 'COPPER', 'ZINC')
-  if (commoditiesMap.has(norm)) {
-    const list = commoditiesMap.get(norm);
+  if (commoditiesMap.has(unprefix)) {
+    const list = commoditiesMap.get(unprefix);
     if (list && list.length > 0) return list[0];
   }
 
   // Check direct commodity name only if explicitly tagged MCX
-  if (norm.includes('MCX') && commoditiesMap.has(norm.replace(/MCX/g, '').trim())) {
-    const list = commoditiesMap.get(norm.replace(/MCX/g, '').trim());
+  if (norm.includes('MCX') && commoditiesMap.has(unprefix.replace(/MCX/g, '').trim())) {
+    const list = commoditiesMap.get(unprefix.replace(/MCX/g, '').trim());
     if (list && list.length > 0) return list[0];
   }
 
@@ -1099,7 +1106,7 @@ const TV_SYMBOLS_MAP = {
 };
 
 // ─── 4.5. TRADINGVIEW DIRECT CANDLE FETCHER (GIFT NIFTY, SPOT COMMODITIES & GLOBAL) ───
-async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5m', barCount = 350) {
+async function fetchTradingViewCandles(tvSymbol = 'NSEIX:NIFTY1!', interval = '5m', barCount = 1000) {
   return new Promise((resolve) => {
     let resolved = false;
     let timer = null;
@@ -1673,13 +1680,15 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval) {
   const now = new Date();
   const toDateStr = formatISTDate(now);
   
-  // Calculate fromDate based on interval
-  let daysBack = 7;
-  if (angelInt === 'ONE_MINUTE') daysBack = 4;
-  else if (angelInt === 'THREE_MINUTE' || angelInt === 'FIVE_MINUTE') daysBack = 10;
-  else if (angelInt === 'FIFTEEN_MINUTE' || angelInt === 'THIRTY_MINUTE') daysBack = 25;
-  else if (angelInt === 'ONE_HOUR') daysBack = (interval === '4h' || interval === '2h' || interval === '3h') ? 90 : 60;
-  else if (angelInt === 'ONE_DAY') daysBack = 365;
+  // Calculate fromDate based on interval (maximize historical bars within AngelOne single-query limits)
+  let daysBack = 30;
+  if (angelInt === 'ONE_MINUTE') daysBack = 25;
+  else if (angelInt === 'THREE_MINUTE') daysBack = 45;
+  else if (angelInt === 'FIVE_MINUTE') daysBack = 80;
+  else if (angelInt === 'FIFTEEN_MINUTE') daysBack = 90;
+  else if (angelInt === 'THIRTY_MINUTE') daysBack = 150;
+  else if (angelInt === 'ONE_HOUR') daysBack = (interval === '4h' || interval === '2h' || interval === '3h') ? 350 : 250;
+  else if (angelInt === 'ONE_DAY') daysBack = 1200;
 
   const fromDateStr = formatISTDate(new Date(now.getTime() - daysBack * 24 * 3600 * 1000));
 
@@ -1911,14 +1920,15 @@ async function fetchAngelOneLtp(angelInst) {
 
 // ─── 7. EXCHANGE HISTORY WITH ANGELONE PRIMARY & YAHOO FALLBACK ───
 async function fetchLiveExchangeHistory(symbol, interval) {
-  const symNorm = symbol.toUpperCase().trim();
-  const cacheKey = `${symNorm}_${interval}`;
+  const symNorm = (symbol || '').toUpperCase().trim();
+  const unprefix = symNorm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+  const cacheKey = `${unprefix}_${interval}`;
 
-  const cached = candleCache.get(cacheKey);
+  const cached = candleCache.get(cacheKey) || candleCache.get(`${symNorm}_${interval}`);
   // Cache historical candles for 25 seconds to respect AngelOne rate limits
   if (cached && Date.now() - cached.timestamp < 25000) {
     // Overlay latest live LTP onto the last candle
-    const ltpData = quoteCache.get(symNorm);
+    const ltpData = quoteCache.get(symNorm) || quoteCache.get(unprefix);
     if (ltpData && Number.isFinite(ltpData.ltp) && ltpData.ltp > 0 && Array.isArray(cached.data) && cached.data.length > 0) {
       const bars = cached.data.map(b => ({ ...b }));
       const last = bars[bars.length - 1];
@@ -1936,11 +1946,12 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   }
 
   // Handle Binance Crypto directly
-  if (isCryptoSymbol(symNorm)) {
+  if (isCryptoSymbol(symNorm) || isCryptoSymbol(unprefix)) {
     try {
-      const binanceBars = await fetchBinanceCandles(symNorm, interval);
+      const binanceBars = await fetchBinanceCandles(unprefix, interval);
       if (binanceBars && binanceBars.length > 0) {
         candleCache.set(cacheKey, { timestamp: Date.now(), data: binanceBars });
+        candleCache.set(`${symNorm}_${interval}`, { timestamp: Date.now(), data: binanceBars });
         return binanceBars;
       }
     } catch (_) {}
@@ -1948,13 +1959,13 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   }
 
   // 1. Direct TradingView official feeds for GIFT Nifty, Spot Gold, Silver, Crude Oil, Currencies & Indices
-  const tvMapped = TV_SYMBOLS_MAP[symNorm] || (symNorm.startsWith('TVC:') || symNorm.startsWith('FX:') || symNorm.startsWith('FX_IDC:') ? symNorm : null);
+  const tvMapped = TV_SYMBOLS_MAP[symNorm] || TV_SYMBOLS_MAP[unprefix] || (symNorm.startsWith('TVC:') || symNorm.startsWith('FX:') || symNorm.startsWith('FX_IDC:') ? symNorm : null);
   if (tvMapped) {
     try {
-      const tvBars = await fetchTradingViewCandles(tvMapped, interval, 350);
+      const tvBars = await fetchTradingViewCandles(tvMapped, interval, 1000);
       if (tvBars && tvBars.length > 0) {
         const lastBar = tvBars[tvBars.length - 1];
-        const prevQuote = quoteCache.get(symNorm);
+        const prevQuote = quoteCache.get(symNorm) || quoteCache.get(unprefix);
         let prevClose = null;
         if (prevQuote && prevQuote.prevClose > 0 && Math.abs(lastBar.close - prevQuote.prevClose) < lastBar.close * 0.1) {
           prevClose = prevQuote.prevClose;
@@ -1973,7 +1984,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         const chg = +diff.toFixed(dec);
         const chgPct = prevClose !== 0 ? +((diff / prevClose) * 100).toFixed(2) : 0;
 
-        quoteCache.set(symNorm, {
+        const qObj = {
           ltp: lastBar.close,
           open: tvBars[0].open,
           high: Math.max(...tvBars.slice(-20).map(b => b.high)),
@@ -1984,20 +1995,25 @@ async function fetchLiveExchangeHistory(symbol, interval) {
           chgPct: chgPct,
           time: lastBar.time,
           _fetchTime: Date.now(),
-        });
-        if (symNorm === 'GIFT NIFTY') quoteCache.set('GIFTNIFTY', quoteCache.get('GIFT NIFTY'));
+        };
+        quoteCache.set(symNorm, qObj);
+        quoteCache.set(unprefix, qObj);
+        if (symNorm === 'GIFT NIFTY' || unprefix === 'GIFT NIFTY') {
+          quoteCache.set('GIFTNIFTY', qObj);
+        }
         candleCache.set(cacheKey, { timestamp: Date.now(), data: tvBars });
+        candleCache.set(`${symNorm}_${interval}`, { timestamp: Date.now(), data: tvBars });
         return tvBars;
       }
     } catch (tvErr) {
       console.warn(`[TradingView Candlestick] Error for ${symNorm} (${tvMapped}):`, tvErr.message);
     }
-    const cachedBars = candleCache.get(cacheKey);
+    const cachedBars = candleCache.get(cacheKey) || candleCache.get(`${symNorm}_${interval}`);
     if (cachedBars?.data) return cachedBars.data;
   }
 
   // 2. Try AngelOne SmartAPI for NSE Equities, Indices, and MCX Commodity Futures
-  const angelInst = resolveAngelInstrument(symNorm);
+  const angelInst = resolveAngelInstrument(symNorm) || resolveAngelInstrument(unprefix);
   if (angelInst && angelSession.isAuthenticated && Date.now() >= angelCandleRateLimitUntil) {
     try {
       const angelBars = await fetchAngelOneCandles(angelInst, interval);
@@ -2006,6 +2022,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         const ltpData = await fetchAngelOneLtp(angelInst);
         if (ltpData && Number.isFinite(ltpData.ltp) && ltpData.ltp > 0) {
           quoteCache.set(symNorm, ltpData);
+          quoteCache.set(unprefix, ltpData);
           const lastBar = angelBars[angelBars.length - 1];
           const intervalSec = mapIntervalToSeconds(interval);
           // Only update last candle if it is within active trading session (avoid modifying closed past bars)
@@ -2020,7 +2037,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
           const prevClose = prevBar.close;
           const chg = +(lastBar.close - prevClose).toFixed(2);
           const chgPct = prevClose !== 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
-          quoteCache.set(symNorm, {
+          const qObj = {
             ltp: lastBar.close,
             open: lastBar.open,
             high: lastBar.high,
@@ -2031,10 +2048,13 @@ async function fetchLiveExchangeHistory(symbol, interval) {
             chgPct: chgPct,
             time: lastBar.time,
             _fetchTime: Date.now(),
-          });
+          };
+          quoteCache.set(symNorm, qObj);
+          quoteCache.set(unprefix, qObj);
         }
         const cleaned = sanitizeCandles(angelBars, interval);
         candleCache.set(cacheKey, { timestamp: Date.now(), data: cleaned });
+        candleCache.set(`${symNorm}_${interval}`, { timestamp: Date.now(), data: cleaned });
         return cleaned;
       }
     } catch (angelErr) {
@@ -2046,7 +2066,14 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   const mappedTicker = resolveTicker(symNorm);
   const mappedInt = mapInterval(interval);
   const normInt = (interval || '').toLowerCase();
-  const mappedRng = mappedInt === '1m' ? '2d' : (mappedInt === '1d' ? '1y' : ((normInt === '4h' || normInt === '2h' || normInt === '3h') ? '60d' : '5d'));
+  let mappedRng = '60d';
+  if (mappedInt === '1m') {
+    mappedRng = '7d';
+  } else if (mappedInt === '1d' || mappedInt === '1wk' || mappedInt === '1mo') {
+    mappedRng = '2y';
+  } else {
+    mappedRng = '60d'; // 60 days gives ~1,500 bars on 15m instead of 116 bars on 5d
+  }
 
   const hosts = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
   let json = null;
@@ -2112,7 +2139,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
     const ltp = result.meta?.regularMarketPrice || lastBar.close;
 
     // Preserve or compute true daily previous close and change instead of falling back to intraday bar open
-    const existing = quoteCache.get(symNorm);
+    const existing = quoteCache.get(symNorm) || quoteCache.get(unprefix);
     let prevClose = existing?.prevClose;
     let netChg = existing?.chg;
     let pctChg = existing?.chgPct;
@@ -2131,7 +2158,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       pctChg = prevClose !== 0 ? +((netChg / prevClose) * 100).toFixed(2) : 0;
     }
 
-    quoteCache.set(symNorm, {
+    const qObj = {
       ltp: ltp,
       open: lastBar.open,
       high: Math.max(...bars.slice(-10).map(b => b.high)),
@@ -2142,8 +2169,11 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       chg: netChg,
       chgPct: pctChg,
       _fetchTime: Date.now(),
-    });
+    };
+    quoteCache.set(symNorm, qObj);
+    quoteCache.set(unprefix, qObj);
     candleCache.set(cacheKey, { timestamp: Date.now(), data: bars });
+    candleCache.set(`${symNorm}_${interval}`, { timestamp: Date.now(), data: bars });
   }
 
   return bars;

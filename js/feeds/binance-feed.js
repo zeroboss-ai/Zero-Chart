@@ -47,31 +47,31 @@ export class BinanceFeed {
   /**
    * Fetch historical candlestick bars from Binance REST API
    */
-  async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 500) {
+  async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 1000) {
     let symbol = 'BTCUSDT';
     let interval = '5m';
     let from = undefined;
     let to = undefined;
-    let limit = 500;
+    let limit = 1000;
 
     if (typeof reqOrSymbol === 'string') {
       symbol = reqOrSymbol;
       interval = intervalArg || '5m';
       from = fromArg;
       to = toArg;
-      limit = limitArg || 500;
+      limit = limitArg || 1000;
     } else if (reqOrSymbol && typeof reqOrSymbol === 'object') {
       symbol = reqOrSymbol.symbol || 'BTCUSDT';
       interval = reqOrSymbol.interval || '5m';
       from = reqOrSymbol.from;
       to = reqOrSymbol.to;
-      limit = reqOrSymbol.countBack || reqOrSymbol.limit || 500;
+      limit = reqOrSymbol.countBack || reqOrSymbol.limit || 1000;
     }
 
     const sym = (symbol || 'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const binanceInterval = mapIntervalToBinance(interval);
 
-    let query = `symbol=${sym}&interval=${binanceInterval}&limit=${Math.min(1000, limit || 500)}`;
+    let query = `symbol=${sym}&interval=${binanceInterval}&limit=${Math.min(1000, limit || 1000)}`;
     const nowSec = Math.floor(Date.now() / 1000);
     if (from && to && to < nowSec - 600) {
       query += `&startTime=${from * 1000}&endTime=${to * 1000}`;

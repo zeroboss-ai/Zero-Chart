@@ -203,27 +203,27 @@ export class OpenAlgoLiveFeed {
     }
   }
 
-  async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 500) {
+  async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 1000) {
     let symbol = 'NIFTY 50';
     let exchange = 'NSE';
     let interval = '5m';
     let from = undefined;
     let to = undefined;
-    let limit = 500;
+    let limit = 1000;
 
     if (typeof reqOrSymbol === 'string') {
       symbol = reqOrSymbol;
       interval = intervalArg || '5m';
       from = fromArg;
       to = toArg;
-      limit = limitArg || 500;
+      limit = limitArg || 1000;
     } else if (reqOrSymbol && typeof reqOrSymbol === 'object') {
       symbol = reqOrSymbol.symbol || 'NIFTY 50';
       exchange = reqOrSymbol.exchange || (symbol === 'GOLD' || symbol === 'CRUDEOILM' ? 'MCX' : 'NSE');
       interval = reqOrSymbol.interval || '5m';
       from = reqOrSymbol.from;
       to = reqOrSymbol.to;
-      limit = reqOrSymbol.countBack || reqOrSymbol.limit || 500;
+      limit = reqOrSymbol.countBack || reqOrSymbol.limit || 1000;
     }
 
     const symKey = (symbol || '').toUpperCase().trim();

@@ -1,1 +1,75 @@
-[]
+[
+  {
+    "id": "layout_default",
+    "name": "Default Layout",
+    "updatedAt": 1792569159484,
+    "theme": "dark",
+    "activeLayout": "1x1",
+    "activePaneIndex": 0,
+    "activeWatchlistId": "wl-indices",
+    "layoutSplits": {
+      "1x1": {},
+      "1x2": {
+        "col": 50
+      },
+      "2x1": {
+        "row": 50
+      },
+      "1x3": {
+        "col": 55,
+        "row": 50
+      },
+      "2x2": {
+        "col": 50,
+        "row": 50
+      }
+    },
+    "syncOptions": {
+      "crosshair": true,
+      "time": true,
+      "symbol": false,
+      "interval": false
+    },
+    "panes": [
+      {
+        "id": 0,
+        "symbol": "BANKNIFTY",
+        "exchange": "NSE",
+        "interval": "15m",
+        "chartType": "candlestick",
+        "indicators": [],
+        "drawings": {
+          "version": 2,
+          "drawings": []
+        }
+      },
+      {
+        "id": 1,
+        "symbol": "BANKNIFTY",
+        "exchange": "NSE",
+        "interval": "5m",
+        "chartType": "candlestick",
+        "indicators": [],
+        "drawings": null
+      },
+      {
+        "id": 2,
+        "symbol": "MUTHOOTFIN",
+        "exchange": "NSE",
+        "interval": "15m",
+        "chartType": "candlestick",
+        "indicators": [],
+        "drawings": null
+      },
+      {
+        "id": 3,
+        "symbol": "ICICIBANK",
+        "exchange": "NSE",
+        "interval": "1h",
+        "chartType": "candlestick",
+        "indicators": [],
+        "drawings": null
+      }
+    ]
+  }
+]

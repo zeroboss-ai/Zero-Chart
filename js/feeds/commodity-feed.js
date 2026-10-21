@@ -14,25 +14,25 @@ export class CommodityFeed {
     this._lastBars = new Map();
   }
 
-  async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 500) {
+  async getBars(reqOrSymbol, intervalArg, fromArg, toArg, limitArg = 1000) {
     let symbol = 'XAUUSD';
     let interval = '5m';
     let from = undefined;
     let to = undefined;
-    let limit = 500;
+    let limit = 1000;
 
     if (typeof reqOrSymbol === 'string') {
       symbol = reqOrSymbol;
       interval = intervalArg || '5m';
       from = fromArg;
       to = toArg;
-      limit = limitArg || 500;
+      limit = limitArg || 1000;
     } else if (reqOrSymbol && typeof reqOrSymbol === 'object') {
       symbol = reqOrSymbol.symbol || 'XAUUSD';
       interval = reqOrSymbol.interval || '5m';
       from = reqOrSymbol.from;
       to = reqOrSymbol.to;
-      limit = reqOrSymbol.countBack || reqOrSymbol.limit || 500;
+      limit = reqOrSymbol.countBack || reqOrSymbol.limit || 1000;
     }
 
     const sym = (symbol || '').toUpperCase().trim();
