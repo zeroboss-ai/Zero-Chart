@@ -2,7 +2,7 @@
   {
     "id": "layout_default",
     "name": "Default Layout",
-    "updatedAt": 1792569159484,
+    "updatedAt": 1792570836386,
     "theme": "dark",
     "activeLayout": "1x1",
     "activePaneIndex": 0,
@@ -33,7 +33,7 @@
     "panes": [
       {
         "id": 0,
-        "symbol": "BANKNIFTY",
+        "symbol": "MIDCPNIFTY",
         "exchange": "NSE",
         "interval": "15m",
         "chartType": "candlestick",

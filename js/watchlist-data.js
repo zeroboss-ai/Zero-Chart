@@ -42,6 +42,7 @@ export const DEFAULT_WATCHLISTS = [
       'NIFTY 50',
       'BANKNIFTY',
       'FINNIFTY',
+      'MIDCPNIFTY',
       'CNXAUTO',
       'CNXIT',
       'NIFTYMIDCAP',
@@ -626,6 +627,19 @@ export const MASTER_INSTRUMENTS = [
     precision: 2,
     badgeText: '🚗',
     badgeColor: '#281b3d',
+  },
+  {
+    symbol: 'MIDCPNIFTY',
+    displaySymbol: 'MIDCPNIFTY',
+    name: 'NIFTY MIDCAP SELECT Index',
+    exchange: 'NSE',
+    category: 'india',
+    feedType: 'openalgo',
+    basePrice: 13305.00,
+    tickSize: 0.05,
+    precision: 2,
+    badgeText: 'MID',
+    badgeColor: '#1a365d',
   },
   {
     symbol: 'NIFTYMIDCAP',
@@ -1605,8 +1619,8 @@ export function getInstrumentBadgeHtml(inst) {
     </svg>`;
   }
 
-  // 6. NIFTY MIDCAP / SMALLCAP — Diamond Gem
-  if (sym.includes('MIDCAP') || sym.includes('SMALLCAP') || sym.includes('SELECT')) {
+  // 6. NIFTY MIDCAP / MIDCPNIFTY / SMALLCAP — Diamond Gem
+  if (sym.includes('MIDCAP') || sym.includes('MIDCP') || sym.includes('SMALLCAP') || sym.includes('SELECT')) {
     return `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
       <path d="M6 3h12l4 6-10 12L2 9z"/>
       <path d="M2 9h20M12 21L8 9l4-6 4 6-4 12"/>

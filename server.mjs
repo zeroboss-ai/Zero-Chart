@@ -164,7 +164,11 @@ const indicesMap = new Map([
   ['CNXAUTO', { token: '99926004', symbol: 'CNXAUTO', exch_seg: 'NSE', name: 'NIFTY AUTO' }],
   ['NIFTYMIDCAP', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
   ['NIFTY MIDCAP', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
+  ['NIFTY MIDCAP 50', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
+  ['NSEMDCP50', { token: '99926014', symbol: 'NSEMDCP50', exch_seg: 'NSE', name: 'NIFTY MIDCAP 50' }],
   ['MIDCPNIFTY', { token: '99926074', symbol: 'MIDCPNIFTY', exch_seg: 'NSE', name: 'NIFTY MIDCAP SELECT' }],
+  ['NIFTY MID SELECT', { token: '99926074', symbol: 'MIDCPNIFTY', exch_seg: 'NSE', name: 'NIFTY MID SELECT' }],
+  ['MIDCAP SELECT', { token: '99926074', symbol: 'MIDCPNIFTY', exch_seg: 'NSE', name: 'NIFTY MID SELECT' }],
   ['NIFTY PHARMA', { token: '99926017', symbol: 'CNXPHARMA', exch_seg: 'NSE', name: 'NIFTY PHARMA' }],
   ['CNXPHARMA', { token: '99926017', symbol: 'CNXPHARMA', exch_seg: 'NSE', name: 'NIFTY PHARMA' }],
   ['NIFTY FMCG', { token: '99926006', symbol: 'CNXFMCG', exch_seg: 'NSE', name: 'NIFTY FMCG' }],
@@ -518,10 +522,19 @@ const SYMBOL_MAP = {
   'NIFTY IT': '^CNXIT',
   CNXAUTO: '^CNXAUTO',
   'NIFTY AUTO': '^CNXAUTO',
+  // Midcap 50 Index (Around ~16,400)
   NIFTYMIDCAP: '^NSEMDCP50',
   'NIFTY MIDCAP': '^NSEMDCP50',
-  MIDCPNIFTY: '^NSEMDCP50',
-  'NIFTY MID SELECT': '^NSEMDCP50',
+  'NIFTY MIDCAP 50': '^NSEMDCP50',
+  NSEMDCP50: '^NSEMDCP50',
+  'NSE:NIFTYMIDCAP': '^NSEMDCP50',
+  'NSE:NSEMDCP50': '^NSEMDCP50',
+
+  // Midcap Select Index (Traded F&O Index, Around ~13,300)
+  MIDCPNIFTY: 'NIFTY_MID_SELECT.NS',
+  'NIFTY MID SELECT': 'NIFTY_MID_SELECT.NS',
+  'MIDCAP SELECT': 'NIFTY_MID_SELECT.NS',
+  'NSE:MIDCPNIFTY': 'NIFTY_MID_SELECT.NS',
   CNXPHARMA: '^CNXPHARMA',
   'NIFTY PHARMA': '^CNXPHARMA',
   CNXFMCG: '^CNXFMCG',
@@ -1647,7 +1660,7 @@ function getFallbackNews(category) {
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 let lastAngelCandleReqTime = 0;
-const ANGEL_CANDLE_INTERVAL_MS = 360;
+const ANGEL_CANDLE_INTERVAL_MS = 450;
 let angelCandleQueue = Promise.resolve();
 
 async function fetchAngelOneCandles(angelInst, interval) {
@@ -3659,7 +3672,7 @@ function createServer() {
         let cached = quoteCache.get(s);
 
         if (TV_SYMBOLS_MAP[s]) {
-          if (!cached || now - (cached._fetchTime || 0) > 4000) {
+          if ((s === activeParam || !cached) && now - (cached?._fetchTime || 0) > 8000) {
             fetchLiveExchangeHistory(s, '5m').catch(() => {});
           }
         } else if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
@@ -3670,7 +3683,7 @@ function createServer() {
               tokenToSymbolsMap.set(String(angelInst.token), [s, angelInst.symbol]);
             }
           }
-          if (!cached || now - (cached._fetchTime || 0) > 4000) {
+          if ((s === activeParam || !cached) && now - (cached?._fetchTime || 0) > 8000) {
             fetchLiveExchangeHistory(s, '5m').catch(() => {});
           }
         }
