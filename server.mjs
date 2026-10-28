@@ -1434,6 +1434,94 @@ async function refreshGlobalIndices() {
 // Pre-warm global indices cache on boot
 refreshGlobalIndices().catch(() => {});
 
+// ─── 4.5. OFFICIAL TRADINGVIEW REAL-TIME QUOTE & DAY CHANGE SCANNER ───
+let lastTvScannerFetch = 0;
+let tvScannerPromise = null;
+
+const TV_SCAN_ALIASES = {
+  'TVC:GOLD': ['TVC:GOLD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'PAXGUSDT', 'PAXG'],
+  'TVC:SILVER': ['TVC:SILVER', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER'],
+  'NSEIX:NIFTY1!': ['NSEIX:NIFTY1!', 'GIFT NIFTY', 'GIFTNIFTY'],
+  'NYMEX:CL1!': ['NYMEX:CL1!', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL', 'USOIL', 'TVC:USOIL'],
+  'TVC:UKOIL': ['TVC:UKOIL', 'BRENT CRUDE', 'BRENT', 'UKOIL', 'TVC:UKOIL'],
+  'FX:USDINR': ['FX:USDINR', 'USDINR', 'USD/INR'],
+  'FX:EURUSD': ['FX:EURUSD', 'EURUSD', 'EUR/USD'],
+  'FX:GBPUSD': ['FX:GBPUSD', 'GBPUSD', 'GBP/USD'],
+  'FX:USDJPY': ['FX:USDJPY', 'USDJPY', 'USD/JPY'],
+  'FX:AUDUSD': ['FX:AUDUSD', 'AUDUSD', 'AUD/USD'],
+  'FX:USDCAD': ['FX:USDCAD', 'USDCAD', 'USD/CAD'],
+  'FX:USDCHF': ['FX:USDCHF', 'USDCHF', 'USD/CHF'],
+  'FX:NZDUSD': ['FX:NZDUSD', 'NZDUSD', 'NZD/USD'],
+  'COMEX:HG1!': ['COMEX:HG1!', 'COPPER (COMEX)', 'HG1!', 'TVC:COPPER'],
+  'NYMEX:NG1!': ['NYMEX:NG1!', 'NATURAL GAS', 'NATURALGAS', 'HENRY HUB', 'NG1!', 'TVC:NATURALGAS'],
+};
+
+async function refreshTradingViewScannerQuotes() {
+  const now = Date.now();
+  if (now - lastTvScannerFetch < 2000) return; // throttle to 2 seconds
+  if (tvScannerPromise) return tvScannerPromise;
+
+  tvScannerPromise = (async () => {
+    try {
+      const tickers = Object.keys(TV_SCAN_ALIASES);
+      const resp = await fetch('https://scanner.tradingview.com/global/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        body: JSON.stringify({
+          symbols: { tickers },
+          columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
+        }),
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (!resp.ok) return;
+      const json = await resp.json();
+      if (!Array.isArray(json?.data)) return;
+
+      for (const item of json.data) {
+        if (!item || !item.s || !Array.isArray(item.d)) continue;
+        const d = item.d;
+        const ltp = d[0];
+        if (!Number.isFinite(ltp) || ltp <= 0) continue;
+        const chgPct = +Number(d[1] || 0).toFixed(2);
+        const dec = ltp < 2 ? 4 : (item.s.includes('SILVER') ? 3 : (item.s.includes('JPY') ? 3 : 2));
+        const chg = +Number(d[2] || 0).toFixed(dec);
+        const prevClose = +(ltp - chg).toFixed(dec);
+
+        const qObj = {
+          ltp: +Number(ltp).toFixed(dec),
+          open: +(d[3] || ltp).toFixed(dec),
+          high: +(d[4] || ltp).toFixed(dec),
+          low: +(d[5] || ltp).toFixed(dec),
+          close: +Number(ltp).toFixed(dec),
+          prevClose,
+          chg,
+          chgPct,
+          time: Math.floor(now / 1000),
+          _fetchTime: now,
+        };
+
+        const aliases = TV_SCAN_ALIASES[item.s] || [item.s];
+        for (const alias of aliases) {
+          quoteCache.set(alias.toUpperCase().trim(), qObj);
+        }
+      }
+      lastTvScannerFetch = now;
+    } catch (_) {}
+    finally {
+      tvScannerPromise = null;
+    }
+  })();
+
+  return tvScannerPromise;
+}
+
+// Pre-warm TradingView scanner quotes on boot
+refreshTradingViewScannerQuotes().catch(() => {});
+
 // ─── 4.6. LIVE REAL-TIME ECONOMIC CALENDAR FETCHER ───
 let economicCalendarCache = {
   timestamp: 0,
@@ -2134,34 +2222,29 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   const tvMapped = TV_SYMBOLS_MAP[symNorm] || TV_SYMBOLS_MAP[unprefix] || (symNorm.startsWith('TVC:') || symNorm.startsWith('FX:') || symNorm.startsWith('FX_IDC:') ? symNorm : null);
   if (tvMapped) {
     try {
+      refreshTradingViewScannerQuotes().catch(() => {});
       const tvBars = await fetchTradingViewCandles(tvMapped, interval, 1000);
       if (tvBars && tvBars.length > 0) {
         const lastBar = tvBars[tvBars.length - 1];
-        const prevQuote = quoteCache.get(symNorm) || quoteCache.get(unprefix);
-        let prevClose = null;
-        if (prevQuote && prevQuote.prevClose > 0 && Math.abs(lastBar.close - prevQuote.prevClose) < lastBar.close * 0.1) {
-          prevClose = prevQuote.prevClose;
-        } else {
-          const nowD = new Date();
-          const todayStartSec = Math.floor(new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime() / 1000);
-          const yesterdayBars = tvBars.filter(b => b.time < todayStartSec);
-          if (yesterdayBars.length > 0) {
-            prevClose = yesterdayBars[yesterdayBars.length - 1].close;
-          } else {
-            prevClose = tvBars[0].open;
-          }
+        const scannerQuote = quoteCache.get(symNorm) || quoteCache.get(unprefix);
+        let prevClose = scannerQuote?.prevClose;
+        let chg = scannerQuote?.chg;
+        let chgPct = scannerQuote?.chgPct;
+
+        if (prevClose == null || !Number.isFinite(chg)) {
+          prevClose = tvBars[0].open;
+          const diff = lastBar.close - prevClose;
+          const dec = lastBar.close < 2 ? 4 : (lastBar.close < 200 && symNorm.includes('JPY') ? 3 : 2);
+          chg = +diff.toFixed(dec);
+          chgPct = prevClose !== 0 ? +((diff / prevClose) * 100).toFixed(2) : 0;
         }
-        const diff = lastBar.close - prevClose;
-        const dec = lastBar.close < 2 ? 4 : (lastBar.close < 200 && symNorm.includes('JPY') ? 3 : 2);
-        const chg = +diff.toFixed(dec);
-        const chgPct = prevClose !== 0 ? +((diff / prevClose) * 100).toFixed(2) : 0;
 
         const qObj = {
-          ltp: lastBar.close,
-          open: tvBars[0].open,
-          high: Math.max(...tvBars.slice(-20).map(b => b.high)),
-          low: Math.min(...tvBars.slice(-20).map(b => b.low)),
-          close: lastBar.close,
+          ltp: scannerQuote?.ltp || lastBar.close,
+          open: scannerQuote?.open || tvBars[0].open,
+          high: scannerQuote?.high || Math.max(...tvBars.slice(-20).map(b => b.high)),
+          low: scannerQuote?.low || Math.min(...tvBars.slice(-20).map(b => b.low)),
+          close: scannerQuote?.ltp || lastBar.close,
           prevClose: prevClose,
           chg: chg,
           chgPct: chgPct,
@@ -2387,6 +2470,14 @@ const FALLBACK_BASE_PRICES = {
   'USDJPY': 152.4,
   'BTCUSDT': 91000.0,
   'ETHUSDT': 3300.0,
+  'XAUUSD': 4060.0,
+  'GOLD (SPOT)': 4060.0,
+  'SPOT GOLD': 4060.0,
+  'TVC:GOLD': 4060.0,
+  'XAGUSD': 54.40,
+  'SILVER (SPOT)': 54.40,
+  'SPOT SILVER': 54.40,
+  'TVC:SILVER': 54.40,
 };
 
 function generateCalibratedFallbackBars(symbol, interval) {
@@ -4019,6 +4110,22 @@ function createServer() {
 
       const now = Date.now();
 
+      const tvInRequest = symbols.some(s => {
+        const u = s.trim().toUpperCase();
+        return TV_SYMBOLS_MAP[u] || u.startsWith('TVC:') || u.startsWith('FX:') || u.startsWith('FX_IDC:');
+      });
+      if (tvInRequest) {
+        const needsTvFetch = symbols.some(s => {
+          const u = s.trim().toUpperCase();
+          return (TV_SYMBOLS_MAP[u] || u.startsWith('TVC:') || u.startsWith('FX:')) && (!quoteCache.has(u) || now - (quoteCache.get(u)?._fetchTime || 0) > 4000);
+        });
+        if (needsTvFetch) {
+          await refreshTradingViewScannerQuotes().catch(() => {});
+        } else {
+          refreshTradingViewScannerQuotes().catch(() => {});
+        }
+      }
+
       const tokensToSub = [];
       const missingTokens = [];
       for (const sym of symbols) {
@@ -4026,11 +4133,7 @@ function createServer() {
         if (!s) continue;
         let cached = quoteCache.get(s);
 
-        if (TV_SYMBOLS_MAP[s]) {
-          if (!cached && now - (cached?._fetchTime || 0) > 30000) {
-            fetchLiveExchangeHistory(s, '5m').catch(() => {});
-          }
-        } else if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s)) {
+        if (!isCryptoSymbol(s) && !GLOBAL_INDICES_SYMBOLS.has(s) && !TV_SYMBOLS_MAP[s] && !s.startsWith('TVC:') && !s.startsWith('FX:')) {
           const angelInst = resolveAngelInstrument(s);
           if (angelInst && angelInst.token) {
             tokensToSub.push(String(angelInst.token));
