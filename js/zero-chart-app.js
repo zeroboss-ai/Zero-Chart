@@ -1252,6 +1252,7 @@ class ZeroChartApp {
         this.saveWatchlists();
         this.renderHorizontalWatchlistTabs();
         this.renderWatchlist();
+        this.pollQuotes?.();
       };
       container.appendChild(tab);
     });
@@ -1370,11 +1371,12 @@ class ZeroChartApp {
       const cleanId = inst.symbol.replace(/[^A-Za-z0-9]/g, '_');
       row.id = `wl-row-${cleanId}`;
 
-      const q = this.livePrices.get(inst.symbol) || {
-        last: inst.basePrice,
-        chg: 0,
-        chgPct: 0,
-      };
+      const q = this.livePrices.get(inst.symbol) ||
+                (inst.displaySymbol ? this.livePrices.get(inst.displaySymbol) : null) || {
+                  last: inst.basePrice,
+                  chg: 0,
+                  chgPct: 0,
+                };
 
       const isUp = q.chg >= 0;
       const sign = isUp ? '+' : '';
@@ -1730,15 +1732,47 @@ class ZeroChartApp {
         const activeSym = this.currentInstrument?.symbol || '';
         const symQuery = encodeURIComponent(symbolsToFetch.join(','));
         const resp = await fetch(`/api/market/quotes?active=${encodeURIComponent(activeSym)}&symbols=${symQuery}`, {
-          signal: AbortSignal.timeout(2000),
+          signal: AbortSignal.timeout(3000),
         });
         if (resp.ok) {
           const json = await resp.json();
           if (json.status === 'success' && json.quotes) {
+            // Priority 1: Update every instrument currently in the active watchlist
+            const targetInsts = [...(this.getActiveWatchlistInstruments() || [])];
+            this.panes.forEach(p => {
+              if (p.instrument && !targetInsts.some(i => i.symbol === p.instrument.symbol)) {
+                targetInsts.push(p.instrument);
+              }
+            });
+
+            for (const inst of targetInsts) {
+              if (inst.feedType === 'binance' && this.livePrices.has(inst.symbol)) {
+                continue;
+              }
+              const q = json.quotes[inst.symbol] ||
+                        json.quotes[inst.displaySymbol] ||
+                        json.quotes[inst.symbol.toUpperCase()] ||
+                        json.quotes[inst.symbol.replace(/[^A-Za-z0-9]/g, '')] ||
+                        (inst.displaySymbol ? json.quotes[inst.displaySymbol.toUpperCase()] : null);
+
+              if (q && Number.isFinite(q.ltp) && q.ltp > 0) {
+                const prev = (Number.isFinite(q.prevClose) && q.prevClose > 0)
+                  ? q.prevClose
+                  : (this.livePrices.get(inst.symbol)?.prevClose || (inst.feedType === 'binance' ? null : inst.basePrice));
+                let chg = q.chg;
+                let chgPct = q.chgPct;
+                if ((chg === undefined || !Number.isFinite(chg)) && prev) {
+                  chg = +(q.ltp - prev).toFixed(inst.precision);
+                  chgPct = prev !== 0 ? +((chg / prev) * 100).toFixed(2) : 0;
+                }
+                this.updateLivePrice(inst, q.ltp, chg || 0, chgPct || 0, prev || undefined);
+              }
+            }
+
+            // Priority 2: Update any additional returned quotes
             for (const [sym, q] of Object.entries(json.quotes)) {
               const inst = findInstrument(sym);
-              if (inst && q.ltp) {
-                // NEVER overwrite a live Binance WebSocket price with a stale server HTTP poll quote
+              if (inst && q?.ltp && !targetInsts.some(i => i.symbol === inst.symbol)) {
                 if (inst.feedType === 'binance' && this.livePrices.has(inst.symbol)) {
                   continue;
                 }
@@ -1760,6 +1794,7 @@ class ZeroChartApp {
       }
     };
 
+    this.pollQuotes = pollQuotes;
     pollQuotes();
     setInterval(pollQuotes, 200);
   }
@@ -1779,6 +1814,14 @@ class ZeroChartApp {
       chgPct: chgPct || 0,
       prevClose: prevClose,
     });
+    if (inst.displaySymbol && inst.displaySymbol !== inst.symbol) {
+      this.livePrices.set(inst.displaySymbol, {
+        last: newPrice,
+        chg: chg || 0,
+        chgPct: chgPct || 0,
+        prevClose: prevClose,
+      });
+    }
 
     this.broker.onLtp(inst.symbol, newPrice);
 
@@ -1792,6 +1835,7 @@ class ZeroChartApp {
 
     // Direct in-place primary series update on all active panes displaying this instrument
     // SKIP for Binance-fed symbols: the kline WS feed already updates candles via the widget feed adapter.
+    const isBinanceFed = inst?.feedType === 'binance';
     if (!isBinanceFed) {
     this.panes.forEach((p) => {
       if (this.isReplayMode && p.id === this.activePaneIndex) return;
@@ -1848,9 +1892,26 @@ class ZeroChartApp {
     } // end if (!isBinanceFed)
 
     // Update watchlist row cells
-    const lastEl = document.getElementById(`wl-last-${cleanId}`);
-    const chgEl = document.getElementById(`wl-chg-${cleanId}`);
-    const pctEl = document.getElementById(`wl-pct-${cleanId}`);
+    let lastEl = document.getElementById(`wl-last-${cleanId}`);
+    let chgEl = document.getElementById(`wl-chg-${cleanId}`);
+    let pctEl = document.getElementById(`wl-pct-${cleanId}`);
+
+    if (!lastEl && inst.displaySymbol) {
+      const cleanDisp = inst.displaySymbol.replace(/[^A-Za-z0-9]/g, '_');
+      lastEl = document.getElementById(`wl-last-${cleanDisp}`);
+      chgEl = document.getElementById(`wl-chg-${cleanDisp}`);
+      pctEl = document.getElementById(`wl-pct-${cleanDisp}`);
+    }
+
+    if (!lastEl) {
+      const row = document.querySelector(`.tv-wl-row[data-sym="${inst.symbol}"]`) ||
+                  (inst.displaySymbol ? document.querySelector(`.tv-wl-row[data-sym="${inst.displaySymbol}"]`) : null);
+      if (row) {
+        lastEl = row.querySelector('.tv-wl-cell-last');
+        chgEl = row.querySelector('.tv-wl-cell-chg');
+        pctEl = row.querySelector('.tv-wl-cell-pct');
+      }
+    }
 
     const isUp = (chg || 0) >= 0;
     const sign = isUp ? '+' : '';

@@ -205,6 +205,7 @@ const tokenToSymbolsMap = new Map([
   ['99926008', ['CNXIT']],
   ['99926004', ['CNXAUTO']],
   ['99926014', ['NIFTYMIDCAP']],
+  ['99926074', ['MIDCPNIFTY', 'NIFTY MID SELECT', 'MIDCAP SELECT']],
   ['99920005', ['MCXBULLDEX']],
   ['99920004', ['MCXMETLDEX']],
   ['99920015', ['MCXENRGDEX', 'MCXENERGY']],
@@ -1096,15 +1097,22 @@ const TV_SYMBOLS_MAP = {
   'XAUUSD': 'TVC:GOLD',
   'GOLD (SPOT)': 'TVC:GOLD',
   'SPOT GOLD': 'TVC:GOLD',
-  'GOLD': 'TVC:GOLD',
+  'TVC:GOLD': 'TVC:GOLD',
   'PAXGUSDT': 'TVC:GOLD',
   'PAXG': 'TVC:GOLD',
-  'TVC:GOLD': 'TVC:GOLD',
+  'GOLD FUT': 'MCX:GOLD1!',
+  'GOLD1!': 'MCX:GOLD1!',
+  'MCX:GOLD': 'MCX:GOLD1!',
   'XAGUSD': 'TVC:SILVER',
   'SILVER (SPOT)': 'TVC:SILVER',
   'SPOT SILVER': 'TVC:SILVER',
-  'SILVER': 'TVC:SILVER',
   'TVC:SILVER': 'TVC:SILVER',
+  'SILVER FUT': 'MCX:SILVER1!',
+  'SILVER1!': 'MCX:SILVER1!',
+  'MCX:SILVER': 'MCX:SILVER1!',
+  'CRUDEOIL FUT': 'MCX:CRUDEOIL1!',
+  'CRUDEOIL1!': 'MCX:CRUDEOIL1!',
+  'MCX:CRUDEOIL': 'MCX:CRUDEOIL1!',
   'WTI CRUDE': 'NYMEX:CL1!',
   'CRUDE OIL': 'NYMEX:CL1!',
   'CRUDEOIL': 'NYMEX:CL1!',
@@ -1450,11 +1458,14 @@ let lastTvScannerFetch = 0;
 let tvScannerPromise = null;
 
 const TV_SCAN_ALIASES = {
-  'TVC:GOLD': ['TVC:GOLD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'PAXGUSDT', 'PAXG', 'GOLD'],
-  'TVC:SILVER': ['TVC:SILVER', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER', 'SILVER'],
+  'TVC:GOLD': ['TVC:GOLD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'PAXGUSDT', 'PAXG'],
+  'TVC:SILVER': ['TVC:SILVER', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER'],
   'NSEIX:NIFTY1!': ['NSEIX:NIFTY1!', 'GIFT NIFTY', 'GIFTNIFTY'],
   'NYMEX:CL1!': ['NYMEX:CL1!', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL', 'USOIL', 'TVC:USOIL', 'CL1!'],
   'ICEEUR:BRN1!': ['ICEEUR:BRN1!', 'BRENT CRUDE', 'BRENT', 'UKOIL', 'TVC:UKOIL', 'BRN1!', 'ICE:BRENT CRUDE', 'ICE:BRENT'],
+  'MCX:GOLD1!': ['MCX:GOLD1!', 'GOLD FUT', 'GOLD1!', 'MCX:GOLD'],
+  'MCX:SILVER1!': ['MCX:SILVER1!', 'SILVER FUT', 'SILVER1!', 'MCX:SILVER'],
+  'MCX:CRUDEOIL1!': ['MCX:CRUDEOIL1!', 'CRUDEOIL FUT', 'CRUDEOIL1!', 'MCX:CRUDEOIL'],
   'FX:USDINR': ['FX:USDINR', 'USDINR', 'USD/INR'],
   'FX:EURUSD': ['FX:EURUSD', 'EURUSD', 'EUR/USD'],
   'FX:GBPUSD': ['FX:GBPUSD', 'GBPUSD', 'GBP/USD'],
@@ -1534,6 +1545,26 @@ async function refreshTradingViewScannerQuotes() {
 
 // Pre-warm TradingView scanner quotes on boot
 refreshTradingViewScannerQuotes().catch(() => {});
+
+// Pre-warm all core watchlist instruments so all scripts display live prices immediately upon app load
+async function prewarmAllWatchlistQuotes() {
+  try {
+    await refreshTradingViewScannerQuotes().catch(() => {});
+    await refreshGlobalIndices().catch(() => {});
+    const commonSymbols = [
+      'NIFTY 50', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'CNXAUTO', 'CNXIT', 'NIFTYMIDCAP', 'SENSEX',
+      'GIFT NIFTY', 'BTCUSDT', 'BRENT CRUDE', 'GOLD FUT', 'XAUUSD', 'XAGUSD', 'YM',
+      'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'SBIN', 'BHARTIARTL', 'ITC', 'LT', 'TATAMOTORS'
+    ];
+    for (const sym of commonSymbols) {
+      if (!quoteCache.has(sym)) {
+        await fetchLiveExchangeHistory(sym, '15m').catch(() => {});
+      }
+    }
+  } catch (_) {}
+}
+setTimeout(prewarmAllWatchlistQuotes, 2000);
+setInterval(prewarmAllWatchlistQuotes, 30000);
 
 // ─── 4.6. LIVE REAL-TIME ECONOMIC CALENDAR FETCHER ───
 let economicCalendarCache = {
@@ -2232,32 +2263,33 @@ async function fetchLiveExchangeHistory(symbol, interval) {
   }
 
   // 1. Direct TradingView official feeds for GIFT Nifty, Spot Gold, Silver, Crude Oil, Currencies & Indices
-  const tvMapped = TV_SYMBOLS_MAP[symNorm] || TV_SYMBOLS_MAP[unprefix] || (symNorm.startsWith('TVC:') || symNorm.startsWith('FX:') || symNorm.startsWith('FX_IDC:') ? symNorm : null);
+  const tvMapped = TV_SYMBOLS_MAP[symNorm] || TV_SYMBOLS_MAP[unprefix] || (symNorm.startsWith('TVC:') || symNorm.startsWith('FX:') || symNorm.startsWith('FX_IDC:') || symNorm.startsWith('MCX:') || symNorm.startsWith('ICEEUR:') || symNorm.startsWith('NYMEX:') ? symNorm : null);
   if (tvMapped) {
     try {
-      refreshTradingViewScannerQuotes().catch(() => {});
+      await refreshTradingViewScannerQuotes().catch(() => {});
       const tvBars = await fetchTradingViewCandles(tvMapped, interval, 1000);
       if (tvBars && tvBars.length > 0) {
         const lastBar = tvBars[tvBars.length - 1];
-        const scannerQuote = quoteCache.get(symNorm) || quoteCache.get(unprefix);
+        const scannerQuote = quoteCache.get(symNorm) || quoteCache.get(unprefix) || (tvMapped ? quoteCache.get(tvMapped) : null);
         let prevClose = scannerQuote?.prevClose;
         let chg = scannerQuote?.chg;
         let chgPct = scannerQuote?.chgPct;
 
         if (prevClose == null || !Number.isFinite(chg)) {
-          // If scannerQuote does not have prevClose yet, find the last bar from previous trading day (before 00:00 UTC)
-          const nowD = new Date();
-          const todayStartSec = Math.floor(Date.UTC(nowD.getUTCFullYear(), nowD.getUTCMonth(), nowD.getUTCDate()) / 1000);
-          const yesterdayBars = tvBars.filter(b => b.time < todayStartSec);
-          if (yesterdayBars.length > 0) {
-            prevClose = yesterdayBars[yesterdayBars.length - 1].close;
-          } else if (tvBars.length > 1) {
-            prevClose = tvBars[0].open;
-          } else {
-            prevClose = lastBar.open;
+          // If scannerQuote does not have prevClose, fetch true 1D daily bar from TradingView
+          try {
+            const dailyBars = await fetchTradingViewCandles(tvMapped, '1D', 5);
+            if (dailyBars && dailyBars.length > 1) {
+              prevClose = dailyBars[dailyBars.length - 2].close;
+            } else if (dailyBars && dailyBars.length === 1) {
+              prevClose = dailyBars[0].open;
+            }
+          } catch (_) {}
+          if (prevClose == null || !Number.isFinite(prevClose)) {
+            prevClose = tvBars.length > 1 ? tvBars[0].open : lastBar.open;
           }
           const diff = lastBar.close - prevClose;
-          const dec = lastBar.close < 2 ? 4 : (lastBar.close < 200 && symNorm.includes('JPY') ? 3 : 2);
+          const dec = lastBar.close < 2 ? 4 : (lastBar.close < 200 && (symNorm.includes('JPY') || symNorm.includes('SILVER')) ? 3 : 2);
           chg = +diff.toFixed(dec);
           chgPct = prevClose !== 0 ? +((diff / prevClose) * 100).toFixed(2) : 0;
         }
@@ -2276,6 +2308,7 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         };
         quoteCache.set(symNorm, qObj);
         quoteCache.set(unprefix, qObj);
+        if (tvMapped) quoteCache.set(tvMapped, qObj);
         if (symNorm === 'GIFT NIFTY' || unprefix === 'GIFT NIFTY') {
           quoteCache.set('GIFTNIFTY', qObj);
         }
@@ -4189,6 +4222,25 @@ function createServer() {
       }
       if (missingTokens.length > 0) {
         refreshAngelBatchQuotes(missingTokens).catch(() => {});
+      }
+
+      // Check for any symbols requested that are still missing from quotes
+      const stillMissing = symbols.map(s => s.trim().toUpperCase()).filter(s => {
+        if (!s) return false;
+        const unp = s.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+        return !quotes[s] && !quoteCache.has(s) && !quoteCache.has(unp);
+      });
+
+      if (stillMissing.length > 0) {
+        await Promise.allSettled(stillMissing.map(sym => fetchLiveExchangeHistory(sym, '15m').catch(() => {})));
+        for (const s of stillMissing) {
+          const unp = s.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+          if (quoteCache.has(s)) {
+            quotes[s] = quoteCache.get(s);
+          } else if (quoteCache.has(unp)) {
+            quotes[s] = quoteCache.get(unp);
+          }
+        }
       }
 
       res.writeHead(200, {
