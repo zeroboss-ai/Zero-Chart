@@ -2,11 +2,11 @@
   {
     "id": "layout_default",
     "name": "Default Layout",
-    "updatedAt": 1792570836386,
+    "updatedAt": 1792578922354,
     "theme": "dark",
     "activeLayout": "1x1",
     "activePaneIndex": 0,
-    "activeWatchlistId": "wl-indices",
+    "activeWatchlistId": "wl-stocks",
     "layoutSplits": {
       "1x1": {},
       "1x2": {
@@ -33,7 +33,7 @@
     "panes": [
       {
         "id": 0,
-        "symbol": "MIDCPNIFTY",
+        "symbol": "RELIANCE",
         "exchange": "NSE",
         "interval": "15m",
         "chartType": "candlestick",

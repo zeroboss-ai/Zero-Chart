@@ -1783,11 +1783,8 @@ class ZeroChartApp {
     this.broker.onLtp(inst.symbol, newPrice);
 
     // Dispatch live tick directly to chart widget feed for in-place candle updates
-    // SKIP for Binance-fed symbols: the Binance kline WebSocket already handles chart candle updates
-    // through the widget's own feed adapter. Dispatching here would create a competing bar state
-    // causing saw-tooth price oscillation (real ↔ stale alternation).
-    const isBinanceFed = inst.feedType === 'binance';
-    if (!isBinanceFed && (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol)) {
+    // Only route to OpenAlgo feed if instrument feedType is openalgo
+    if (inst.feedType === 'openalgo' && (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol)) {
       if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
         this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
       }
@@ -1814,6 +1811,10 @@ class ZeroChartApp {
             const data = s.getData();
             if (data && data.length > 0) {
               const last = data[data.length - 1];
+              // Spike protection: reject anomalous ticks that deviate > 10% from current candle
+              if (last.close > 0 && Math.abs(newPrice - last.close) / last.close > 0.10) {
+                return;
+              }
               const nowSec = Math.floor(Date.now() / 1000);
               const intervalSecs = getIntervalSeconds(p.interval || '5m');
               const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
@@ -1827,14 +1828,17 @@ class ZeroChartApp {
                   volume: (last.volume || 0) + 1,
                 });
               } else if (bucketTime > last.time) {
-                s.update({
-                  time: bucketTime,
-                  open: last.close,
-                  high: Math.max(last.close, newPrice),
-                  low: Math.min(last.close, newPrice),
-                  close: newPrice,
-                  volume: 1,
-                });
+                // Only mint new bar if price is consistent with last bar
+                if (Math.abs(newPrice - last.close) / last.close <= 0.05) {
+                  s.update({
+                    time: bucketTime,
+                    open: last.close,
+                    high: Math.max(last.close, newPrice),
+                    low: Math.min(last.close, newPrice),
+                    close: newPrice,
+                    volume: 1,
+                  });
+                }
               }
             }
           }

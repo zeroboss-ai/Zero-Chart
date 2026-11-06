@@ -507,8 +507,8 @@ function resolveAngelInstrument(symbol) {
   if (mcxSymbolsMap.has(norm)) return mcxSymbolsMap.get(norm);
   if (nseEquitiesMap.has(norm)) return nseEquitiesMap.get(norm);
 
-  // 2. Strip exchange prefix like 'NSE:', 'BSE:', 'MCX:', 'NFO:', 'CDS:', 'INDEX:'
-  const unprefix = norm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+  // 2. Strip exchange prefix like 'NSE:', 'BSE:', 'MCX:', 'NFO:', 'CDS:', 'INDEX:', 'ICE:', 'NYMEX:', 'COMEX:', 'TVC:', 'FX:'
+  const unprefix = norm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
 
   if (indicesMap.has(unprefix)) return indicesMap.get(unprefix);
   if (mcxSymbolsMap.has(unprefix)) return mcxSymbolsMap.get(unprefix);
@@ -1085,7 +1085,8 @@ const GLOBAL_INDICES_SYMBOLS = new Set([
   'CL', 'CL FUT', 'NG', 'NG FUT',
   'ZN', 'ZN FUT', 'ZB', 'ZB FUT',
   'ZC', 'ZC FUT', 'ZW', 'ZW FUT', 'ZS', 'ZS FUT',
-  'XPTUSD', 'US10Y', 'TNX'
+  'XPTUSD', 'US10Y', 'TNX',
+  'BRENT CRUDE', 'WTI CRUDE', 'ICE:BRENT CRUDE'
 ]);
 
 
@@ -1095,22 +1096,31 @@ const TV_SYMBOLS_MAP = {
   'XAUUSD': 'TVC:GOLD',
   'GOLD (SPOT)': 'TVC:GOLD',
   'SPOT GOLD': 'TVC:GOLD',
+  'GOLD': 'TVC:GOLD',
   'PAXGUSDT': 'TVC:GOLD',
   'PAXG': 'TVC:GOLD',
   'TVC:GOLD': 'TVC:GOLD',
   'XAGUSD': 'TVC:SILVER',
   'SILVER (SPOT)': 'TVC:SILVER',
   'SPOT SILVER': 'TVC:SILVER',
+  'SILVER': 'TVC:SILVER',
   'TVC:SILVER': 'TVC:SILVER',
-  'WTI CRUDE': 'TVC:USOIL',
-  'CRUDE OIL': 'TVC:USOIL',
-  'CRUDEOIL': 'TVC:USOIL',
-  'USOIL': 'TVC:USOIL',
-  'TVC:USOIL': 'TVC:USOIL',
-  'BRENT CRUDE': 'TVC:UKOIL',
-  'BRENT': 'TVC:UKOIL',
-  'UKOIL': 'TVC:UKOIL',
-  'TVC:UKOIL': 'TVC:UKOIL',
+  'WTI CRUDE': 'NYMEX:CL1!',
+  'CRUDE OIL': 'NYMEX:CL1!',
+  'CRUDEOIL': 'NYMEX:CL1!',
+  'USOIL': 'NYMEX:CL1!',
+  'TVC:USOIL': 'NYMEX:CL1!',
+  'NYMEX:CL1!': 'NYMEX:CL1!',
+  'CL1!': 'NYMEX:CL1!',
+  'BRENT CRUDE': 'ICEEUR:BRN1!',
+  'BRENT': 'ICEEUR:BRN1!',
+  'UKOIL': 'ICEEUR:BRN1!',
+  'TVC:UKOIL': 'ICEEUR:BRN1!',
+  'ICE:BRENT CRUDE': 'ICEEUR:BRN1!',
+  'ICE:BRENT': 'ICEEUR:BRN1!',
+  'ICEEUR:BRN1!': 'ICEEUR:BRN1!',
+  'BRN1!': 'ICEEUR:BRN1!',
+  'NYMEX:BZ1!': 'NYMEX:BZ1!',
   'NATURAL GAS': 'NYMEX:NG1!',
   'NATURALGAS': 'NYMEX:NG1!',
   'HENRY HUB': 'NYMEX:NG1!',
@@ -1119,6 +1129,7 @@ const TV_SYMBOLS_MAP = {
   'COPPER (COMEX)': 'COMEX:HG1!',
   'HG1!': 'COMEX:HG1!',
   'TVC:COPPER': 'COMEX:HG1!',
+  'COPPER': 'COMEX:HG1!',
   // Major Forex Pairs (TradingView FX)
   'EURUSD': 'FX:EURUSD',
   'FX:EURUSD': 'FX:EURUSD',
@@ -1301,8 +1312,8 @@ async function refreshGlobalIndices() {
         { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'COMEX GOLD'] },
         { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'COMEX SILVER'] },
         { ticker: 'PL=F', symbols: ['XPTUSD', 'PL', 'PL FUT'] },
-        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'NYMEX CRUDE'] },
-        { ticker: 'BZ=F', symbols: ['BZ', 'BZ FUT'] },
+        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'NYMEX CRUDE', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL'] },
+        { ticker: 'BZ=F', symbols: ['BZ', 'BZ FUT', 'BRENT CRUDE', 'BRENT', 'ICE:BRENT CRUDE'] },
         { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COMEX COPPER'] },
         { ticker: 'ALI=F', symbols: ['ALI', 'ALI FUT'] },
         { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NYMEX NG'] },
@@ -1439,11 +1450,11 @@ let lastTvScannerFetch = 0;
 let tvScannerPromise = null;
 
 const TV_SCAN_ALIASES = {
-  'TVC:GOLD': ['TVC:GOLD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'PAXGUSDT', 'PAXG'],
-  'TVC:SILVER': ['TVC:SILVER', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER'],
+  'TVC:GOLD': ['TVC:GOLD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'PAXGUSDT', 'PAXG', 'GOLD'],
+  'TVC:SILVER': ['TVC:SILVER', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER', 'SILVER'],
   'NSEIX:NIFTY1!': ['NSEIX:NIFTY1!', 'GIFT NIFTY', 'GIFTNIFTY'],
-  'NYMEX:CL1!': ['NYMEX:CL1!', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL', 'USOIL', 'TVC:USOIL'],
-  'TVC:UKOIL': ['TVC:UKOIL', 'BRENT CRUDE', 'BRENT', 'UKOIL', 'TVC:UKOIL'],
+  'NYMEX:CL1!': ['NYMEX:CL1!', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL', 'USOIL', 'TVC:USOIL', 'CL1!'],
+  'ICEEUR:BRN1!': ['ICEEUR:BRN1!', 'BRENT CRUDE', 'BRENT', 'UKOIL', 'TVC:UKOIL', 'BRN1!', 'ICE:BRENT CRUDE', 'ICE:BRENT'],
   'FX:USDINR': ['FX:USDINR', 'USDINR', 'USD/INR'],
   'FX:EURUSD': ['FX:EURUSD', 'EURUSD', 'EUR/USD'],
   'FX:GBPUSD': ['FX:GBPUSD', 'GBPUSD', 'GBP/USD'],
@@ -1452,8 +1463,10 @@ const TV_SCAN_ALIASES = {
   'FX:USDCAD': ['FX:USDCAD', 'USDCAD', 'USD/CAD'],
   'FX:USDCHF': ['FX:USDCHF', 'USDCHF', 'USD/CHF'],
   'FX:NZDUSD': ['FX:NZDUSD', 'NZDUSD', 'NZD/USD'],
-  'COMEX:HG1!': ['COMEX:HG1!', 'COPPER (COMEX)', 'HG1!', 'TVC:COPPER'],
+  'COMEX:HG1!': ['COMEX:HG1!', 'COPPER (COMEX)', 'HG1!', 'TVC:COPPER', 'COPPER'],
   'NYMEX:NG1!': ['NYMEX:NG1!', 'NATURAL GAS', 'NATURALGAS', 'HENRY HUB', 'NG1!', 'TVC:NATURALGAS'],
+  'COMEX:GC1!': ['COMEX:GC1!', 'GC1!'],
+  'COMEX:SI1!': ['COMEX:SI1!', 'SI1!'],
 };
 
 async function refreshTradingViewScannerQuotes() {
@@ -2181,7 +2194,7 @@ async function refreshAngelBatchQuotes(tokensList) {
 // ─── 7. EXCHANGE HISTORY WITH ANGELONE PRIMARY & YAHOO FALLBACK ───
 async function fetchLiveExchangeHistory(symbol, interval) {
   const symNorm = (symbol || '').toUpperCase().trim();
-  const unprefix = symNorm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+  const unprefix = symNorm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
   const cacheKey = `${unprefix}_${interval}`;
 
   const cached = candleCache.get(cacheKey) || candleCache.get(`${symNorm}_${interval}`);
@@ -2232,7 +2245,17 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         let chgPct = scannerQuote?.chgPct;
 
         if (prevClose == null || !Number.isFinite(chg)) {
-          prevClose = tvBars[0].open;
+          // If scannerQuote does not have prevClose yet, find the last bar from previous trading day (before 00:00 UTC)
+          const nowD = new Date();
+          const todayStartSec = Math.floor(Date.UTC(nowD.getUTCFullYear(), nowD.getUTCMonth(), nowD.getUTCDate()) / 1000);
+          const yesterdayBars = tvBars.filter(b => b.time < todayStartSec);
+          if (yesterdayBars.length > 0) {
+            prevClose = yesterdayBars[yesterdayBars.length - 1].close;
+          } else if (tvBars.length > 1) {
+            prevClose = tvBars[0].open;
+          } else {
+            prevClose = lastBar.open;
+          }
           const diff = lastBar.close - prevClose;
           const dec = lastBar.close < 2 ? 4 : (lastBar.close < 200 && symNorm.includes('JPY') ? 3 : 2);
           chg = +diff.toFixed(dec);
@@ -2478,11 +2501,16 @@ const FALLBACK_BASE_PRICES = {
   'SILVER (SPOT)': 54.40,
   'SPOT SILVER': 54.40,
   'TVC:SILVER': 54.40,
+  'BRENT CRUDE': 98.20,
+  'ICE:BRENT CRUDE': 98.20,
+  'ICEEUR:BRN1!': 98.20,
+  'WTI CRUDE': 90.30,
+  'NYMEX:CL1!': 90.30,
 };
 
 function generateCalibratedFallbackBars(symbol, interval) {
   const symNorm = (symbol || '').toUpperCase().trim();
-  const unprefix = symNorm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+  const unprefix = symNorm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
 
   // Check if we have cached bars from any interval
   const anyCached = candleCache.get(`${unprefix}_${interval}`) || candleCache.get(`${symNorm}_${interval}`);
@@ -4148,6 +4176,11 @@ function createServer() {
 
         if (cached) {
           quotes[s] = cached;
+        } else {
+          const unp = s.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+          if (quoteCache.has(unp)) {
+            quotes[s] = quoteCache.get(unp);
+          }
         }
       }
 
