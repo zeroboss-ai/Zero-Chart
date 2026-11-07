@@ -395,31 +395,31 @@ class ZeroChartApp {
   getChartTheme(themeName = this.currentTheme) {
     const isDark = themeName === 'dark';
     return {
-      background: isDark ? '#260505' : '#ffffff',
-      grid: isDark ? '#360908' : '#f0f3fa',
-      axisText: isDark ? '#c4a7a2' : '#131722', // High-contrast crisp axis prices & time labels
+      background: isDark ? '#260505' : '#ffeddb',
+      grid: isDark ? '#360908' : '#f2dcbf',
+      axisText: isDark ? '#c4a7a2' : '#7c6861', // High-contrast crisp axis prices & time labels
       axisFontSize: 12,
-      axisLine: isDark ? '#4a1007' : '#d4dae3',
-      paneSeparator: isDark ? '#4a1007' : '#e0e3eb',
-      crosshair: isDark ? '#ff6900' : '#787b86',
-      upColor: isDark ? '#00c076' : '#089981', // Vivid green candles
-      downColor: '#f23645', // Vivid red candles
-      wickUpColor: isDark ? '#00c076' : '#089981',
-      wickDownColor: '#f23645',
-      lineColor: isDark ? '#ff6900' : '#2962ff',
-      areaTopColor: isDark ? 'rgba(255, 105, 0, 0.35)' : 'rgba(41, 98, 255, 0.35)',
-      areaBottomColor: isDark ? 'rgba(255, 105, 0, 0.00)' : 'rgba(41, 98, 255, 0.00)',
-      baselineTopLine: isDark ? '#00c076' : '#089981',
-      baselineTopFill: isDark ? 'rgba(0, 192, 118, 0.18)' : 'rgba(8, 153, 129, 0.18)',
-      baselineBottomLine: '#f23645',
-      baselineBottomFill: 'rgba(242, 54, 69, 0.18)',
-      lastPriceUp: isDark ? '#00c076' : '#089981',
-      lastPriceDown: '#f23645',
+      axisLine: isDark ? '#4a1007' : '#dda88d',
+      paneSeparator: isDark ? '#4a1007' : '#dda88d',
+      crosshair: '#ff6900',
+      upColor: isDark ? '#00c076' : '#17734d', // Vivid green candles
+      downColor: isDark ? '#f23645' : '#dd5d3b', // Vivid red candles
+      wickUpColor: isDark ? '#00c076' : '#17734d',
+      wickDownColor: isDark ? '#f23645' : '#dd5d3b',
+      lineColor: '#ff6900',
+      areaTopColor: isDark ? 'rgba(255, 105, 0, 0.35)' : 'rgba(255, 105, 0, 0.25)',
+      areaBottomColor: 'rgba(255, 105, 0, 0.00)',
+      baselineTopLine: isDark ? '#00c076' : '#17734d',
+      baselineTopFill: isDark ? 'rgba(0, 192, 118, 0.18)' : 'rgba(23, 115, 77, 0.18)',
+      baselineBottomLine: isDark ? '#f23645' : '#dd5d3b',
+      baselineBottomFill: isDark ? 'rgba(242, 54, 69, 0.18)' : 'rgba(221, 93, 59, 0.18)',
+      lastPriceUp: isDark ? '#00c076' : '#17734d',
+      lastPriceDown: isDark ? '#f23645' : '#dd5d3b',
       lastPriceText: '#ffffff',
-      buy: isDark ? '#00c076' : '#089981',
-      sell: '#f23645',
-      profit: isDark ? '#00c076' : '#089981',
-      loss: '#f23645',
+      buy: isDark ? '#00c076' : '#17734d',
+      sell: isDark ? '#f23645' : '#dd5d3b',
+      profit: isDark ? '#00c076' : '#17734d',
+      loss: isDark ? '#f23645' : '#dd5d3b',
     };
   }
 
