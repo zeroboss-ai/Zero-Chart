@@ -395,20 +395,20 @@ class ZeroChartApp {
   getChartTheme(themeName = this.currentTheme) {
     const isDark = themeName === 'dark';
     return {
-      background: isDark ? '#131722' : '#ffffff',
-      grid: isDark ? '#1e222d' : '#f0f3fa',
-      axisText: isDark ? '#d1d4dc' : '#131722', // High-contrast crisp axis prices & time labels
+      background: isDark ? '#260505' : '#ffffff',
+      grid: isDark ? '#360908' : '#f0f3fa',
+      axisText: isDark ? '#c4a7a2' : '#131722', // High-contrast crisp axis prices & time labels
       axisFontSize: 12,
-      axisLine: isDark ? '#2a3046' : '#d4dae3',
-      paneSeparator: isDark ? '#2a2e39' : '#e0e3eb',
-      crosshair: isDark ? '#6a7182' : '#787b86',
+      axisLine: isDark ? '#4a1007' : '#d4dae3',
+      paneSeparator: isDark ? '#4a1007' : '#e0e3eb',
+      crosshair: isDark ? '#ff6900' : '#787b86',
       upColor: isDark ? '#00c076' : '#089981', // Vivid green candles
       downColor: '#f23645', // Vivid red candles
       wickUpColor: isDark ? '#00c076' : '#089981',
       wickDownColor: '#f23645',
-      lineColor: '#2962ff',
-      areaTopColor: 'rgba(41, 98, 255, 0.35)',
-      areaBottomColor: 'rgba(41, 98, 255, 0.00)',
+      lineColor: isDark ? '#ff6900' : '#2962ff',
+      areaTopColor: isDark ? 'rgba(255, 105, 0, 0.35)' : 'rgba(41, 98, 255, 0.35)',
+      areaBottomColor: isDark ? 'rgba(255, 105, 0, 0.00)' : 'rgba(41, 98, 255, 0.00)',
       baselineTopLine: isDark ? '#00c076' : '#089981',
       baselineTopFill: isDark ? 'rgba(0, 192, 118, 0.18)' : 'rgba(8, 153, 129, 0.18)',
       baselineBottomLine: '#f23645',
