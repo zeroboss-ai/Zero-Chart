@@ -7241,22 +7241,26 @@ class ZeroChartApp {
     if (callLegend) callLegend.textContent = this.oiShowTotal ? 'Call OI' : 'Call OI chg';
 
     // 6. Summary Footer Card
-    const sumCallEl = document.getElementById('oi-sum-call-chg');
     const sumPutEl = document.getElementById('oi-sum-put-chg');
+    const sumCallEl = document.getElementById('oi-sum-call-chg');
     const sumOpenPriceEl = document.getElementById('oi-sum-open-price');
     const sumClosePriceEl = document.getElementById('oi-sum-close-price');
     const sumOpenLbl = document.getElementById('oi-sum-sym-open-lbl');
     const sumCloseLbl = document.getElementById('oi-sum-sym-close-lbl');
 
-    if (sumCallEl) {
-      const callVal = this.oiShowTotal ? data.totalCallOI : data.netCallOIChg;
-      sumCallEl.textContent = this.formatOINumber(callVal, data.isIndian);
-      sumCallEl.className = `val ${callVal >= 0 ? 'dn' : 'up'}`;
-    }
     if (sumPutEl) {
       const putVal = this.oiShowTotal ? data.totalPutOI : data.netPutOIChg;
       sumPutEl.textContent = this.formatOINumber(putVal, data.isIndian);
       sumPutEl.className = `val ${putVal >= 0 ? 'up' : 'dn'}`;
+      const putLbl = document.getElementById('oi-sum-put-lbl') || sumPutEl.previousElementSibling;
+      if (putLbl) putLbl.textContent = this.oiShowTotal ? 'Put OI:' : 'Put OI change:';
+    }
+    if (sumCallEl) {
+      const callVal = this.oiShowTotal ? data.totalCallOI : data.netCallOIChg;
+      sumCallEl.textContent = this.formatOINumber(callVal, data.isIndian);
+      sumCallEl.className = `val ${callVal >= 0 ? 'dn' : 'up'}`;
+      const callLbl = document.getElementById('oi-sum-call-lbl') || sumCallEl.previousElementSibling;
+      if (callLbl) callLbl.textContent = this.oiShowTotal ? 'Call OI:' : 'Call OI change:';
     }
     if (sumOpenPriceEl) sumOpenPriceEl.textContent = data.dayOpenPrice.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
     if (sumClosePriceEl) sumClosePriceEl.textContent = data.interpolatedSpot.toLocaleString(undefined, { minimumFractionDigits: data.inst.precision, maximumFractionDigits: data.inst.precision });
