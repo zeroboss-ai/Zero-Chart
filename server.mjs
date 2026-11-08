@@ -13,6 +13,14 @@ const ROOT = __dirname;
 const OPENALGO_HOST = process.env.OPENALGO_HOST || 'http://127.0.0.1:5000';
 const DEFAULT_PORT = parseInt(process.env.PORT || '3000', 10);
 
+// Global Error Handlers to keep daemon resilient against transient socket/API network drops
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught Exception:', err?.message || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled Rejection:', reason?.message || reason);
+});
+
 // ─── 1. LOAD BROKER & ENVIRONMENT CONFIG ───
 function loadEnv() {
   const candidates = [
