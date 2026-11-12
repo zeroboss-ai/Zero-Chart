@@ -1488,6 +1488,27 @@ const TV_SCAN_ALIASES = {
   'COMEX:SI1!': ['COMEX:SI1!', 'SI1!'],
 };
 
+const TV_SCAN_ALIASES_INDIA = {
+  'NSE:NIFTY': ['NIFTY', 'NIFTY 50', 'NIFTY50', 'NSE:NIFTY', '^NSEI'],
+  'NSE:BANKNIFTY': ['BANKNIFTY', 'BANK NIFTY', 'NIFTY BANK', 'NSE:BANKNIFTY', '^NSEBANK'],
+  'NSE:FINNIFTY': ['FINNIFTY', 'FIN NIFTY', 'NSE:FINNIFTY', 'NIFTY_FIN_SERVICE.NS'],
+  'NSE:MIDCPNIFTY': ['MIDCPNIFTY', 'NIFTY MID SELECT', 'NSE:MIDCPNIFTY', 'NIFTY_MID_SELECT.NS'],
+  'NSE:CNXIT': ['CNXIT', 'NIFTY IT', 'NSE:CNXIT', '^CNXIT'],
+  'NSE:CNXAUTO': ['CNXAUTO', 'NIFTY AUTO', 'NSE:CNXAUTO', '^CNXAUTO'],
+  'BSE:SENSEX': ['SENSEX', 'BSE SENSEX', 'BSE:SENSEX', '^BSESN'],
+  'NSE:RELIANCE': ['RELIANCE', 'NSE:RELIANCE'],
+  'NSE:TCS': ['TCS', 'NSE:TCS'],
+  'NSE:HDFCBANK': ['HDFCBANK', 'NSE:HDFCBANK'],
+  'NSE:INFY': ['INFY', 'NSE:INFY'],
+  'NSE:ICICIBANK': ['ICICIBANK', 'NSE:ICICIBANK'],
+  'NSE:SBIN': ['SBIN', 'NSE:SBIN'],
+  'NSE:BHARTIARTL': ['BHARTIARTL', 'NSE:BHARTIARTL'],
+  'NSE:ITC': ['ITC', 'NSE:ITC'],
+  'NSE:LT': ['LT', 'NSE:LT'],
+  'NSE:TATAMOTORS': ['TATAMOTORS', 'NSE:TATAMOTORS', 'TMPV'],
+  'NSE:MUTHOOTFIN': ['MUTHOOTFIN', 'NSE:MUTHOOTFIN'],
+};
+
 async function refreshTradingViewScannerQuotes() {
   const now = Date.now();
   if (now - lastTvScannerFetch < 2000) return; // throttle to 2 seconds
@@ -1495,52 +1516,77 @@ async function refreshTradingViewScannerQuotes() {
 
   tvScannerPromise = (async () => {
     try {
-      const tickers = Object.keys(TV_SCAN_ALIASES);
-      const resp = await fetch('https://scanner.tradingview.com/global/scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-        body: JSON.stringify({
-          symbols: { tickers },
-          columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
+      const globalTickers = Object.keys(TV_SCAN_ALIASES);
+      const indiaTickers = Object.keys(TV_SCAN_ALIASES_INDIA);
+
+      const [globalRes, indiaRes] = await Promise.allSettled([
+        fetch('https://scanner.tradingview.com/global/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+          body: JSON.stringify({
+            symbols: { tickers: globalTickers },
+            columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
+          }),
+          signal: AbortSignal.timeout(3000),
         }),
-        signal: AbortSignal.timeout(3000),
-      });
+        fetch('https://scanner.tradingview.com/india/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+          body: JSON.stringify({
+            symbols: { tickers: indiaTickers },
+            columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
+          }),
+          signal: AbortSignal.timeout(3000),
+        })
+      ]);
 
-      if (!resp.ok) return;
-      const json = await resp.json();
-      if (!Array.isArray(json?.data)) return;
+      const processData = (jsonData, aliasMap) => {
+        if (!Array.isArray(jsonData?.data)) return;
+        for (const item of jsonData.data) {
+          if (!item || !item.s || !Array.isArray(item.d)) continue;
+          const d = item.d;
+          const ltp = d[0];
+          if (!Number.isFinite(ltp) || ltp <= 0) continue;
+          const chgPct = +Number(d[1] || 0).toFixed(2);
+          const dec = ltp < 2 ? 4 : (item.s.includes('SILVER') ? 3 : (item.s.includes('JPY') ? 3 : 2));
+          const chg = +Number(d[2] || 0).toFixed(dec);
+          const prevClose = +(ltp - chg).toFixed(dec);
 
-      for (const item of json.data) {
-        if (!item || !item.s || !Array.isArray(item.d)) continue;
-        const d = item.d;
-        const ltp = d[0];
-        if (!Number.isFinite(ltp) || ltp <= 0) continue;
-        const chgPct = +Number(d[1] || 0).toFixed(2);
-        const dec = ltp < 2 ? 4 : (item.s.includes('SILVER') ? 3 : (item.s.includes('JPY') ? 3 : 2));
-        const chg = +Number(d[2] || 0).toFixed(dec);
-        const prevClose = +(ltp - chg).toFixed(dec);
+          const qObj = {
+            ltp: +Number(ltp).toFixed(dec),
+            open: +(d[3] || ltp).toFixed(dec),
+            high: +(d[4] || ltp).toFixed(dec),
+            low: +(d[5] || ltp).toFixed(dec),
+            close: +Number(ltp).toFixed(dec),
+            prevClose,
+            chg,
+            chgPct,
+            time: Math.floor(now / 1000),
+            _fetchTime: now,
+          };
 
-        const qObj = {
-          ltp: +Number(ltp).toFixed(dec),
-          open: +(d[3] || ltp).toFixed(dec),
-          high: +(d[4] || ltp).toFixed(dec),
-          low: +(d[5] || ltp).toFixed(dec),
-          close: +Number(ltp).toFixed(dec),
-          prevClose,
-          chg,
-          chgPct,
-          time: Math.floor(now / 1000),
-          _fetchTime: now,
-        };
-
-        const aliases = TV_SCAN_ALIASES[item.s] || [item.s];
-        for (const alias of aliases) {
-          quoteCache.set(alias.toUpperCase().trim(), qObj);
+          const aliases = aliasMap[item.s] || [item.s];
+          for (const alias of aliases) {
+            quoteCache.set(alias.toUpperCase().trim(), qObj);
+          }
         }
+      };
+
+      if (globalRes.status === 'fulfilled' && globalRes.value.ok) {
+        const j = await globalRes.value.json().catch(() => null);
+        if (j) processData(j, TV_SCAN_ALIASES);
       }
+      if (indiaRes.status === 'fulfilled' && indiaRes.value.ok) {
+        const j = await indiaRes.value.json().catch(() => null);
+        if (j) processData(j, TV_SCAN_ALIASES_INDIA);
+      }
+
       lastTvScannerFetch = now;
     } catch (_) {}
     finally {
@@ -2248,9 +2294,13 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       const nowSec = Math.floor(Date.now() / 1000);
       const bucketTime = Math.floor(nowSec / intervalSec) * intervalSec;
       if (last.time === bucketTime) {
-        last.close = +ltpData.ltp;
-        last.high = Math.max(last.high, last.close);
-        last.low = Math.min(last.low, last.close);
+        const isIndex = symNorm.includes('NIFTY') || symNorm.includes('SENSEX') || symNorm.includes('CNX');
+        const maxThreshold = isIndex ? 0.04 : 0.10;
+        if (Math.abs(ltpData.ltp - last.close) / last.close <= maxThreshold) {
+          last.close = +ltpData.ltp;
+          last.high = Math.max(last.high, last.close);
+          last.low = Math.min(last.low, last.close);
+        }
       }
       return bars;
     }
@@ -2346,9 +2396,13 @@ async function fetchLiveExchangeHistory(symbol, interval) {
           const intervalSec = mapIntervalToSeconds(interval);
           // Only update last candle if it is within active trading session (avoid modifying closed past bars)
           if (lastBar && Date.now() / 1000 < lastBar.time + intervalSec * 1.5) {
-            lastBar.close = +ltpData.ltp.toFixed(2);
-            lastBar.high = Math.max(lastBar.high, lastBar.open, lastBar.close);
-            lastBar.low = Math.min(lastBar.low, lastBar.open, lastBar.close);
+            const isIndex = symNorm.includes('NIFTY') || symNorm.includes('SENSEX') || symNorm.includes('CNX');
+            const maxThreshold = isIndex ? 0.04 : 0.10;
+            if (Math.abs(ltpData.ltp - lastBar.close) / lastBar.close <= maxThreshold) {
+              lastBar.close = +ltpData.ltp.toFixed(2);
+              lastBar.high = Math.max(lastBar.high, lastBar.open, lastBar.close);
+              lastBar.low = Math.min(lastBar.low, lastBar.open, lastBar.close);
+            }
           }
         } else {
           const lastBar = angelBars[angelBars.length - 1];
@@ -2499,27 +2553,27 @@ async function fetchLiveExchangeHistory(symbol, interval) {
 }
 
 const FALLBACK_BASE_PRICES = {
-  'NIFTY 50': 23370.35,
-  'NIFTY50': 23370.35,
-  'NIFTY': 23370.35,
-  'BANKNIFTY': 56465.45,
-  'BANK NIFTY': 56465.45,
-  'FINNIFTY': 24350.0,
-  'MIDCPNIFTY': 13305.0,
-  'NIFTY MID SELECT': 13305.0,
+  'NIFTY 50': 25260.0,
+  'NIFTY50': 25260.0,
+  'NIFTY': 25260.0,
+  'BANKNIFTY': 61450.0,
+  'BANK NIFTY': 61450.0,
+  'FINNIFTY': 28000.0,
+  'MIDCPNIFTY': 14250.0,
+  'NIFTY MID SELECT': 14250.0,
   'NIFTYMIDCAP': 16400.0,
   'NIFTY MIDCAP': 16400.0,
   'NIFTY MIDCAP 50': 16400.0,
-  'SENSEX': 80000.0,
-  'RELIANCE': 1209.0,
-  'MUTHOOTFIN': 2842.4,
-  'ICICIBANK': 1385.0,
-  'TCS': 2529.0,
-  'HDFCBANK': 706.95,
-  'INFY': 1168.0,
-  'TATAMOTORS': 304.05,
-  'TMPV': 304.05,
-  'SBIN': 963.0,
+  'SENSEX': 81900.0,
+  'RELIANCE': 1335.0,
+  'MUTHOOTFIN': 2869.0,
+  'ICICIBANK': 1585.0,
+  'TCS': 2430.0,
+  'HDFCBANK': 812.0,
+  'INFY': 1144.0,
+  'TATAMOTORS': 292.0,
+  'TMPV': 292.0,
+  'SBIN': 1087.0,
   'GOLD': 74500.0,
   'SILVER': 89500.0,
   'CRUDEOIL': 5980.0,
@@ -2529,9 +2583,9 @@ const FALLBACK_BASE_PRICES = {
   'ALUMINIUM': 230.0,
   'LEAD': 180.0,
   'EURUSD': 1.085,
-  'USDINR': 83.95,
+  'USDINR': 84.40,
   'GBPUSD': 1.298,
-  'USDJPY': 152.4,
+  'USDJPY': 154.5,
   'BTCUSDT': 91000.0,
   'ETHUSDT': 3300.0,
   'XAUUSD': 4060.0,
@@ -2572,35 +2626,30 @@ function generateCalibratedFallbackBars(symbol, interval) {
   const nowSec = Math.floor(Date.now() / 1000);
   const latestBucket = Math.floor(nowSec / intervalSec) * intervalSec;
 
-  const bars = [];
+  const bars = new Array(count);
   let cur = basePrice;
   const charCode = (symNorm.charCodeAt(0) || 65) + (symNorm.charCodeAt(1) || 66);
 
-  for (let i = count - 1; i >= 0; i--) {
+  // Walk backward from the live basePrice so latest bar matches current price with ZERO spike/jump
+  for (let i = 0; i < count; i++) {
     const t = latestBucket - i * intervalSec;
     const seed = ((Math.floor(t / intervalSec)) ^ charCode) % 1000;
     const pct = ((seed - 495) / 1000) * 0.003;
-    const open = +cur.toFixed(2);
-    const close = +(open * (1 + pct)).toFixed(2);
+    const close = +cur.toFixed(2);
+    const open = +(close / (1 + pct)).toFixed(2);
     const high = +(Math.max(open, close) * (1 + Math.abs(pct) * 0.4)).toFixed(2);
     const low = +(Math.min(open, close) * (1 - Math.abs(pct) * 0.4)).toFixed(2);
     const vol = Math.floor(2000 + (seed % 300) * 50);
 
-    bars.push({
+    bars[count - 1 - i] = {
       time: t,
       open,
       high,
       low,
       close,
       volume: vol,
-    });
-    cur = close;
-  }
-
-  if (bars.length > 0) {
-    bars[bars.length - 1].close = +basePrice.toFixed(2);
-    bars[bars.length - 1].high = Math.max(bars[bars.length - 1].high, +basePrice.toFixed(2));
-    bars[bars.length - 1].low = Math.min(bars[bars.length - 1].low, +basePrice.toFixed(2));
+    };
+    cur = open;
   }
 
   return sanitizeCandles(bars, interval);
