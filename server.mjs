@@ -1564,6 +1564,7 @@ async function prewarmAllWatchlistQuotes() {
     await refreshGlobalIndices().catch(() => {});
     const indianSymbols = [
       'NIFTY 50', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'CNXAUTO', 'CNXIT', 'NIFTYMIDCAP', 'SENSEX',
+      'NIFTY FUT', 'BANKNIFTY FUT',
       'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'SBIN', 'BHARTIARTL', 'ITC', 'LT',
       'TATAMOTORS', 'MUTHOOTFIN', 'AXISBANK', 'KOTAKBANK', 'BAJFINANCE', 'MARUTI', 'TITAN', 'HAL'
     ];
@@ -1856,7 +1857,7 @@ function getFallbackNews(category) {
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 let lastAngelCandleReqTime = 0;
-const ANGEL_CANDLE_INTERVAL_MS = 420;
+const ANGEL_CANDLE_INTERVAL_MS = 650;
 let angelCandleQueue = Promise.resolve();
 
 async function fetchAngelOneCandles(angelInst, interval, customDaysBack = null) {
@@ -4248,14 +4249,18 @@ function createServer() {
         subscribeSmartStreamTokens(tokensToSub);
       }
       if (missingTokens.length > 0) {
-        refreshAngelBatchQuotes(missingTokens).catch(() => {});
+        await refreshAngelBatchQuotes(missingTokens).catch(() => {});
       }
 
-      // Check for any symbols requested that are still missing from quotes
+      // Check for any non-AngelOne or still missing symbols
       const stillMissing = symbols.map(s => s.trim().toUpperCase()).filter(s => {
         if (!s) return false;
         const unp = s.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
-        return !quotes[s] && !quoteCache.has(s) && !quoteCache.has(unp);
+        if (quotes[s]) return false;
+        if (quoteCache.has(s)) { quotes[s] = quoteCache.get(s); return false; }
+        if (quoteCache.has(unp)) { quotes[s] = quoteCache.get(unp); return false; }
+        if (angelSession.isAuthenticated && resolveAngelInstrument(s)) return false;
+        return true;
       });
 
       if (stillMissing.length > 0) {
