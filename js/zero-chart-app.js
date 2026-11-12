@@ -11,13 +11,13 @@ import {
   mountSettingsDialog,
   mountObjectsPanel,
   openShortcutsPanel,
-} from '../lib/openalgo-charts.widget.mjs?v=2.7.3';
-import { ReplayController, registerInterval } from '../lib/openalgo-charts.mjs?v=2.7.3';
-import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.7.3';
-import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.7.3';
-import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.7.3';
-import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.7.3';
-import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.7.3';
+} from '../lib/openalgo-charts.widget.mjs?v=2.8.0';
+import { ReplayController, registerInterval } from '../lib/openalgo-charts.mjs?v=2.8.0';
+import { registerBuiltinIndicators } from '../lib/openalgo-charts.indicators.mjs?v=2.8.0';
+import { FakeBroker, OrderEngine, TradeController } from '../lib/openalgo-charts.trade.mjs?v=2.8.0';
+import { MultiAssetFeed } from './feeds/multi-feed.js?v=2.8.0';
+import { getIntervalSeconds } from './feeds/openalgo-feed.js?v=2.8.0';
+import { MASTER_INSTRUMENTS, DEFAULT_WATCHLISTS, findInstrument, getInstrumentBadgeHtml } from './watchlist-data.js?v=2.8.0';
 
 // Register all indicators immediately
 try {
@@ -1796,102 +1796,111 @@ class ZeroChartApp {
 
     this.pollQuotes = pollQuotes;
     pollQuotes();
-    setInterval(pollQuotes, 200);
+    setInterval(pollQuotes, 350);
   }
 
   updateLivePrice(inst, newPrice, chg, chgPct, explicitPrevClose) {
     const cleanId = inst.symbol.replace(/[^A-Za-z0-9]/g, '_');
     const prevData = this.livePrices.get(inst.symbol);
     const prevPrice = prevData?.last || inst.basePrice;
+    const normChg = chg || 0;
+    const normChgPct = chgPct || 0;
+    const priceChanged = !prevData || prevData.last !== newPrice;
+    const quoteChanged = priceChanged || prevData.chg !== normChg || prevData.chgPct !== normChgPct;
 
     const prevClose = (explicitPrevClose !== undefined && Number.isFinite(explicitPrevClose) && explicitPrevClose > 0)
       ? explicitPrevClose
-      : (prevData?.prevClose || (newPrice - (chg || 0)));
+      : (prevData?.prevClose || (newPrice - normChg));
 
-    this.livePrices.set(inst.symbol, {
-      last: newPrice,
-      chg: chg || 0,
-      chgPct: chgPct || 0,
-      prevClose: prevClose,
-    });
-    if (inst.displaySymbol && inst.displaySymbol !== inst.symbol) {
-      this.livePrices.set(inst.displaySymbol, {
+    if (quoteChanged) {
+      this.livePrices.set(inst.symbol, {
         last: newPrice,
-        chg: chg || 0,
-        chgPct: chgPct || 0,
+        chg: normChg,
+        chgPct: normChgPct,
         prevClose: prevClose,
       });
-    }
-
-    this.broker.onLtp(inst.symbol, newPrice);
-
-    // Dispatch live tick directly to chart widget feed for in-place candle updates
-    // Only route to OpenAlgo feed if instrument feedType is openalgo
-    if (inst.feedType === 'openalgo' && (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol)) {
-      if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
-        this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
+      if (inst.displaySymbol && inst.displaySymbol !== inst.symbol) {
+        this.livePrices.set(inst.displaySymbol, {
+          last: newPrice,
+          chg: normChg,
+          chgPct: normChgPct,
+          prevClose: prevClose,
+        });
       }
     }
 
-    // Direct in-place primary series update on all active panes displaying this instrument
-    // SKIP for Binance-fed symbols: the kline WS feed already updates candles via the widget feed adapter.
-    const isBinanceFed = inst?.feedType === 'binance';
-    if (!isBinanceFed) {
-    this.panes.forEach((p) => {
-      if (this.isReplayMode && p.id === this.activePaneIndex) return;
-      const paneSym = (p.instrument?.symbol || '').toUpperCase().trim();
-      const tickSym = (inst.symbol || '').toUpperCase().trim();
-      const normPane = paneSym.replace(/\s+/g, '');
-      const normTick = tickSym.replace(/\s+/g, '');
-      const isMatch = paneSym === tickSym || normPane === normTick ||
-        (normPane === 'NIFTY50' && normTick === 'NIFTY') ||
-        (normPane === 'NIFTY' && normTick === 'NIFTY50') ||
-        (normPane === 'BANKNIFTY' && normTick === 'BANKNIFTY');
+    if (priceChanged) {
+      this.broker.onLtp(inst.symbol, newPrice);
 
-      if (isMatch && p.widget?.chart) {
-        try {
-          const s = p.widget.chart.primarySeries?.();
-          if (s && typeof s.getData === 'function' && typeof s.update === 'function') {
-            const data = s.getData();
-            if (data && data.length > 0) {
-              const last = data[data.length - 1];
-              // Spike protection: reject anomalous ticks that deviate > 10% from current candle
-              if (last.close > 0 && Math.abs(newPrice - last.close) / last.close > 0.10) {
-                return;
-              }
-              const nowSec = Math.floor(Date.now() / 1000);
-              const intervalSecs = getIntervalSeconds(p.interval || '5m');
-              const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
-              if (last.time === bucketTime) {
-                s.update({
-                  time: last.time,
-                  open: last.open,
-                  high: Math.max(last.high, newPrice),
-                  low: Math.min(last.low, newPrice),
-                  close: newPrice,
-                  volume: (last.volume || 0) + 1,
-                });
-              } else if (bucketTime > last.time) {
-                // Only mint new bar if price is consistent with last bar
-                if (Math.abs(newPrice - last.close) / last.close <= 0.05) {
-                  s.update({
-                    time: bucketTime,
-                    open: last.close,
-                    high: Math.max(last.close, newPrice),
-                    low: Math.min(last.close, newPrice),
-                    close: newPrice,
-                    volume: 1,
-                  });
+      // Dispatch live tick directly to chart widget feed only when price actually changes
+      if (inst.feedType === 'openalgo' && (!this.isReplayMode || this.currentInstrument?.symbol !== inst.symbol)) {
+        if (this.multiFeed?.openalgoFeed?._dispatchRealtimeTick) {
+          this.multiFeed.openalgoFeed._dispatchRealtimeTick(inst.symbol, newPrice);
+        }
+      }
+
+      // Direct in-place primary series update on all active panes displaying this instrument
+      // SKIP for Binance-fed symbols: the kline WS feed already updates candles via the widget feed adapter.
+      const isBinanceFed = inst?.feedType === 'binance';
+      if (!isBinanceFed) {
+        this.panes.forEach((p) => {
+          if (this.isReplayMode && p.id === this.activePaneIndex) return;
+          const paneSym = (p.instrument?.symbol || '').toUpperCase().trim();
+          const tickSym = (inst.symbol || '').toUpperCase().trim();
+          const normPane = paneSym.replace(/\s+/g, '');
+          const normTick = tickSym.replace(/\s+/g, '');
+          const isMatch = paneSym === tickSym || normPane === normTick ||
+            (normPane === 'NIFTY50' && normTick === 'NIFTY') ||
+            (normPane === 'NIFTY' && normTick === 'NIFTY50') ||
+            (normPane === 'BANKNIFTY' && normTick === 'BANKNIFTY');
+
+          if (isMatch && p.widget?.chart) {
+            try {
+              const s = p.widget.chart.primarySeries?.();
+              if (s && typeof s.getData === 'function' && typeof s.update === 'function') {
+                const data = s.getData();
+                if (data && data.length > 0) {
+                  const last = data[data.length - 1];
+                  // Spike protection: reject anomalous ticks that deviate > 10% from current candle
+                  if (last.close > 0 && Math.abs(newPrice - last.close) / last.close > 0.10) {
+                    return;
+                  }
+                  const nowSec = Math.floor(Date.now() / 1000);
+                  const intervalSecs = getIntervalSeconds(p.interval || '5m');
+                  const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
+                  if (last.time === bucketTime) {
+                    if (last.close !== newPrice) {
+                      s.update({
+                        time: last.time,
+                        open: last.open,
+                        high: Math.max(last.high, newPrice),
+                        low: Math.min(last.low, newPrice),
+                        close: newPrice,
+                        volume: (last.volume || 0) + 1,
+                      });
+                    }
+                  } else if (bucketTime > last.time) {
+                    // Only mint new bar if price is consistent with last bar
+                    if (Math.abs(newPrice - last.close) / last.close <= 0.05) {
+                      s.update({
+                        time: bucketTime,
+                        open: last.close,
+                        high: Math.max(last.close, newPrice),
+                        low: Math.min(last.close, newPrice),
+                        close: newPrice,
+                        volume: 1,
+                      });
+                    }
+                  }
                 }
               }
-            }
+            } catch (_) {}
           }
-        } catch (_) {}
-      }
-    });
-    } // end if (!isBinanceFed)
+        });
+      } // end if (!isBinanceFed)
+    }
 
-    // Update watchlist row cells
+    // Update watchlist row cells only when rendered value actually differs
     let lastEl = document.getElementById(`wl-last-${cleanId}`);
     let chgEl = document.getElementById(`wl-chg-${cleanId}`);
     let pctEl = document.getElementById(`wl-pct-${cleanId}`);
@@ -1913,42 +1922,47 @@ class ZeroChartApp {
       }
     }
 
-    const isUp = (chg || 0) >= 0;
+    const isUp = normChg >= 0;
     const sign = isUp ? '+' : '';
+    const newPriceStr = String(newPrice);
 
-    if (lastEl) {
+    if (lastEl && lastEl.getAttribute('data-price') !== newPriceStr) {
       const prevPriceVal = parseFloat(lastEl.getAttribute('data-price') || '0');
       lastEl.textContent = newPrice.toLocaleString(undefined, {
         minimumFractionDigits: inst.precision,
         maximumFractionDigits: inst.precision,
       });
-      lastEl.setAttribute('data-price', newPrice);
+      lastEl.setAttribute('data-price', newPriceStr);
 
-      // Flash animation on live tick
+      // Smooth rAF flash animation without synchronous layout reflow
       if (prevPriceVal && prevPriceVal !== newPrice) {
+        const cls = newPrice > prevPriceVal ? 'tv-tick-up' : 'tv-tick-down';
         lastEl.classList.remove('tv-tick-up', 'tv-tick-down');
-        void lastEl.offsetWidth; // trigger reflow
-        lastEl.classList.add(newPrice > prevPriceVal ? 'tv-tick-up' : 'tv-tick-down');
+        requestAnimationFrame(() => lastEl.classList.add(cls));
       }
     }
-    if (chgEl) {
-      chgEl.textContent = `${sign}${(chg || 0).toFixed(inst.precision)}`;
+    const chgText = `${sign}${normChg.toFixed(inst.precision)}`;
+    if (chgEl && chgEl.textContent !== chgText) {
+      chgEl.textContent = chgText;
       chgEl.className = `tv-wl-cell-chg ${isUp ? 'up' : 'dn'}`;
     }
-    if (pctEl) {
-      pctEl.textContent = `${sign}${(chgPct || 0).toFixed(2)}%`;
+    const pctText = `${sign}${normChgPct.toFixed(2)}%`;
+    if (pctEl && pctEl.textContent !== pctText) {
+      pctEl.textContent = pctText;
       pctEl.className = `tv-wl-cell-pct ${isUp ? 'up' : 'dn'}`;
     }
 
-    if (inst.symbol === this.currentInstrument?.symbol) {
-      const tradePriceField = document.getElementById('trade-price');
-      if (tradePriceField && !tradePriceField.value) {
-        tradePriceField.placeholder = newPrice.toFixed(inst.precision);
+    if (priceChanged) {
+      if (inst.symbol === this.currentInstrument?.symbol) {
+        const tradePriceField = document.getElementById('trade-price');
+        if (tradePriceField && !tradePriceField.value) {
+          tradePriceField.placeholder = newPrice.toFixed(inst.precision);
+        }
       }
-    }
 
-    // Evaluate active alerts against this live tick
-    this.evaluateAlerts(inst.symbol, newPrice, prevPrice);
+      // Evaluate active alerts against this live tick
+      this.evaluateAlerts(inst.symbol, newPrice, prevPrice);
+    }
   }
 
   // ─── REAL-TIME ALERTS ENGINE ───
