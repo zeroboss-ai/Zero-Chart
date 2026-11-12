@@ -1488,27 +1488,6 @@ const TV_SCAN_ALIASES = {
   'COMEX:SI1!': ['COMEX:SI1!', 'SI1!'],
 };
 
-const TV_SCAN_ALIASES_INDIA = {
-  'NSE:NIFTY': ['NIFTY', 'NIFTY 50', 'NIFTY50', 'NSE:NIFTY', '^NSEI'],
-  'NSE:BANKNIFTY': ['BANKNIFTY', 'BANK NIFTY', 'NIFTY BANK', 'NSE:BANKNIFTY', '^NSEBANK'],
-  'NSE:FINNIFTY': ['FINNIFTY', 'FIN NIFTY', 'NSE:FINNIFTY', 'NIFTY_FIN_SERVICE.NS'],
-  'NSE:MIDCPNIFTY': ['MIDCPNIFTY', 'NIFTY MID SELECT', 'NSE:MIDCPNIFTY', 'NIFTY_MID_SELECT.NS'],
-  'NSE:CNXIT': ['CNXIT', 'NIFTY IT', 'NSE:CNXIT', '^CNXIT'],
-  'NSE:CNXAUTO': ['CNXAUTO', 'NIFTY AUTO', 'NSE:CNXAUTO', '^CNXAUTO'],
-  'BSE:SENSEX': ['SENSEX', 'BSE SENSEX', 'BSE:SENSEX', '^BSESN'],
-  'NSE:RELIANCE': ['RELIANCE', 'NSE:RELIANCE'],
-  'NSE:TCS': ['TCS', 'NSE:TCS'],
-  'NSE:HDFCBANK': ['HDFCBANK', 'NSE:HDFCBANK'],
-  'NSE:INFY': ['INFY', 'NSE:INFY'],
-  'NSE:ICICIBANK': ['ICICIBANK', 'NSE:ICICIBANK'],
-  'NSE:SBIN': ['SBIN', 'NSE:SBIN'],
-  'NSE:BHARTIARTL': ['BHARTIARTL', 'NSE:BHARTIARTL'],
-  'NSE:ITC': ['ITC', 'NSE:ITC'],
-  'NSE:LT': ['LT', 'NSE:LT'],
-  'NSE:TATAMOTORS': ['TATAMOTORS', 'NSE:TATAMOTORS', 'TMPV'],
-  'NSE:MUTHOOTFIN': ['MUTHOOTFIN', 'NSE:MUTHOOTFIN'],
-};
-
 async function refreshTradingViewScannerQuotes() {
   const now = Date.now();
   if (now - lastTvScannerFetch < 2000) return; // throttle to 2 seconds
@@ -1517,74 +1496,52 @@ async function refreshTradingViewScannerQuotes() {
   tvScannerPromise = (async () => {
     try {
       const globalTickers = Object.keys(TV_SCAN_ALIASES);
-      const indiaTickers = Object.keys(TV_SCAN_ALIASES_INDIA);
-
-      const [globalRes, indiaRes] = await Promise.allSettled([
-        fetch('https://scanner.tradingview.com/global/scan', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-          body: JSON.stringify({
-            symbols: { tickers: globalTickers },
-            columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
-          }),
-          signal: AbortSignal.timeout(3000),
+      const resp = await fetch('https://scanner.tradingview.com/global/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        body: JSON.stringify({
+          symbols: { tickers: globalTickers },
+          columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
         }),
-        fetch('https://scanner.tradingview.com/india/scan', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-          body: JSON.stringify({
-            symbols: { tickers: indiaTickers },
-            columns: ['close', 'change', 'change_abs', 'open', 'high', 'low'],
-          }),
-          signal: AbortSignal.timeout(3000),
-        })
-      ]);
+        signal: AbortSignal.timeout(3000),
+      });
 
-      const processData = (jsonData, aliasMap) => {
-        if (!Array.isArray(jsonData?.data)) return;
-        for (const item of jsonData.data) {
-          if (!item || !item.s || !Array.isArray(item.d)) continue;
-          const d = item.d;
-          const ltp = d[0];
-          if (!Number.isFinite(ltp) || ltp <= 0) continue;
-          const chgPct = +Number(d[1] || 0).toFixed(2);
-          const dec = ltp < 2 ? 4 : (item.s.includes('SILVER') ? 3 : (item.s.includes('JPY') ? 3 : 2));
-          const chg = +Number(d[2] || 0).toFixed(dec);
-          const prevClose = +(ltp - chg).toFixed(dec);
+      if (resp.ok) {
+        const jsonData = await resp.json().catch(() => null);
+        if (Array.isArray(jsonData?.data)) {
+          for (const item of jsonData.data) {
+            if (!item || !item.s || !Array.isArray(item.d)) continue;
+            const d = item.d;
+            const ltp = d[0];
+            if (!Number.isFinite(ltp) || ltp <= 0) continue;
+            const chgPct = +Number(d[1] || 0).toFixed(2);
+            const dec = ltp < 2 ? 4 : (item.s.includes('SILVER') ? 3 : (item.s.includes('JPY') ? 3 : 2));
+            const chg = +Number(d[2] || 0).toFixed(dec);
+            const prevClose = +(ltp - chg).toFixed(dec);
 
-          const qObj = {
-            ltp: +Number(ltp).toFixed(dec),
-            open: +(d[3] || ltp).toFixed(dec),
-            high: +(d[4] || ltp).toFixed(dec),
-            low: +(d[5] || ltp).toFixed(dec),
-            close: +Number(ltp).toFixed(dec),
-            prevClose,
-            chg,
-            chgPct,
-            time: Math.floor(now / 1000),
-            _fetchTime: now,
-          };
+            const qObj = {
+              ltp: +Number(ltp).toFixed(dec),
+              open: +(d[3] || ltp).toFixed(dec),
+              high: +(d[4] || ltp).toFixed(dec),
+              low: +(d[5] || ltp).toFixed(dec),
+              close: +Number(ltp).toFixed(dec),
+              prevClose,
+              chg,
+              chgPct,
+              time: Math.floor(now / 1000),
+              _fetchTime: now,
+              source: 'tv_global',
+            };
 
-          const aliases = aliasMap[item.s] || [item.s];
-          for (const alias of aliases) {
-            quoteCache.set(alias.toUpperCase().trim(), qObj);
+            const aliases = TV_SCAN_ALIASES[item.s] || [item.s];
+            for (const alias of aliases) {
+              quoteCache.set(alias.toUpperCase().trim(), qObj);
+            }
           }
         }
-      };
-
-      if (globalRes.status === 'fulfilled' && globalRes.value.ok) {
-        const j = await globalRes.value.json().catch(() => null);
-        if (j) processData(j, TV_SCAN_ALIASES);
-      }
-      if (indiaRes.status === 'fulfilled' && indiaRes.value.ok) {
-        const j = await indiaRes.value.json().catch(() => null);
-        if (j) processData(j, TV_SCAN_ALIASES_INDIA);
       }
 
       lastTvScannerFetch = now;
@@ -1605,15 +1562,26 @@ async function prewarmAllWatchlistQuotes() {
   try {
     await refreshTradingViewScannerQuotes().catch(() => {});
     await refreshGlobalIndices().catch(() => {});
-    const commonSymbols = [
+    const indianSymbols = [
       'NIFTY 50', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'CNXAUTO', 'CNXIT', 'NIFTYMIDCAP', 'SENSEX',
-      'GIFT NIFTY', 'BTCUSDT', 'BRENT CRUDE', 'GOLD FUT', 'XAUUSD', 'XAGUSD', 'YM',
-      'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'SBIN', 'BHARTIARTL', 'ITC', 'LT', 'TATAMOTORS'
+      'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'SBIN', 'BHARTIARTL', 'ITC', 'LT',
+      'TATAMOTORS', 'MUTHOOTFIN', 'AXISBANK', 'KOTAKBANK', 'BAJFINANCE', 'MARUTI', 'TITAN', 'HAL'
     ];
-    for (const sym of commonSymbols) {
-      if (!quoteCache.has(sym)) {
-        await fetchLiveExchangeHistory(sym, '15m').catch(() => {});
+    const batchTokens = [];
+    for (const sym of indianSymbols) {
+      const inst = resolveAngelInstrument(sym);
+      if (inst && inst.token) {
+        const tok = String(inst.token);
+        batchTokens.push(tok);
+        const existing = tokenToSymbolsMap.get(tok) || [];
+        if (!existing.includes(sym)) existing.push(sym);
+        if (!existing.includes(inst.symbol)) existing.push(inst.symbol);
+        tokenToSymbolsMap.set(tok, existing);
       }
+    }
+    if (batchTokens.length > 0 && angelSession.isAuthenticated) {
+      subscribeSmartStreamTokens(batchTokens);
+      await refreshAngelBatchQuotes(batchTokens).catch(() => {});
     }
   } catch (_) {}
 }
@@ -1888,7 +1856,7 @@ function getFallbackNews(category) {
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 let lastAngelCandleReqTime = 0;
-const ANGEL_CANDLE_INTERVAL_MS = 350;
+const ANGEL_CANDLE_INTERVAL_MS = 420;
 let angelCandleQueue = Promise.resolve();
 
 async function fetchAngelOneCandles(angelInst, interval, customDaysBack = null) {
@@ -2543,8 +2511,10 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       chgPct: pctChg,
       _fetchTime: Date.now(),
     };
-    quoteCache.set(symNorm, qObj);
-    quoteCache.set(unprefix, qObj);
+    if (!(angelInst && angelSession.isAuthenticated)) {
+      quoteCache.set(symNorm, qObj);
+      quoteCache.set(unprefix, qObj);
+    }
     candleCache.set(cacheKey, { timestamp: Date.now(), data: bars });
     candleCache.set(`${symNorm}_${interval}`, { timestamp: Date.now(), data: bars });
   }
