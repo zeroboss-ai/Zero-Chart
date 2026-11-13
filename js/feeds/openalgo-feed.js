@@ -421,11 +421,14 @@ export class OpenAlgoLiveFeed {
           const cleanSym = symKey.replace(/^(NSE|BSE|MCX|NFO|INDEX):/i, '').trim();
           const q = json.quotes?.[symKey] ||
                     json.quotes?.[cleanSym] ||
+                    json.quotes?.[`NSE:${cleanSym}`] ||
+                    json.quotes?.[`BSE:${cleanSym}`] ||
                     json.quotes?.[symKey.replace(/\s+/g, '')] ||
                     json.quotes?.[cleanSym.replace(/\s+/g, '')] ||
                     (symKey.includes('NIFTY') && !symKey.includes('BANK') ? (json.quotes?.['NIFTY 50'] || json.quotes?.['NIFTY']) : null);
           if (q && q.ltp) {
             this._dispatchRealtimeTick(symKey, q.ltp, q.time);
+            this._dispatchRealtimeTick(cleanSym, q.ltp, q.time);
           }
         }
       } catch (_) {}
@@ -454,10 +457,13 @@ export class OpenAlgoLiveFeed {
 
       const normSubSym = subSym.replace(/\s+/g, '').toUpperCase();
       const normSymKey = symKey.replace(/\s+/g, '').toUpperCase();
-      const isMatch = subSym === symKey || normSubSym === normSymKey ||
-        (normSymKey === 'NIFTY50' && normSubSym === 'NIFTY') ||
-        (normSymKey === 'NIFTY' && normSubSym === 'NIFTY50') ||
-        (normSymKey === 'BANKNIFTY' && normSubSym === 'BANKNIFTY');
+      const cleanSubSym = normSubSym.replace(/^(NSE|BSE|MCX|NFO|INDEX):/i, '');
+      const cleanSymKey = normSymKey.replace(/^(NSE|BSE|MCX|NFO|INDEX):/i, '');
+      const isMatch = subSym === symKey || normSubSym === normSymKey || cleanSubSym === cleanSymKey ||
+        (cleanSymKey === 'NIFTY50' && cleanSubSym === 'NIFTY') ||
+        (cleanSymKey === 'NIFTY' && cleanSubSym === 'NIFTY50') ||
+        (cleanSymKey === 'BANKNIFTY' && cleanSubSym === 'BANKNIFTY') ||
+        (cleanSymKey === 'FINNIFTY' && cleanSubSym === 'FINNIFTY');
 
       if (isMatch) {
         const intervalSecs = getIntervalSeconds(interval);

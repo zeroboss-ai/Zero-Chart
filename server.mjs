@@ -512,6 +512,13 @@ function indexInstruments(instruments) {
     }
   }
 
+  // Pre-seed core index tokens into tokenToSymbolsMap so SmartStream ticks broadcast to all aliases
+  tokenToSymbolsMap.set('99926000', ['NIFTY 50', 'NIFTY50', 'NIFTY', 'NSE:NIFTY 50', 'NSE:NIFTY']);
+  tokenToSymbolsMap.set('99926009', ['BANKNIFTY', 'BANK NIFTY', 'NSE:BANKNIFTY', 'NIFTY BANK', 'NSE:NIFTY BANK']);
+  tokenToSymbolsMap.set('99926037', ['FINNIFTY', 'FIN NIFTY', 'NSE:FINNIFTY']);
+  tokenToSymbolsMap.set('99926074', ['MIDCPNIFTY', 'NIFTY MID SELECT', 'NSE:MIDCPNIFTY']);
+  tokenToSymbolsMap.set('99919000', ['SENSEX', 'BSE SENSEX', 'BSE:SENSEX']);
+
   const todayCutoff = Date.now() - 24 * 3600 * 1000;
 
   // Filter and sort futures and commodities by nearest active (non-expired) expiry
@@ -2209,7 +2216,17 @@ function initSmartStreamWebSocket() {
       if (Buffer.isBuffer(data)) {
         const parsed = parseSmartStreamBinary(data);
         if (parsed && Number.isFinite(parsed.ltp) && parsed.ltp > 0) {
-          const syms = tokenToSymbolsMap.get(parsed.token) || [];
+          let syms = tokenToSymbolsMap.get(parsed.token);
+          if (!syms || syms.length === 0) {
+            const inst = nseTokensMap.get(parsed.token) || nseTokensMap.get(Number(parsed.token)) || mcxTokensMap.get(parsed.token);
+            if (inst) {
+              const clean = (inst.symbol || '').replace(/-EQ$/, '').toUpperCase();
+              syms = [clean, `${inst.exch_seg}:${clean}`, inst.symbol];
+              tokenToSymbolsMap.set(parsed.token, syms);
+            } else {
+              syms = [parsed.token];
+            }
+          }
           for (const s of syms) {
             const prevClose = parsed.close || quoteCache.get(s)?.prevClose || parsed.ltp;
             const chg = +(parsed.ltp - prevClose).toFixed(2);
@@ -4462,6 +4479,16 @@ function createServer() {
       }
       if (missingTokens.length > 0) {
         await refreshAngelBatchQuotes(missingTokens).catch(() => {});
+      }
+
+      // Re-populate any missing quotes from cache after batch fetch so first-time requests get quotes immediately
+      for (const sym of symbols) {
+        const s = sym.trim().toUpperCase();
+        if (!quotes[s]) {
+          const unp = s.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+          const q = quoteCache.get(s) || quoteCache.get(unp);
+          if (q) quotes[s] = q;
+        }
       }
 
       // Check for any non-AngelOne or still missing symbols
