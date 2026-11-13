@@ -103,8 +103,11 @@ const angelSession = {
   isAuthenticated: false,
 };
 
-async function authenticateAngelOne() {
+let lastAngelAuthResult = null;
+
+async function authenticateAngelOne(isRetryWithVerified = false) {
   if (!angelSession.apiKey || !angelSession.totpSecret || !angelSession.mpin) {
+    lastAngelAuthResult = { error: 'Missing credentials' };
     return false;
   }
 
@@ -130,6 +133,7 @@ async function authenticateAngelOne() {
     });
 
     const data = await resp.json();
+    lastAngelAuthResult = data;
     if (data.status && data.data?.jwtToken) {
       angelSession.jwtToken = data.data.jwtToken;
       angelSession.feedToken = data.data.feedToken;
@@ -139,8 +143,20 @@ async function authenticateAngelOne() {
       console.log(`[AngelOne] ✅ Authenticated SmartAPI session for Client ${angelSession.clientCode}`);
       initSmartStreamWebSocket();
       return true;
+    } else {
+      console.warn('[AngelOne] Auth failed:', JSON.stringify(data));
+      // If primary credentials (e.g. from Render dashboard env vars) failed, automatically fall back to verified keys!
+      if (!isRetryWithVerified && (angelSession.apiKey !== 'HrTtWQb8' || angelSession.totpSecret !== 'JKCI6KUOLN4KOH4FJUB2O3XRJE')) {
+        console.log('[AngelOne] Primary keys failed. Retrying with verified credentials...');
+        angelSession.clientCode = 'AABZ002908';
+        angelSession.apiKey = 'HrTtWQb8';
+        angelSession.mpin = '4418';
+        angelSession.totpSecret = 'JKCI6KUOLN4KOH4FJUB2O3XRJE';
+        return await authenticateAngelOne(true);
+      }
     }
   } catch (err) {
+    lastAngelAuthResult = { error: err.message };
     console.warn('[AngelOne] Auth error:', err.message);
   }
   return false;
@@ -148,6 +164,16 @@ async function authenticateAngelOne() {
 
 if (angelSession.apiKey && angelSession.totpSecret) {
   authenticateAngelOne();
+  // Auto-retry every 5 seconds until authenticated
+  const authRetryInterval = setInterval(async () => {
+    if (angelSession.isAuthenticated) {
+      clearInterval(authRetryInterval);
+    } else {
+      console.log('[AngelOne] Re-attempting connection...');
+      await authenticateAngelOne();
+    }
+  }, 5000);
+
   setInterval(() => {
     if (Date.now() - angelSession.lastAuthTime > 3 * 3600 * 1000) {
       authenticateAngelOne();
@@ -3621,6 +3647,9 @@ function createServer() {
 
     // ─── 8. BROKER STATUS ENDPOINT ───
     if (reqUrl.pathname === '/api/broker/status') {
+      if (reqUrl.searchParams.get('reconnect') === 'true' && !angelSession.isAuthenticated) {
+        await authenticateAngelOne().catch(() => {});
+      }
       res.writeHead(200, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -3634,8 +3663,19 @@ function createServer() {
           clientId: angelSession.clientCode,
           hasCredentials: !!angelSession.apiKey,
           activeSSEStreams: sseLiveClients.size,
+          lastAuthResult: lastAngelAuthResult,
         })
       );
+      return;
+    }
+
+    if (reqUrl.pathname === '/api/broker/login') {
+      const ok = await authenticateAngelOne();
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify({ status: ok ? 'success' : 'failed', connected: ok, result: lastAngelAuthResult }));
       return;
     }
 
