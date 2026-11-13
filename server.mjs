@@ -2322,9 +2322,9 @@ async function fetchAngelOneLtp(angelInst) {
 
 let lastAngelBatchQuoteTime = 0;
 async function refreshAngelBatchQuotes(tokensList) {
-  if (!angelSession.isAuthenticated || !angelSession.jwtToken) return;
+  if (!angelSession.isAuthenticated || !angelSession.jwtToken || !tokensList || tokensList.length === 0) return;
   const now = Date.now();
-  if (now - lastAngelBatchQuoteTime < 5000) return; // at most once every 5 seconds
+  if (now - lastAngelBatchQuoteTime < 1000) return; // at most once per second
   lastAngelBatchQuoteTime = now;
 
   const tokensBySeg = {};
