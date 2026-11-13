@@ -103,6 +103,38 @@ const angelSession = {
   isAuthenticated: false,
 };
 
+const ANGEL_API_HOSTS = [
+  'https://apiconnect.angelone.in',
+  'https://apiconnect.angelbroking.com',
+  'https://smartapi.angelbroking.com',
+  'https://smartapi.angelone.in',
+];
+let activeAngelHost = ANGEL_API_HOSTS[0];
+
+async function angelFetch(pathname, options = {}) {
+  const hosts = [activeAngelHost, ...ANGEL_API_HOSTS.filter(h => h !== activeAngelHost)];
+  let lastErr = null;
+  for (const host of hosts) {
+    try {
+      const url = `${host}${pathname}`;
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...(options.headers || {}),
+      };
+      const res = await fetch(url, {
+        ...options,
+        headers,
+        signal: AbortSignal.timeout(options.timeout || 5000),
+      });
+      activeAngelHost = host;
+      return res;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
 let lastAngelAuthResult = null;
 
 async function authenticateAngelOne(isRetryWithVerified = false) {
@@ -113,7 +145,7 @@ async function authenticateAngelOne(isRetryWithVerified = false) {
 
   try {
     const totp = generateTOTP(angelSession.totpSecret);
-    const resp = await fetch('https://apiconnect.angelbroking.com/rest/auth/angelbroking/user/v1/loginByPassword', {
+    const resp = await angelFetch('/rest/auth/angelbroking/user/v1/loginByPassword', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -130,6 +162,7 @@ async function authenticateAngelOne(isRetryWithVerified = false) {
         password: angelSession.mpin,
         totp: totp,
       }),
+      timeout: 6000,
     });
 
     const data = await resp.json();
@@ -140,7 +173,7 @@ async function authenticateAngelOne(isRetryWithVerified = false) {
       angelSession.refreshToken = data.data.refreshToken;
       angelSession.lastAuthTime = Date.now();
       angelSession.isAuthenticated = true;
-      console.log(`[AngelOne] ✅ Authenticated SmartAPI session for Client ${angelSession.clientCode}`);
+      console.log(`[AngelOne] ✅ Authenticated SmartAPI session via ${activeAngelHost} for Client ${angelSession.clientCode}`);
       initSmartStreamWebSocket();
       return true;
     } else {
@@ -157,7 +190,7 @@ async function authenticateAngelOne(isRetryWithVerified = false) {
     }
   } catch (err) {
     const cause = err.cause ? ` | cause: ${err.cause?.code || err.cause?.message || JSON.stringify(err.cause)}` : '';
-    lastAngelAuthResult = { error: err.message, code: err.code || err.cause?.code || 'UNKNOWN', cause: String(err.cause || '') };
+    lastAngelAuthResult = { error: err.message, code: err.code || err.cause?.code || 'UNKNOWN', cause: String(err.cause || ''), host: activeAngelHost };
     console.warn(`[AngelOne] Auth error: ${err.message}${cause} (code: ${err.code || 'none'})`);
   }
   return false;
@@ -165,15 +198,16 @@ async function authenticateAngelOne(isRetryWithVerified = false) {
 
 if (angelSession.apiKey && angelSession.totpSecret) {
   authenticateAngelOne();
-  // Auto-retry every 5 seconds until authenticated
+
+  // Retry gently every 30 seconds if not authenticated (avoid aggressive 5s rate-limit bans)
   const authRetryInterval = setInterval(async () => {
     if (angelSession.isAuthenticated) {
       clearInterval(authRetryInterval);
     } else {
-      console.log('[AngelOne] Re-attempting connection...');
+      console.log('[AngelOne] Re-attempting connection (gentle 30s interval)...');
       await authenticateAngelOne();
     }
-  }, 5000);
+  }, 30000);
 
   setInterval(() => {
     if (Date.now() - angelSession.lastAuthTime > 3 * 3600 * 1000) {
@@ -1615,192 +1649,6 @@ async function refreshTradingViewScannerQuotes() {
 // Pre-warm TradingView scanner quotes on boot
 refreshTradingViewScannerQuotes().catch(() => {});
 
-// ─── 4.55. TRADINGVIEW INDIA NSE SCANNER FOR FALLBACK WHEN ANGELONE IS DOWN ───
-const TV_INDIA_SCAN_TICKERS = {
-  'NSE:NIFTY': ['NIFTY 50', 'NIFTY50', 'NIFTY', 'NIFTY FUT'],
-  'NSE:BANKNIFTY': ['BANKNIFTY', 'BANK NIFTY', 'BANKNIFTY FUT'],
-  'NSE:FINNIFTY': ['FINNIFTY', 'FIN NIFTY'],
-  'NSE:MIDCPNIFTY': ['MIDCPNIFTY', 'MIDCAP SELECT', 'NIFTY MID SELECT'],
-  'NSE:CNXAUTO': ['CNXAUTO', 'NIFTY AUTO'],
-  'NSE:CNXIT': ['CNXIT', 'NIFTY IT'],
-  'NSE:CNXPHARMA': ['CNXPHARMA', 'NIFTY PHARMA'],
-  'NSE:CNXFMCG': ['CNXFMCG', 'NIFTY FMCG'],
-  'NSE:CNXMETAL': ['CNXMETAL', 'NIFTY METAL'],
-  'NSE:CNXENERGY': ['CNXENERGY', 'NIFTY ENERGY'],
-  'NSE:CNXINFRA': ['CNXINFRA', 'NIFTY INFRA'],
-  'NSE:CNXPSUBANK': ['CNXPSUBANK', 'NIFTY PSU BANK'],
-  'NSE:NIFTYMIDCAP': ['NIFTYMIDCAP', 'NIFTY MIDCAP', 'NIFTY MIDCAP 50'],
-  'BSE:SENSEX': ['SENSEX', 'BSE SENSEX'],
-  'NSE:RELIANCE': ['RELIANCE'],
-  'NSE:TCS': ['TCS'],
-  'NSE:HDFCBANK': ['HDFCBANK'],
-  'NSE:INFY': ['INFY'],
-  'NSE:ICICIBANK': ['ICICIBANK', 'ICICI BANK'],
-  'NSE:SBIN': ['SBIN'],
-  'NSE:BHARTIARTL': ['BHARTIARTL'],
-  'NSE:ITC': ['ITC'],
-  'NSE:LT': ['LT'],
-  'NSE:TATAMOTORS': ['TATAMOTORS'],
-  'NSE:MUTHOOTFIN': ['MUTHOOTFIN'],
-  'NSE:AXISBANK': ['AXISBANK'],
-  'NSE:KOTAKBANK': ['KOTAKBANK'],
-  'NSE:BAJFINANCE': ['BAJFINANCE'],
-  'NSE:MARUTI': ['MARUTI'],
-  'NSE:TITAN': ['TITAN'],
-  'NSE:HAL': ['HAL'],
-  'NSE:ADANIPORTS': ['ADANIPORTS'],
-  'NSE:SUNPHARMA': ['SUNPHARMA'],
-  'NSE:WIPRO': ['WIPRO'],
-  'NSE:HCLTECH': ['HCLTECH'],
-  'NSE:POWERGRID': ['POWERGRID'],
-  'NSE:NTPC': ['NTPC'],
-  'NSE:ONGC': ['ONGC'],
-  'NSE:COALINDIA': ['COALINDIA'],
-  'NSE:DIVISLAB': ['DIVISLAB'],
-  'NSE:HINDALCO': ['HINDALCO'],
-  'NSE:JSWSTEEL': ['JSWSTEEL'],
-  'NSE:TATASTEEL': ['TATASTEEL'],
-  'NSE:BAJAJFINSV': ['BAJAJFINSV'],
-  'NSE:TECHM': ['TECHM'],
-  'NSE:M&M': ['M&M'],
-};
-
-let lastIndiaScanner = 0;
-let indiaScannerPromise = null;
-
-async function refreshTradingViewIndiaScannerQuotes() {
-  const now = Date.now();
-  if (now - lastIndiaScanner < 1800) return; // throttle 1.8s
-  if (indiaScannerPromise) return indiaScannerPromise;
-
-  indiaScannerPromise = (async () => {
-    try {
-      const tickers = Object.keys(TV_INDIA_SCAN_TICKERS);
-      const resp = await fetch('https://scanner.tradingview.com/india/scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-        body: JSON.stringify({
-          symbols: { tickers },
-          columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume'],
-        }),
-        signal: AbortSignal.timeout(4000),
-      });
-
-      if (resp.ok) {
-        const jsonData = await resp.json().catch(() => null);
-        if (Array.isArray(jsonData?.data)) {
-          let broadcastCount = 0;
-          for (const item of jsonData.data) {
-            if (!item || !item.s || !Array.isArray(item.d)) continue;
-            const d = item.d;
-            const ltp = d[0];
-            if (!Number.isFinite(ltp) || ltp <= 0) continue;
-            const chgPct = +Number(d[1] || 0).toFixed(2);
-            const chg = +Number(d[2] || 0).toFixed(2);
-            const prevClose = +(ltp - chg).toFixed(2);
-
-            const qObj = {
-              ltp: +Number(ltp).toFixed(2),
-              open: +(d[3] || ltp).toFixed(2),
-              high: +(d[4] || ltp).toFixed(2),
-              low: +(d[5] || ltp).toFixed(2),
-              close: +Number(ltp).toFixed(2),
-              prevClose,
-              chg,
-              chgPct,
-              time: Math.floor(now / 1000),
-              _fetchTime: now,
-              source: 'tv_india',
-            };
-
-            const aliases = TV_INDIA_SCAN_TICKERS[item.s] || [];
-            for (const alias of aliases) {
-              const prev = quoteCache.get(alias);
-              quoteCache.set(alias, qObj);
-              // Broadcast via SSE if price changed
-              if (!prev || prev.ltp !== qObj.ltp || now - (prev._fetchTime || 0) > 3000) {
-                broadcastLiveTick(alias, qObj);
-                broadcastCount++;
-              }
-            }
-          }
-          if (broadcastCount > 0) {
-            console.log(`[TV India Scanner] 📡 Broadcasted ${broadcastCount} ticks via SSE (SmartStream fallback)`);
-          }
-        }
-      }
-      lastIndiaScanner = now;
-    } catch (err) {
-      console.warn('[TV India Scanner] Error:', err.message || err);
-    } finally {
-      indiaScannerPromise = null;
-    }
-  })();
-
-  return indiaScannerPromise;
-}
-
-// ─── FALLBACK TICK POLLER: When SmartStream is disconnected, poll TradingView every 2s ───
-let fallbackTickInterval = null;
-function startFallbackTickPoller() {
-  if (fallbackTickInterval) return; // already running
-  console.log('[Fallback Poller] 🔄 Starting TradingView India fallback tick poller (SmartStream is down)');
-  fallbackTickInterval = setInterval(async () => {
-    // Stop if SmartStream reconnects
-    if (smartStreamWs && smartStreamWs.readyState === WebSocket.OPEN) {
-      console.log('[Fallback Poller] ✅ SmartStream reconnected, stopping fallback poller');
-      clearInterval(fallbackTickInterval);
-      fallbackTickInterval = null;
-      return;
-    }
-    // Poll both India NSE and global scanners
-    await refreshTradingViewIndiaScannerQuotes().catch(() => {});
-    // Also broadcast global scanner quotes via SSE
-    await refreshTradingViewScannerQuotesWithBroadcast().catch(() => {});
-  }, 2000);
-}
-
-// Enhanced version of refreshTradingViewScannerQuotes that also broadcasts via SSE
-async function refreshTradingViewScannerQuotesWithBroadcast() {
-  const prevQuotes = new Map();
-  // Snapshot current quotes for the TV_SCAN_ALIASES symbols
-  for (const aliases of Object.values(TV_SCAN_ALIASES)) {
-    for (const alias of aliases) {
-      const q = quoteCache.get(alias);
-      if (q) prevQuotes.set(alias, q.ltp);
-    }
-  }
-  await refreshTradingViewScannerQuotes().catch(() => {});
-  // Broadcast any changed quotes
-  for (const aliases of Object.values(TV_SCAN_ALIASES)) {
-    for (const alias of aliases) {
-      const q = quoteCache.get(alias);
-      if (q && q.ltp !== prevQuotes.get(alias)) {
-        broadcastLiveTick(alias, q);
-      }
-    }
-  }
-}
-
-// Check SmartStream status periodically and start fallback if needed
-setInterval(() => {
-  const ssDown = !smartStreamWs || smartStreamWs.readyState !== WebSocket.OPEN;
-  if (ssDown && !fallbackTickInterval && sseLiveClients.size > 0) {
-    startFallbackTickPoller();
-  }
-}, 5000);
-
-// Also start the fallback poller at boot after a short delay
-setTimeout(() => {
-  const ssDown = !smartStreamWs || smartStreamWs.readyState !== WebSocket.OPEN;
-  if (ssDown) {
-    startFallbackTickPoller();
-  }
-}, 8000);
-
 // Pre-warm all core watchlist instruments so all scripts display live prices immediately upon app load
 async function prewarmAllWatchlistQuotes() {
   try {
@@ -2158,7 +2006,7 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
 
   const fromDateStr = formatISTDate(new Date(now.getTime() - daysBack * 24 * 3600 * 1000));
 
-  const resp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/historical/v1/getCandleData', {
+  const resp = await angelFetch('/rest/secure/angelbroking/historical/v1/getCandleData', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2178,6 +2026,7 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
       fromdate: fromDateStr,
       todate: toDateStr,
     }),
+    timeout: 5000,
   });
 
   let text = await resp.text();
@@ -2187,7 +2036,7 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
   if (resp.status === 403 || text.includes('exceeding access rate')) {
     // Retry once after 1000ms backoff
     await new Promise(r => setTimeout(r, 1000));
-    const retryResp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/historical/v1/getCandleData', {
+    const retryResp = await angelFetch('/rest/secure/angelbroking/historical/v1/getCandleData', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2207,6 +2056,7 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
         fromdate: fromDateStr,
         todate: toDateStr,
       }),
+      timeout: 5000,
     });
     const retryText = await retryResp.text();
     if (retryResp.status === 200) {
@@ -2473,7 +2323,7 @@ async function refreshAngelBatchQuotes(tokensList) {
     for (let i = 0; i < segTokens.length; i += 50) {
       const batch = segTokens.slice(i, i + 50);
       try {
-        const resp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/market/v1/quote/', {
+        const resp = await angelFetch('/rest/secure/angelbroking/market/v1/quote/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2487,7 +2337,7 @@ async function refreshAngelBatchQuotes(tokensList) {
             'Authorization': 'Bearer ' + angelSession.jwtToken,
           },
           body: JSON.stringify({ mode: 'FULL', exchangeTokens: { [seg]: batch } }),
-          signal: AbortSignal.timeout(3000),
+          timeout: 4000,
         });
         if (resp.ok) {
           const json = await resp.json();

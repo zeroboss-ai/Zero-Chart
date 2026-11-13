@@ -1724,7 +1724,7 @@ class ZeroChartApp {
         const sse = new EventSource('/api/market/stream');
         sse.onopen = () => {
           sseConnected = true;
-          startPoller(1500);
+          startPoller(350);
           if (this.currentInstrument?.symbol) {
             fetch(`/api/market/subscribe?symbol=${encodeURIComponent(this.currentInstrument.symbol)}`).catch(() => {});
           }
