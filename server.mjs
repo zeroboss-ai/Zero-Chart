@@ -156,8 +156,9 @@ async function authenticateAngelOne(isRetryWithVerified = false) {
       }
     }
   } catch (err) {
-    lastAngelAuthResult = { error: err.message };
-    console.warn('[AngelOne] Auth error:', err.message);
+    const cause = err.cause ? ` | cause: ${err.cause?.code || err.cause?.message || JSON.stringify(err.cause)}` : '';
+    lastAngelAuthResult = { error: err.message, code: err.code || err.cause?.code || 'UNKNOWN', cause: String(err.cause || '') };
+    console.warn(`[AngelOne] Auth error: ${err.message}${cause} (code: ${err.code || 'none'})`);
   }
   return false;
 }
@@ -1461,6 +1462,7 @@ async function refreshGlobalIndices() {
 
               for (const sym of symbols) {
                 quoteCache.set(sym, quoteObj);
+                broadcastLiveTick(sym, quoteObj);
               }
               break;
             }
@@ -1494,6 +1496,8 @@ async function refreshGlobalIndices() {
           };
           quoteCache.set('GIFT NIFTY', q);
           quoteCache.set('GIFTNIFTY', q);
+          broadcastLiveTick('GIFT NIFTY', q);
+          broadcastLiveTick('GIFTNIFTY', q);
         }
       } catch (_) {}
 
@@ -1587,7 +1591,12 @@ async function refreshTradingViewScannerQuotes() {
 
             const aliases = TV_SCAN_ALIASES[item.s] || [item.s];
             for (const alias of aliases) {
-              quoteCache.set(alias.toUpperCase().trim(), qObj);
+              const key = alias.toUpperCase().trim();
+              const prev = quoteCache.get(key);
+              quoteCache.set(key, qObj);
+              if (!prev || prev.ltp !== qObj.ltp) {
+                broadcastLiveTick(key, qObj);
+              }
             }
           }
         }
@@ -1605,6 +1614,192 @@ async function refreshTradingViewScannerQuotes() {
 
 // Pre-warm TradingView scanner quotes on boot
 refreshTradingViewScannerQuotes().catch(() => {});
+
+// ─── 4.55. TRADINGVIEW INDIA NSE SCANNER FOR FALLBACK WHEN ANGELONE IS DOWN ───
+const TV_INDIA_SCAN_TICKERS = {
+  'NSE:NIFTY': ['NIFTY 50', 'NIFTY50', 'NIFTY', 'NIFTY FUT'],
+  'NSE:BANKNIFTY': ['BANKNIFTY', 'BANK NIFTY', 'BANKNIFTY FUT'],
+  'NSE:FINNIFTY': ['FINNIFTY', 'FIN NIFTY'],
+  'NSE:MIDCPNIFTY': ['MIDCPNIFTY', 'MIDCAP SELECT', 'NIFTY MID SELECT'],
+  'NSE:CNXAUTO': ['CNXAUTO', 'NIFTY AUTO'],
+  'NSE:CNXIT': ['CNXIT', 'NIFTY IT'],
+  'NSE:CNXPHARMA': ['CNXPHARMA', 'NIFTY PHARMA'],
+  'NSE:CNXFMCG': ['CNXFMCG', 'NIFTY FMCG'],
+  'NSE:CNXMETAL': ['CNXMETAL', 'NIFTY METAL'],
+  'NSE:CNXENERGY': ['CNXENERGY', 'NIFTY ENERGY'],
+  'NSE:CNXINFRA': ['CNXINFRA', 'NIFTY INFRA'],
+  'NSE:CNXPSUBANK': ['CNXPSUBANK', 'NIFTY PSU BANK'],
+  'NSE:NIFTYMIDCAP': ['NIFTYMIDCAP', 'NIFTY MIDCAP', 'NIFTY MIDCAP 50'],
+  'BSE:SENSEX': ['SENSEX', 'BSE SENSEX'],
+  'NSE:RELIANCE': ['RELIANCE'],
+  'NSE:TCS': ['TCS'],
+  'NSE:HDFCBANK': ['HDFCBANK'],
+  'NSE:INFY': ['INFY'],
+  'NSE:ICICIBANK': ['ICICIBANK', 'ICICI BANK'],
+  'NSE:SBIN': ['SBIN'],
+  'NSE:BHARTIARTL': ['BHARTIARTL'],
+  'NSE:ITC': ['ITC'],
+  'NSE:LT': ['LT'],
+  'NSE:TATAMOTORS': ['TATAMOTORS'],
+  'NSE:MUTHOOTFIN': ['MUTHOOTFIN'],
+  'NSE:AXISBANK': ['AXISBANK'],
+  'NSE:KOTAKBANK': ['KOTAKBANK'],
+  'NSE:BAJFINANCE': ['BAJFINANCE'],
+  'NSE:MARUTI': ['MARUTI'],
+  'NSE:TITAN': ['TITAN'],
+  'NSE:HAL': ['HAL'],
+  'NSE:ADANIPORTS': ['ADANIPORTS'],
+  'NSE:SUNPHARMA': ['SUNPHARMA'],
+  'NSE:WIPRO': ['WIPRO'],
+  'NSE:HCLTECH': ['HCLTECH'],
+  'NSE:POWERGRID': ['POWERGRID'],
+  'NSE:NTPC': ['NTPC'],
+  'NSE:ONGC': ['ONGC'],
+  'NSE:COALINDIA': ['COALINDIA'],
+  'NSE:DIVISLAB': ['DIVISLAB'],
+  'NSE:HINDALCO': ['HINDALCO'],
+  'NSE:JSWSTEEL': ['JSWSTEEL'],
+  'NSE:TATASTEEL': ['TATASTEEL'],
+  'NSE:BAJAJFINSV': ['BAJAJFINSV'],
+  'NSE:TECHM': ['TECHM'],
+  'NSE:M&M': ['M&M'],
+};
+
+let lastIndiaScanner = 0;
+let indiaScannerPromise = null;
+
+async function refreshTradingViewIndiaScannerQuotes() {
+  const now = Date.now();
+  if (now - lastIndiaScanner < 1800) return; // throttle 1.8s
+  if (indiaScannerPromise) return indiaScannerPromise;
+
+  indiaScannerPromise = (async () => {
+    try {
+      const tickers = Object.keys(TV_INDIA_SCAN_TICKERS);
+      const resp = await fetch('https://scanner.tradingview.com/india/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        body: JSON.stringify({
+          symbols: { tickers },
+          columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume'],
+        }),
+        signal: AbortSignal.timeout(4000),
+      });
+
+      if (resp.ok) {
+        const jsonData = await resp.json().catch(() => null);
+        if (Array.isArray(jsonData?.data)) {
+          let broadcastCount = 0;
+          for (const item of jsonData.data) {
+            if (!item || !item.s || !Array.isArray(item.d)) continue;
+            const d = item.d;
+            const ltp = d[0];
+            if (!Number.isFinite(ltp) || ltp <= 0) continue;
+            const chgPct = +Number(d[1] || 0).toFixed(2);
+            const chg = +Number(d[2] || 0).toFixed(2);
+            const prevClose = +(ltp - chg).toFixed(2);
+
+            const qObj = {
+              ltp: +Number(ltp).toFixed(2),
+              open: +(d[3] || ltp).toFixed(2),
+              high: +(d[4] || ltp).toFixed(2),
+              low: +(d[5] || ltp).toFixed(2),
+              close: +Number(ltp).toFixed(2),
+              prevClose,
+              chg,
+              chgPct,
+              time: Math.floor(now / 1000),
+              _fetchTime: now,
+              source: 'tv_india',
+            };
+
+            const aliases = TV_INDIA_SCAN_TICKERS[item.s] || [];
+            for (const alias of aliases) {
+              const prev = quoteCache.get(alias);
+              quoteCache.set(alias, qObj);
+              // Broadcast via SSE if price changed
+              if (!prev || prev.ltp !== qObj.ltp || now - (prev._fetchTime || 0) > 3000) {
+                broadcastLiveTick(alias, qObj);
+                broadcastCount++;
+              }
+            }
+          }
+          if (broadcastCount > 0) {
+            console.log(`[TV India Scanner] 📡 Broadcasted ${broadcastCount} ticks via SSE (SmartStream fallback)`);
+          }
+        }
+      }
+      lastIndiaScanner = now;
+    } catch (err) {
+      console.warn('[TV India Scanner] Error:', err.message || err);
+    } finally {
+      indiaScannerPromise = null;
+    }
+  })();
+
+  return indiaScannerPromise;
+}
+
+// ─── FALLBACK TICK POLLER: When SmartStream is disconnected, poll TradingView every 2s ───
+let fallbackTickInterval = null;
+function startFallbackTickPoller() {
+  if (fallbackTickInterval) return; // already running
+  console.log('[Fallback Poller] 🔄 Starting TradingView India fallback tick poller (SmartStream is down)');
+  fallbackTickInterval = setInterval(async () => {
+    // Stop if SmartStream reconnects
+    if (smartStreamWs && smartStreamWs.readyState === WebSocket.OPEN) {
+      console.log('[Fallback Poller] ✅ SmartStream reconnected, stopping fallback poller');
+      clearInterval(fallbackTickInterval);
+      fallbackTickInterval = null;
+      return;
+    }
+    // Poll both India NSE and global scanners
+    await refreshTradingViewIndiaScannerQuotes().catch(() => {});
+    // Also broadcast global scanner quotes via SSE
+    await refreshTradingViewScannerQuotesWithBroadcast().catch(() => {});
+  }, 2000);
+}
+
+// Enhanced version of refreshTradingViewScannerQuotes that also broadcasts via SSE
+async function refreshTradingViewScannerQuotesWithBroadcast() {
+  const prevQuotes = new Map();
+  // Snapshot current quotes for the TV_SCAN_ALIASES symbols
+  for (const aliases of Object.values(TV_SCAN_ALIASES)) {
+    for (const alias of aliases) {
+      const q = quoteCache.get(alias);
+      if (q) prevQuotes.set(alias, q.ltp);
+    }
+  }
+  await refreshTradingViewScannerQuotes().catch(() => {});
+  // Broadcast any changed quotes
+  for (const aliases of Object.values(TV_SCAN_ALIASES)) {
+    for (const alias of aliases) {
+      const q = quoteCache.get(alias);
+      if (q && q.ltp !== prevQuotes.get(alias)) {
+        broadcastLiveTick(alias, q);
+      }
+    }
+  }
+}
+
+// Check SmartStream status periodically and start fallback if needed
+setInterval(() => {
+  const ssDown = !smartStreamWs || smartStreamWs.readyState !== WebSocket.OPEN;
+  if (ssDown && !fallbackTickInterval && sseLiveClients.size > 0) {
+    startFallbackTickPoller();
+  }
+}, 5000);
+
+// Also start the fallback poller at boot after a short delay
+setTimeout(() => {
+  const ssDown = !smartStreamWs || smartStreamWs.readyState !== WebSocket.OPEN;
+  if (ssDown) {
+    startFallbackTickPoller();
+  }
+}, 8000);
 
 // Pre-warm all core watchlist instruments so all scripts display live prices immediately upon app load
 async function prewarmAllWatchlistQuotes() {
@@ -2318,10 +2513,12 @@ async function refreshAngelBatchQuotes(tokensList) {
               const syms = tokenToSymbolsMap.get(String(item.symbolToken)) || [];
               for (const s of syms) {
                 quoteCache.set(s, qObj);
+                broadcastLiveTick(s, qObj);
               }
               if (item.tradingSymbol) {
                 const cleanSym = item.tradingSymbol.replace(/-EQ$/i, '');
                 quoteCache.set(cleanSym, qObj);
+                broadcastLiveTick(cleanSym, qObj);
               }
             }
           }
