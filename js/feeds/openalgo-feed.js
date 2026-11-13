@@ -468,9 +468,6 @@ export class OpenAlgoLiveFeed {
 
           // Case 1: Update current candle (close, high, low) without spawning a new future bar
           if (bucketTime <= bar.time || isStale) {
-            if (bar.close === price) {
-              return;
-            }
             bar.high = Math.max(bar.high, price);
             bar.low = Math.min(bar.low, price);
             bar.close = price;

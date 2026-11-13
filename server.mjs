@@ -26,8 +26,12 @@ function loadEnv() {
   const candidates = [
     path.join(ROOT, '.env.txt'),
     path.join(ROOT, '.env'),
+    path.join(ROOT, '..', 'zero-chart', '.env.txt'),
+    path.join(ROOT, '..', 'zero-chart', '.env'),
     path.join(ROOT, '..', 'openalgo-main', '.env.txt'),
     path.join(ROOT, '..', 'openalgo-main', '.env'),
+    'D:\\Open Algo\\zero-chart\\.env.txt',
+    'D:\\Open Algo\\zero-chart\\.env',
   ];
   const env = {};
   for (const p of candidates) {
@@ -808,33 +812,52 @@ function mapInterval(interval) {
   const raw = (interval || '5m').trim();
   const norm = raw.toLowerCase();
   if (raw === '1M' || raw === 'M' || norm === '1mo' || norm === '1month' || norm === 'month') return '1mo';
-  if (norm === '1m' || norm === '1') return '1m';
-  if (norm === '2m' || norm === '2') return '2m';
-  if (norm === '3m' || norm === '3') return '3m';
+  if (norm === '1m' || norm === '1' || norm === '2m' || norm === '2' || norm === '3m' || norm === '3') return '1m';
   if (norm === '5m' || norm === '5') return '5m';
   if (norm === '15m' || norm === '15') return '15m';
   if (norm === '30m' || norm === '30') return '30m';
   if (norm === '45m' || norm === '45') return '15m';
-  if (norm === '60m' || norm === '1h' || norm === '60') return '60m';
-  if (norm === '2h' || norm === '120m' || norm === '120') return '60m';
-  if (norm === '3h' || norm === '180m') return '60m';
-  if (norm === '4h' || norm === '240m' || norm === '240') return '60m';
-  if (norm === '1d' || norm === 'd' || norm === 'day') return '1d';
-  if (norm === '1w' || norm === 'w') return '1wk';
+  if (norm === '60m' || norm === '1h' || norm === '60' || norm === '2h' || norm === '3h' || norm === '4h') return '60m';
+  if (norm === '1d' || norm === 'd' || norm === 'day' || norm === '1w' || norm === 'w' || norm === '1wk') return '1d';
   return '5m';
 }
 
 function mapAngelInterval(interval) {
   const norm = (interval || '5m').toLowerCase().trim();
-  if (norm === '1m' || norm === '1') return 'ONE_MINUTE';
-  if (norm === '3m' || norm === '3') return 'THREE_MINUTE';
+  if (norm === '1m' || norm === '1' || norm === '2m' || norm === '2' || norm === '3m' || norm === '3') return 'ONE_MINUTE';
   if (norm === '5m' || norm === '5') return 'FIVE_MINUTE';
-  if (norm === '15m' || norm === '15') return 'FIFTEEN_MINUTE';
+  if (norm === '15m' || norm === '15' || norm === '45m' || norm === '45') return 'FIFTEEN_MINUTE';
   if (norm === '30m' || norm === '30') return 'THIRTY_MINUTE';
-  if (norm === '45m' || norm === '45') return 'FIFTEEN_MINUTE';
   if (norm === '60m' || norm === '1h' || norm === '2h' || norm === '3h' || norm === '4h' || norm === '60' || norm === '120' || norm === '240') return 'ONE_HOUR';
   if (norm === '1d' || norm === 'd' || norm === 'day' || norm === '1w' || norm === '1wk') return 'ONE_DAY';
   return 'FIVE_MINUTE';
+}
+
+function resampleBars(bars, targetIntervalSec) {
+  if (!Array.isArray(bars) || bars.length === 0) return [];
+  const buckets = new Map();
+  for (const b of bars) {
+    if (!b || !Number.isFinite(b.close) || !b.time) continue;
+    const bucketTime = Math.floor(b.time / targetIntervalSec) * targetIntervalSec;
+    let bucket = buckets.get(bucketTime);
+    if (!bucket) {
+      bucket = {
+        time: bucketTime,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume || 0,
+      };
+      buckets.set(bucketTime, bucket);
+    } else {
+      bucket.high = Math.max(bucket.high, b.high);
+      bucket.low = Math.min(bucket.low, b.low);
+      bucket.close = b.close;
+      bucket.volume += (b.volume || 0);
+    }
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
 }
 
 function mapIntervalToSeconds(interval) {
@@ -1857,7 +1880,7 @@ function getFallbackNews(category) {
 
 // ─── 5. ANGELONE HISTORICAL CANDLES FETCHER ───
 let lastAngelCandleReqTime = 0;
-const ANGEL_CANDLE_INTERVAL_MS = 650;
+const ANGEL_CANDLE_INTERVAL_MS = 750;
 let angelCandleQueue = Promise.resolve();
 
 async function fetchAngelOneCandles(angelInst, interval, customDaysBack = null) {
@@ -1904,8 +1927,7 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
   // Calculate fromDate based on interval (maximize historical bars within AngelOne single-query limits)
   let daysBack = customDaysBack != null ? customDaysBack : 30;
   if (customDaysBack == null) {
-    if (angelInt === 'ONE_MINUTE') daysBack = 25;
-    else if (angelInt === 'THREE_MINUTE') daysBack = 45;
+    if (angelInt === 'ONE_MINUTE') daysBack = (interval === '3m' || interval === '2m') ? 12 : 8;
     else if (angelInt === 'FIVE_MINUTE') daysBack = 80;
     else if (angelInt === 'FIFTEEN_MINUTE') daysBack = 90;
     else if (angelInt === 'THIRTY_MINUTE') daysBack = 150;
@@ -1942,8 +1964,8 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
     console.warn(`[AngelOne Candles] HTTP ${resp.status} for ${angelInst.symbol || angelInst.name} (${angelInst.token}):`, text.slice(0, 150));
   }
   if (resp.status === 403 || text.includes('exceeding access rate')) {
-    // Retry once after 400ms quick backoff
-    await new Promise(r => setTimeout(r, 400));
+    // Retry once after 1000ms backoff
+    await new Promise(r => setTimeout(r, 1000));
     const retryResp = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/historical/v1/getCandleData', {
       method: 'POST',
       headers: {
@@ -2007,13 +2029,43 @@ async function _fetchAngelOneCandlesInternal(angelInst, interval, customDaysBack
     }
   }
 
-  return sanitizeCandles(rawBars, interval);
+  const targetSec = mapIntervalToSeconds(interval);
+  const baseSec = angelInt === 'ONE_MINUTE' ? 60 : angelInt === 'FIVE_MINUTE' ? 300 : angelInt === 'FIFTEEN_MINUTE' ? 900 : angelInt === 'THIRTY_MINUTE' ? 1800 : angelInt === 'ONE_HOUR' ? 3600 : 86400;
+
+  let finalBars = rawBars;
+  if (targetSec > baseSec) {
+    finalBars = resampleBars(rawBars, targetSec);
+  }
+
+  return sanitizeCandles(finalBars, interval);
 }
 
 // ─── 6. ANGELONE REAL-TIME SMARTSTREAM WEBSOCKET ENGINE (TRUE SUB-SECOND TICKS) ───
 let smartStreamWs = null;
 let smartStreamPingTimer = null;
 const smartStreamSubscribedTokens = new Set();
+const sseLiveClients = new Set();
+
+function broadcastLiveTick(symbol, quote) {
+  if (sseLiveClients.size === 0) return;
+  const msg = `data: ${JSON.stringify({ symbol, ...quote })}\n\n`;
+  for (const res of sseLiveClients) {
+    try {
+      res.write(msg);
+    } catch (_) {
+      sseLiveClients.delete(res);
+    }
+  }
+}
+
+// Keep-alive heartbeat for SSE stream every 15s
+setInterval(() => {
+  if (sseLiveClients.size > 0) {
+    for (const res of sseLiveClients) {
+      try { res.write(': ping\n\n'); } catch (_) { sseLiveClients.delete(res); }
+    }
+  }
+}, 15000);
 
 function parseSmartStreamBinary(buf) {
   if (buf.length < 51) return null;
@@ -2086,7 +2138,7 @@ function initSmartStreamWebSocket() {
             const chg = +(parsed.ltp - prevClose).toFixed(2);
             const chgPct = prevClose > 0 ? +((chg / prevClose) * 100).toFixed(2) : 0;
 
-            quoteCache.set(s, {
+            const qObj = {
               ltp: parsed.ltp,
               open: parsed.open || parsed.ltp,
               high: parsed.high || parsed.ltp,
@@ -2097,7 +2149,9 @@ function initSmartStreamWebSocket() {
               chgPct: chgPct,
               time: Math.floor(parsed.exchTime / 1000) || Math.floor(Date.now() / 1000),
               _fetchTime: Date.now(),
-            });
+            };
+            quoteCache.set(s, qObj);
+            broadcastLiveTick(s, qObj);
           }
         }
       }
@@ -2474,7 +2528,12 @@ async function fetchLiveExchangeHistory(symbol, interval) {
     });
   }
 
-  const bars = sanitizeCandles(rawBars, interval);
+  const targetSec = mapIntervalToSeconds(interval);
+  let finalBars = rawBars;
+  if (targetSec > 60 && mappedInt === '1m') {
+    finalBars = resampleBars(rawBars, targetSec);
+  }
+  const bars = sanitizeCandles(finalBars, interval);
 
   if (bars.length > 0) {
     const lastBar = bars[bars.length - 1];
@@ -4131,6 +4190,46 @@ function createServer() {
         'Access-Control-Allow-Origin': '*',
       });
       res.end(JSON.stringify({ status: 'success', count: results.length, results }));
+      return;
+    }
+
+    // ─── 9.7. REAL-TIME SUB-SECOND LIVE TICK STREAM (SSE) ───
+    if (reqUrl.pathname === '/api/market/stream' || reqUrl.pathname === '/api/market/ticks') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.write(': connected\n\n');
+      sseLiveClients.add(res);
+      req.on('close', () => {
+        sseLiveClients.delete(res);
+      });
+      return;
+    }
+
+    if (reqUrl.pathname === '/api/market/subscribe') {
+      const sym = reqUrl.searchParams.get('symbol');
+      if (sym) {
+        const sNorm = sym.trim().toUpperCase();
+        const unp = sNorm.replace(/^(NSE|BSE|MCX|NFO|CDS|INDEX|ICE|NYMEX|COMEX|CBOT|CME|TVC|FX|FX_IDC):/i, '').replace(/\.NS$|\.BO$/i, '').trim();
+        const angelInst = resolveAngelInstrument(sNorm) || resolveAngelInstrument(unp);
+        if (angelInst && angelInst.token) {
+          const tok = String(angelInst.token);
+          const existing = tokenToSymbolsMap.get(tok) || [];
+          if (!existing.includes(sNorm)) existing.push(sNorm);
+          if (!existing.includes(unp)) existing.push(unp);
+          if (!existing.includes(angelInst.symbol)) existing.push(angelInst.symbol);
+          tokenToSymbolsMap.set(tok, existing);
+          subscribeSmartStreamTokens([tok]);
+        }
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify({ status: 'ok' }));
       return;
     }
 

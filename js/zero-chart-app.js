@@ -1566,6 +1566,7 @@ class ZeroChartApp {
     if (targetPaneIndex === this.activePaneIndex) {
       this.currentInstrument = inst;
     }
+    fetch(`/api/market/subscribe?symbol=${encodeURIComponent(inst.symbol)}`).catch(() => {});
     const targetWidget = pane?.widget || (targetPaneIndex === this.activePaneIndex ? this.widget : null);
     if (targetWidget) {
       // 2. Immediately clear drawings so previous symbol's lines never show on new symbol
@@ -1703,6 +1704,31 @@ class ZeroChartApp {
       });
     }
 
+    // 1.5. Real-time Sub-Second AngelOne SmartStream Server-Sent Events (SSE)
+    try {
+      if (typeof EventSource !== 'undefined') {
+        const sse = new EventSource('/api/market/stream');
+        sse.onmessage = (evt) => {
+          if (!evt.data || evt.data.startsWith(':')) return;
+          try {
+            const d = JSON.parse(evt.data);
+            if (d && d.symbol && Number.isFinite(d.ltp) && d.ltp > 0) {
+              const inst = findInstrument(d.symbol) || {
+                symbol: d.symbol,
+                name: d.symbol,
+                basePrice: d.ltp,
+                precision: 2,
+                feedType: 'openalgo',
+              };
+              this.updateLivePrice(inst, d.ltp, d.chg, d.chgPct, d.prevClose);
+            }
+          } catch (_) {}
+        };
+        sse.onerror = () => {};
+        this._liveSSE = sse;
+      }
+    } catch (_) {}
+
     // 2. High-speed centralized batch poller for all active watchlist & trading quotes
     let isPolling = false;
     const pollQuotes = async () => {
@@ -1796,7 +1822,7 @@ class ZeroChartApp {
 
     this.pollQuotes = pollQuotes;
     pollQuotes();
-    setInterval(pollQuotes, 350);
+    setInterval(pollQuotes, 750);
   }
 
   updateLivePrice(inst, newPrice, chg, chgPct, explicitPrevClose) {
@@ -1868,17 +1894,15 @@ class ZeroChartApp {
                   const nowSec = Math.floor(Date.now() / 1000);
                   const intervalSecs = getIntervalSeconds(p.interval || '5m');
                   const bucketTime = Math.floor(nowSec / intervalSecs) * intervalSecs;
-                  if (last.time === bucketTime) {
-                    if (last.close !== newPrice) {
-                      s.update({
-                        time: last.time,
-                        open: last.open,
-                        high: Math.max(last.high, newPrice),
-                        low: Math.min(last.low, newPrice),
-                        close: newPrice,
-                        volume: (last.volume || 0) + 1,
-                      });
-                    }
+                  if (bucketTime <= last.time) {
+                    s.update({
+                      time: last.time,
+                      open: last.open,
+                      high: Math.max(last.high, newPrice),
+                      low: Math.min(last.low, newPrice),
+                      close: newPrice,
+                      volume: (last.volume || 0) + 1,
+                    });
                   } else if (bucketTime > last.time) {
                     // Only mint new bar if price is consistent with last bar
                     if (Math.abs(newPrice - last.close) / last.close <= 0.05) {
