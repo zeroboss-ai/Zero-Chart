@@ -1705,9 +1705,30 @@ class ZeroChartApp {
     }
 
     // 1.5. Real-time Sub-Second AngelOne SmartStream Server-Sent Events (SSE)
-    try {
-      if (typeof EventSource !== 'undefined') {
+    let sseConnected = false;
+    let pollerTimer = null;
+    const startPoller = (intervalMs) => {
+      if (pollerTimer) clearInterval(pollerTimer);
+      pollerTimer = setInterval(pollQuotes, intervalMs);
+    };
+
+    const connectSSE = () => {
+      try {
+        if (typeof EventSource === 'undefined') {
+          startPoller(350);
+          return;
+        }
+        if (this._liveSSE) {
+          try { this._liveSSE.close(); } catch (_) {}
+        }
         const sse = new EventSource('/api/market/stream');
+        sse.onopen = () => {
+          sseConnected = true;
+          startPoller(1500);
+          if (this.currentInstrument?.symbol) {
+            fetch(`/api/market/subscribe?symbol=${encodeURIComponent(this.currentInstrument.symbol)}`).catch(() => {});
+          }
+        };
         sse.onmessage = (evt) => {
           if (!evt.data || evt.data.startsWith(':')) return;
           try {
@@ -1724,10 +1745,18 @@ class ZeroChartApp {
             }
           } catch (_) {}
         };
-        sse.onerror = () => {};
+        sse.onerror = () => {
+          sseConnected = false;
+          startPoller(350);
+          try { sse.close(); } catch (_) {}
+          setTimeout(connectSSE, 2500);
+        };
         this._liveSSE = sse;
+      } catch (_) {
+        startPoller(350);
       }
-    } catch (_) {}
+    };
+    connectSSE();
 
     // 2. High-speed centralized batch poller for all active watchlist & trading quotes
     let isPolling = false;
@@ -1822,7 +1851,10 @@ class ZeroChartApp {
 
     this.pollQuotes = pollQuotes;
     pollQuotes();
-    setInterval(pollQuotes, 750);
+    startPoller(350);
+    if (this.currentInstrument?.symbol) {
+      fetch(`/api/market/subscribe?symbol=${encodeURIComponent(this.currentInstrument.symbol)}`).catch(() => {});
+    }
   }
 
   updateLivePrice(inst, newPrice, chg, chgPct, explicitPrevClose) {
@@ -1875,10 +1907,13 @@ class ZeroChartApp {
           const tickSym = (inst.symbol || '').toUpperCase().trim();
           const normPane = paneSym.replace(/\s+/g, '');
           const normTick = tickSym.replace(/\s+/g, '');
-          const isMatch = paneSym === tickSym || normPane === normTick ||
-            (normPane === 'NIFTY50' && normTick === 'NIFTY') ||
-            (normPane === 'NIFTY' && normTick === 'NIFTY50') ||
-            (normPane === 'BANKNIFTY' && normTick === 'BANKNIFTY');
+          const cleanPane = normPane.replace(/^(NSE|BSE|MCX|NFO|INDEX):/i, '');
+          const cleanTick = normTick.replace(/^(NSE|BSE|MCX|NFO|INDEX):/i, '');
+          const isMatch = paneSym === tickSym || normPane === normTick || cleanPane === cleanTick ||
+            (cleanPane === 'NIFTY50' && cleanTick === 'NIFTY') ||
+            (cleanPane === 'NIFTY' && cleanTick === 'NIFTY50') ||
+            (cleanPane === 'BANKNIFTY' && cleanTick === 'BANKNIFTY') ||
+            (cleanPane === 'FINNIFTY' && cleanTick === 'FINNIFTY');
 
           if (isMatch && p.widget?.chart) {
             try {

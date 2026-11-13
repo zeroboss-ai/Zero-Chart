@@ -95,10 +95,10 @@ const angelSession = {
   jwtToken: null,
   feedToken: null,
   refreshToken: null,
-  clientCode: ENV_VARS.SMARTAPI_CLIENT_CODE || ENV_VARS.ANGELONE_CLIENT_ID || ENV_VARS.CLIENT_ID || 'AABZ002908',
-  apiKey: ENV_VARS.SMARTAPI_API_KEY || ENV_VARS.API_KEY || ENV_VARS.CONSUMER_KEY || '',
-  mpin: ENV_VARS.SMARTAPI_PIN || ENV_VARS.MPIN || ENV_VARS.PIN || '',
-  totpSecret: ENV_VARS.SMARTAPI_TOTP_KEY || ENV_VARS.TOTP_SECRET || ENV_VARS.TOTP_KEY || '',
+  clientCode: ENV_VARS.SMARTAPI_CLIENT_CODE || ENV_VARS.ANGEL_CLIENT_CODE || ENV_VARS.ANGELONE_CLIENT_ID || ENV_VARS.CLIENT_ID || 'AABZ002908',
+  apiKey: ENV_VARS.SMARTAPI_API_KEY || ENV_VARS.ANGEL_API_KEY || ENV_VARS.API_KEY || ENV_VARS.CONSUMER_KEY || 'HrTtWQb8',
+  mpin: ENV_VARS.SMARTAPI_PIN || ENV_VARS.ANGEL_PIN || ENV_VARS.MPIN || ENV_VARS.PIN || '4418',
+  totpSecret: ENV_VARS.SMARTAPI_TOTP_KEY || ENV_VARS.ANGEL_TOTP_KEY || ENV_VARS.TOTP_SECRET || ENV_VARS.TOTP_KEY || 'JKCI6KUOLN4KOH4FJUB2O3XRJE',
   lastAuthTime: 0,
   isAuthenticated: false,
 };
@@ -2052,20 +2052,26 @@ function broadcastLiveTick(symbol, quote) {
   for (const res of sseLiveClients) {
     try {
       res.write(msg);
+      if (typeof res.flush === 'function') res.flush();
     } catch (_) {
       sseLiveClients.delete(res);
     }
   }
 }
 
-// Keep-alive heartbeat for SSE stream every 15s
+// Keep-alive heartbeat for SSE stream every 10s to prevent Render 100s proxy timeout
 setInterval(() => {
   if (sseLiveClients.size > 0) {
     for (const res of sseLiveClients) {
-      try { res.write(': ping\n\n'); } catch (_) { sseLiveClients.delete(res); }
+      try {
+        res.write(': ping\n\n');
+        if (typeof res.flush === 'function') res.flush();
+      } catch (_) {
+        sseLiveClients.delete(res);
+      }
     }
   }
-}, 15000);
+}, 10000);
 
 function parseSmartStreamBinary(buf) {
   if (buf.length < 51) return null;
@@ -3623,9 +3629,11 @@ function createServer() {
         JSON.stringify({
           status: 'success',
           connected: angelSession.isAuthenticated,
+          smartStreamConnected: !!(smartStreamWs && smartStreamWs.readyState === WebSocket.OPEN),
           broker: angelSession.isAuthenticated ? 'AngelOne SmartAPI' : 'NSE Live Feeds',
           clientId: angelSession.clientCode,
           hasCredentials: !!angelSession.apiKey,
+          activeSSEStreams: sseLiveClients.size,
         })
       );
       return;
@@ -4195,13 +4203,31 @@ function createServer() {
 
     // ─── 9.7. REAL-TIME SUB-SECOND LIVE TICK STREAM (SSE) ───
     if (reqUrl.pathname === '/api/market/stream' || reqUrl.pathname === '/api/market/ticks') {
+      if (req.socket) {
+        try {
+          req.socket.setNoDelay(true);
+          req.socket.setKeepAlive(true, 10000);
+        } catch (_) {}
+      }
+
       res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform, no-store, must-revalidate',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',        // Disables Nginx / Render proxy buffering
+        'Content-Encoding': 'none',         // Prevents gzip compression buffering
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
       });
-      res.write(': connected\n\n');
+
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      // Initial 2KB padding comment to immediately punch through reverse-proxy buffers (Render/Nginx/Cloudflare)
+      res.write(`: connected\n: ${' '.repeat(2048)}\n\n`);
+      if (typeof res.flush === 'function') res.flush();
+
       sseLiveClients.add(res);
       req.on('close', () => {
         sseLiveClients.delete(res);

@@ -418,7 +418,12 @@ export class OpenAlgoLiveFeed {
         const resp = await fetch(`/api/market/quotes?symbols=${encodeURIComponent(symKey)}`);
         if (resp.ok) {
           const json = await resp.json();
-          const q = json.quotes?.[symKey];
+          const cleanSym = symKey.replace(/^(NSE|BSE|MCX|NFO|INDEX):/i, '').trim();
+          const q = json.quotes?.[symKey] ||
+                    json.quotes?.[cleanSym] ||
+                    json.quotes?.[symKey.replace(/\s+/g, '')] ||
+                    json.quotes?.[cleanSym.replace(/\s+/g, '')] ||
+                    (symKey.includes('NIFTY') && !symKey.includes('BANK') ? (json.quotes?.['NIFTY 50'] || json.quotes?.['NIFTY']) : null);
           if (q && q.ltp) {
             this._dispatchRealtimeTick(symKey, q.ltp, q.time);
           }
