@@ -104,10 +104,8 @@ const angelSession = {
 };
 
 const ANGEL_API_HOSTS = [
-  'https://apiconnect.angelone.in',
   'https://apiconnect.angelbroking.com',
-  'https://smartapi.angelbroking.com',
-  'https://smartapi.angelone.in',
+  'https://apiconnect.angelone.in',
 ];
 let activeAngelHost = ANGEL_API_HOSTS[0];
 
@@ -124,8 +122,12 @@ async function angelFetch(pathname, options = {}) {
       const res = await fetch(url, {
         ...options,
         headers,
-        signal: AbortSignal.timeout(options.timeout || 5000),
+        signal: AbortSignal.timeout(options.timeout || 12000),
       });
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/html')) {
+        throw new Error(`Host ${host} returned HTML instead of JSON`);
+      }
       activeAngelHost = host;
       return res;
     } catch (err) {
@@ -3740,6 +3742,55 @@ function createServer() {
         'Access-Control-Allow-Origin': '*',
       });
       res.end(JSON.stringify({ status: ok ? 'success' : 'failed', connected: ok, result: lastAngelAuthResult }));
+      return;
+    }
+
+    if (reqUrl.pathname === '/api/debug/angel') {
+      const results = {};
+      for (const host of ANGEL_API_HOSTS) {
+        const start = Date.now();
+        try {
+          const totp = generateTOTP(angelSession.totpSecret);
+          const r = await fetch(`${host}/rest/auth/angelbroking/user/v1/loginByPassword`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-UserType': 'USER',
+              'X-SourceID': 'WEB',
+              'X-ClientLocalIP': '127.0.0.1',
+              'X-ClientPublicIP': '127.0.0.1',
+              'X-MACAddress': 'fe80::1',
+              'X-PrivateKey': angelSession.apiKey,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            body: JSON.stringify({
+              clientcode: angelSession.clientCode,
+              password: angelSession.mpin,
+              totp: totp,
+            }),
+            signal: AbortSignal.timeout(12000),
+          });
+          const text = await r.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          results[host] = {
+            durationMs: Date.now() - start,
+            status: r.status,
+            contentType: r.headers.get('content-type'),
+            success: json?.status || false,
+            message: json?.message || text.slice(0, 100),
+          };
+        } catch (err) {
+          results[host] = {
+            durationMs: Date.now() - start,
+            error: err.message,
+            code: err.code || err.cause?.code,
+          };
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ status: 'ok', results, activeHost: activeAngelHost }));
       return;
     }
 
