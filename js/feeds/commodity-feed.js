@@ -106,11 +106,11 @@ export class CommodityFeed {
     }
     this._subscribers.get(sym).add(onTick);
 
-    // High-frequency live quote poller without generating fake nowSec ticks
+    // Live quote poller with background tab throttling
     let isFetching = false;
     const intervalSecs = getIntervalSeconds(interval);
     const poller = async () => {
-      if (isFetching) return;
+      if (isFetching || (typeof document !== 'undefined' && document.hidden)) return;
       isFetching = true;
       try {
         const resp = await fetch(`/api/market/quotes?symbols=${encodeURIComponent(sym)}`);
@@ -159,7 +159,7 @@ export class CommodityFeed {
       }
     };
 
-    const timer = setInterval(poller, 1000);
+    const timer = setInterval(poller, 2500);
 
     return () => {
       clearInterval(timer);

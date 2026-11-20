@@ -437,10 +437,12 @@ export class OpenAlgoLiveFeed {
       }
     };
 
-    const timer = setInterval(poller, 500);
+    // Prime latest quote once upon subscription; continuous real-time updates are dispatched
+    // seamlessly via the centralized SSE stream & quote coordinator (_dispatchRealtimeTick)
+    // without running duplicate redundant HTTP timers.
+    poller();
 
     return () => {
-      clearInterval(timer);
       this._wsSubscriptions.delete(subKey);
     };
   }

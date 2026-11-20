@@ -2,11 +2,11 @@
   {
     "id": "layout_default",
     "name": "Default Layout",
-    "updatedAt": 1792578922354,
-    "theme": "dark",
+    "updatedAt": 1794559642867,
+    "theme": "light",
     "activeLayout": "1x1",
     "activePaneIndex": 0,
-    "activeWatchlistId": "wl-stocks",
+    "activeWatchlistId": "wl-indices",
     "layoutSplits": {
       "1x1": {},
       "1x2": {
@@ -33,9 +33,9 @@
     "panes": [
       {
         "id": 0,
-        "symbol": "RELIANCE",
+        "symbol": "NIFTY 50",
         "exchange": "NSE",
-        "interval": "15m",
+        "interval": "5m",
         "chartType": "candlestick",
         "indicators": [],
         "drawings": {

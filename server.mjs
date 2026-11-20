@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
 
@@ -3681,6 +3682,52 @@ const MIME_TYPES = {
   '.wasm': 'application/wasm',
 };
 
+// ─── HIGH-EFFICIENCY COMPRESSED JSON RESPONSE HELPER ───
+// Compresses JSON payloads (Gzip/Deflate) when supported by client, slashing HTTP bandwidth by 85-90%
+function sendJSON(req, res, statusCode, data, extraHeaders = {}) {
+  if (res.writableEnded) return;
+  const jsonStr = typeof data === 'string' ? data : JSON.stringify(data);
+  const acceptEncoding = (req && req.headers && req.headers['accept-encoding']) || '';
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    ...extraHeaders,
+  };
+
+  if (/\bgzip\b/i.test(acceptEncoding)) {
+    zlib.gzip(Buffer.from(jsonStr), (err, compressed) => {
+      if (err || res.writableEnded) {
+        if (!res.writableEnded) {
+          res.writeHead(statusCode, headers);
+          res.end(jsonStr);
+        }
+      } else {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(statusCode, headers);
+        res.end(compressed);
+      }
+    });
+  } else if (/\bdeflate\b/i.test(acceptEncoding)) {
+    zlib.deflate(Buffer.from(jsonStr), (err, compressed) => {
+      if (err || res.writableEnded) {
+        if (!res.writableEnded) {
+          res.writeHead(statusCode, headers);
+          res.end(jsonStr);
+        }
+      } else {
+        headers['Content-Encoding'] = 'deflate';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(statusCode, headers);
+        res.end(compressed);
+      }
+    });
+  } else {
+    res.writeHead(statusCode, headers);
+    res.end(jsonStr);
+  }
+}
+
 function createServer() {
   const server = http.createServer(async (req, res) => {
     // CORS Preflight
@@ -3698,16 +3745,16 @@ function createServer() {
 
     // ─── HEALTH CHECK & KEEP-ALIVE PING (UptimeRobot / Render) ───
     if (reqUrl.pathname === '/health' || reqUrl.pathname === '/ping' || reqUrl.pathname === '/api/health') {
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      });
       if (req.method === 'HEAD') {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        });
         res.end();
         return;
       }
-      res.end(JSON.stringify({ status: 'ok', timestamp: Date.now(), uptime: Math.floor(process.uptime()) }));
+      sendJSON(req, res, 200, { status: 'ok', timestamp: Date.now(), uptime: Math.floor(process.uptime()) }, { 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       return;
     }
 
@@ -3716,32 +3763,22 @@ function createServer() {
       if (reqUrl.searchParams.get('reconnect') === 'true' && !angelSession.isAuthenticated) {
         await authenticateAngelOne().catch(() => {});
       }
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+      sendJSON(req, res, 200, {
+        status: 'success',
+        connected: angelSession.isAuthenticated,
+        smartStreamConnected: !!(smartStreamWs && smartStreamWs.readyState === WebSocket.OPEN),
+        broker: angelSession.isAuthenticated ? 'AngelOne SmartAPI' : 'NSE Live Feeds',
+        clientId: angelSession.clientCode,
+        hasCredentials: !!angelSession.apiKey,
+        activeSSEStreams: sseLiveClients.size,
+        lastAuthResult: lastAngelAuthResult,
       });
-      res.end(
-        JSON.stringify({
-          status: 'success',
-          connected: angelSession.isAuthenticated,
-          smartStreamConnected: !!(smartStreamWs && smartStreamWs.readyState === WebSocket.OPEN),
-          broker: angelSession.isAuthenticated ? 'AngelOne SmartAPI' : 'NSE Live Feeds',
-          clientId: angelSession.clientCode,
-          hasCredentials: !!angelSession.apiKey,
-          activeSSEStreams: sseLiveClients.size,
-          lastAuthResult: lastAngelAuthResult,
-        })
-      );
       return;
     }
 
     if (reqUrl.pathname === '/api/broker/login') {
       const ok = await authenticateAngelOne();
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      });
-      res.end(JSON.stringify({ status: ok ? 'success' : 'failed', connected: ok, result: lastAngelAuthResult }));
+      sendJSON(req, res, 200, { status: ok ? 'success' : 'failed', connected: ok, result: lastAngelAuthResult });
       return;
     }
 
@@ -3789,16 +3826,12 @@ function createServer() {
           };
         }
       }
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ status: 'ok', results, activeHost: activeAngelHost }));
+      sendJSON(req, res, 200, { status: 'ok', results, activeHost: activeAngelHost });
       return;
     }
 
     // ─── 8.5. USER LAYOUTS & CLOUD PERSISTENCE ───
     if (reqUrl.pathname === '/api/user/layouts') {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Content-Type', 'application/json');
-
       const DATA_DIR = path.join(ROOT, 'data');
       const LAYOUTS_FILE = path.join(DATA_DIR, 'user_layouts.json');
 
@@ -3820,8 +3853,7 @@ function createServer() {
 
       if (req.method === 'GET') {
         const layouts = readLayouts();
-        res.writeHead(200);
-        res.end(JSON.stringify({ status: 'success', count: layouts.length, layouts }));
+        sendJSON(req, res, 200, { status: 'success', count: layouts.length, layouts });
         return;
       }
 
@@ -3832,8 +3864,7 @@ function createServer() {
           const body = JSON.parse(Buffer.concat(buffers).toString());
           const layout = body.layout;
           if (!layout || !layout.name) {
-            res.writeHead(400);
-            res.end(JSON.stringify({ status: 'error', message: 'Layout object with name is required' }));
+            sendJSON(req, res, 400, { status: 'error', message: 'Layout object with name is required' });
             return;
           }
           if (!layout.id) layout.id = 'layout_' + Date.now();
@@ -3848,12 +3879,10 @@ function createServer() {
           }
           writeLayouts(layouts);
 
-          res.writeHead(200);
-          res.end(JSON.stringify({ status: 'success', layout }));
+          sendJSON(req, res, 200, { status: 'success', layout });
           return;
         } catch (err) {
-          res.writeHead(500);
-          res.end(JSON.stringify({ status: 'error', message: err.message }));
+          sendJSON(req, res, 500, { status: 'error', message: err.message });
           return;
         }
       }
@@ -3861,24 +3890,19 @@ function createServer() {
       if (req.method === 'DELETE') {
         const id = reqUrl.searchParams.get('id');
         if (!id) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ status: 'error', message: 'Missing layout id' }));
+          sendJSON(req, res, 400, { status: 'error', message: 'Missing layout id' });
           return;
         }
         let layouts = readLayouts();
         layouts = layouts.filter((l) => l.id !== id);
         writeLayouts(layouts);
-        res.writeHead(200);
-        res.end(JSON.stringify({ status: 'success', message: 'Layout deleted' }));
+        sendJSON(req, res, 200, { status: 'success', message: 'Layout deleted' });
         return;
       }
     }
 
     // ─── 8.6. USER INDICATOR TEMPLATES PERSISTENCE ───
     if (reqUrl.pathname === '/api/user/templates') {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Content-Type', 'application/json');
-
       const DATA_DIR = path.join(ROOT, 'data');
       const TEMPLATES_FILE = path.join(DATA_DIR, 'user_templates.json');
 
@@ -3900,8 +3924,7 @@ function createServer() {
 
       if (req.method === 'GET') {
         const templates = readTemplates();
-        res.writeHead(200);
-        res.end(JSON.stringify({ status: 'success', count: templates.length, templates }));
+        sendJSON(req, res, 200, { status: 'success', count: templates.length, templates });
         return;
       }
 
@@ -3912,8 +3935,7 @@ function createServer() {
           const body = JSON.parse(Buffer.concat(buffers).toString());
           const template = body.template;
           if (!template || !template.name || !Array.isArray(template.indicators)) {
-            res.writeHead(400);
-            res.end(JSON.stringify({ status: 'error', message: 'Template with name and indicators array is required' }));
+            sendJSON(req, res, 400, { status: 'error', message: 'Template with name and indicators array is required' });
             return;
           }
           if (!template.id) template.id = 'tmpl_' + Date.now();
@@ -3928,12 +3950,10 @@ function createServer() {
           }
           writeTemplates(templates);
 
-          res.writeHead(200);
-          res.end(JSON.stringify({ status: 'success', template }));
+          sendJSON(req, res, 200, { status: 'success', template });
           return;
         } catch (err) {
-          res.writeHead(500);
-          res.end(JSON.stringify({ status: 'error', message: err.message }));
+          sendJSON(req, res, 500, { status: 'error', message: err.message });
           return;
         }
       }
@@ -3941,15 +3961,13 @@ function createServer() {
       if (req.method === 'DELETE') {
         const id = reqUrl.searchParams.get('id');
         if (!id) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ status: 'error', message: 'Missing template id' }));
+          sendJSON(req, res, 400, { status: 'error', message: 'Missing template id' });
           return;
         }
         let templates = readTemplates();
         templates = templates.filter((t) => t.id !== id);
         writeTemplates(templates);
-        res.writeHead(200);
-        res.end(JSON.stringify({ status: 'success', message: 'Template deleted' }));
+        sendJSON(req, res, 200, { status: 'success', message: 'Template deleted' });
         return;
       }
     }
@@ -4348,11 +4366,7 @@ function createServer() {
       candidates.sort((a, b) => b.score - a.score);
       const results = candidates.slice(0, 60).map((c) => c.item);
 
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      });
-      res.end(JSON.stringify({ status: 'success', count: results.length, results }));
+      sendJSON(req, res, 200, { status: 'success', count: results.length, results }, { 'Cache-Control': 'public, max-age=120' });
       return;
     }
 
@@ -4406,11 +4420,7 @@ function createServer() {
           subscribeSmartStreamTokens([tok]);
         }
       }
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      });
-      res.end(JSON.stringify({ status: 'ok' }));
+      sendJSON(req, res, 200, { status: 'ok' });
       return;
     }
 
@@ -4430,22 +4440,12 @@ function createServer() {
 
       try {
         const bars = await fetchLiveExchangeHistory(symbol, interval);
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-cache',
-        });
-        res.end(JSON.stringify({ status: 'success', symbol, interval, data: bars }));
+        sendJSON(req, res, 200, { status: 'success', symbol, interval, data: bars }, { 'Cache-Control': 'no-cache' });
         return;
       } catch (err) {
         console.warn(`[History Fallback] Returning calibrated bars for ${symbol} (${interval}) due to: ${err.message}`);
         const fallbackBars = generateCalibratedFallbackBars(symbol, interval);
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-cache',
-        });
-        res.end(JSON.stringify({ status: 'success', symbol, interval, data: fallbackBars, fallback: true }));
+        sendJSON(req, res, 200, { status: 'success', symbol, interval, data: fallbackBars, fallback: true }, { 'Cache-Control': 'no-cache' });
         return;
       }
     }
@@ -4565,11 +4565,7 @@ function createServer() {
         }
       }
 
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      });
-      res.end(JSON.stringify({ status: 'success', quotes }));
+      sendJSON(req, res, 200, { status: 'success', quotes }, { 'Cache-Control': 'no-cache' });
       return;
     }
 
@@ -4578,19 +4574,10 @@ function createServer() {
       try {
         const force = reqUrl.searchParams.get('force') === 'true';
         const calendarEvents = await fetchEconomicCalendarEvents(force);
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=60',
-        });
-        res.end(JSON.stringify({ status: 'success', count: calendarEvents.length, events: calendarEvents }));
+        sendJSON(req, res, 200, { status: 'success', count: calendarEvents.length, events: calendarEvents }, { 'Cache-Control': 'public, max-age=60' });
         return;
       } catch (err) {
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        });
-        res.end(JSON.stringify({ status: 'success', count: 0, events: [] }));
+        sendJSON(req, res, 200, { status: 'success', count: 0, events: [] }, { 'Cache-Control': 'public, max-age=60' });
         return;
       }
     }
@@ -4600,16 +4587,10 @@ function createServer() {
       const category = (reqUrl.searchParams.get('category') || 'all').toLowerCase();
       try {
         const news = await fetchMarketNews(category);
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=60',
-        });
-        res.end(JSON.stringify({ status: 'success', count: news.length, category, news }));
+        sendJSON(req, res, 200, { status: 'success', count: news.length, category, news }, { 'Cache-Control': 'public, max-age=60' });
         return;
       } catch (err) {
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        res.end(JSON.stringify({ status: 'success', count: 0, category, news: getFallbackNews(category) }));
+        sendJSON(req, res, 200, { status: 'success', count: 0, category, news: getFallbackNews(category) }, { 'Cache-Control': 'public, max-age=60' });
         return;
       }
     }
@@ -4622,19 +4603,10 @@ function createServer() {
 
       try {
         const oiData = await fetchLiveOptionChain(symbol, expiry, limit);
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=1',
-        });
-        res.end(JSON.stringify(oiData));
+        sendJSON(req, res, 200, oiData, { 'Cache-Control': 'public, max-age=1' });
         return;
       } catch (err) {
-        res.writeHead(500, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        });
-        res.end(JSON.stringify({ status: 'error', message: err.message, symbol }));
+        sendJSON(req, res, 500, { status: 'error', message: err.message, symbol });
         return;
       }
     }
@@ -4648,19 +4620,10 @@ function createServer() {
 
       try {
         const straddleData = await fetchLiveStraddleData(symbol, expiry, strike, interval);
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=1',
-        });
-        res.end(JSON.stringify(straddleData));
+        sendJSON(req, res, 200, straddleData, { 'Cache-Control': 'public, max-age=1' });
         return;
       } catch (err) {
-        res.writeHead(500, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        });
-        res.end(JSON.stringify({ status: 'error', message: err.message, symbol }));
+        sendJSON(req, res, 500, { status: 'error', message: err.message, symbol });
         return;
       }
     }
@@ -4706,14 +4669,53 @@ function createServer() {
           return;
         }
 
-        res.writeHead(200, {
+        const isHtml = ext === '.html' || ext === '.htm';
+        const isStaticAsset = ['.js', '.mjs', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.woff', '.woff2', '.ttf', '.ico'].includes(ext);
+        const cacheControl = isHtml
+          ? 'no-cache, no-store, must-revalidate'
+          : (isStaticAsset ? 'public, max-age=86400, stale-while-revalidate=3600' : 'public, max-age=3600');
+
+        const headers = {
           'Content-Type': contentType,
           'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        });
-        res.end(data);
+          'Cache-Control': cacheControl,
+        };
+
+        const acceptEncoding = (req && req.headers && req.headers['accept-encoding']) || '';
+        const compressible = ['.js', '.mjs', '.css', '.html', '.htm', '.json', '.svg', '.txt', '.xml', '.md'].includes(ext);
+
+        if (compressible && /\bgzip\b/i.test(acceptEncoding)) {
+          zlib.gzip(data, (zErr, gzipped) => {
+            if (zErr || res.writableEnded) {
+              if (!res.writableEnded) {
+                res.writeHead(200, headers);
+                res.end(data);
+              }
+            } else {
+              headers['Content-Encoding'] = 'gzip';
+              headers['Vary'] = 'Accept-Encoding';
+              res.writeHead(200, headers);
+              res.end(gzipped);
+            }
+          });
+        } else if (compressible && /\bdeflate\b/i.test(acceptEncoding)) {
+          zlib.deflate(data, (zErr, deflated) => {
+            if (zErr || res.writableEnded) {
+              if (!res.writableEnded) {
+                res.writeHead(200, headers);
+                res.end(data);
+              }
+            } else {
+              headers['Content-Encoding'] = 'deflate';
+              headers['Vary'] = 'Accept-Encoding';
+              res.writeHead(200, headers);
+              res.end(deflated);
+            }
+          });
+        } else {
+          res.writeHead(200, headers);
+          res.end(data);
+        }
       });
     });
   });

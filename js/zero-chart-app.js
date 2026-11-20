@@ -1707,15 +1707,20 @@ class ZeroChartApp {
     // 1.5. Real-time Sub-Second AngelOne SmartStream Server-Sent Events (SSE)
     let sseConnected = false;
     let pollerTimer = null;
+    const getTargetInterval = () => {
+      if (typeof document !== 'undefined' && document.hidden) return 30000;
+      return sseConnected ? 5000 : 750;
+    };
     const startPoller = (intervalMs) => {
       if (pollerTimer) clearInterval(pollerTimer);
-      pollerTimer = setInterval(pollQuotes, intervalMs);
+      const ms = intervalMs || getTargetInterval();
+      pollerTimer = setInterval(pollQuotes, ms);
     };
 
     const connectSSE = () => {
       try {
         if (typeof EventSource === 'undefined') {
-          startPoller(350);
+          startPoller(getTargetInterval());
           return;
         }
         if (this._liveSSE) {
@@ -1724,7 +1729,7 @@ class ZeroChartApp {
         const sse = new EventSource('/api/market/stream');
         sse.onopen = () => {
           sseConnected = true;
-          startPoller(350);
+          startPoller(getTargetInterval());
           if (this.currentInstrument?.symbol) {
             fetch(`/api/market/subscribe?symbol=${encodeURIComponent(this.currentInstrument.symbol)}`).catch(() => {});
           }
@@ -1747,13 +1752,13 @@ class ZeroChartApp {
         };
         sse.onerror = () => {
           sseConnected = false;
-          startPoller(350);
+          startPoller(getTargetInterval());
           try { sse.close(); } catch (_) {}
           setTimeout(connectSSE, 2500);
         };
         this._liveSSE = sse;
       } catch (_) {
-        startPoller(350);
+        startPoller(getTargetInterval());
       }
     };
     connectSSE();
@@ -1851,9 +1856,23 @@ class ZeroChartApp {
 
     this.pollQuotes = pollQuotes;
     pollQuotes();
-    startPoller(350);
+    startPoller(getTargetInterval());
     if (this.currentInstrument?.symbol) {
       fetch(`/api/market/subscribe?symbol=${encodeURIComponent(this.currentInstrument.symbol)}`).catch(() => {});
+    }
+
+    // Adaptive Page Visibility Listener:
+    // When tab is hidden/minimized, throttle poller to 30s to conserve Render bandwidth.
+    // When tab becomes visible again, immediately fetch fresh quotes and restore normal interval!
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          startPoller(30000);
+        } else {
+          pollQuotes();
+          startPoller(getTargetInterval());
+        }
+      });
     }
   }
 
