@@ -395,31 +395,31 @@ class ZeroChartApp {
   getChartTheme(themeName = this.currentTheme) {
     const isDark = themeName === 'dark';
     return {
-      background: isDark ? '#260505' : '#ffeddb',
-      grid: isDark ? '#360908' : '#f2dcbf',
-      axisText: isDark ? '#c4a7a2' : '#7c6861', // High-contrast crisp axis prices & time labels
-      axisFontSize: 12,
-      axisLine: isDark ? '#4a1007' : '#dda88d',
-      paneSeparator: isDark ? '#4a1007' : '#dda88d',
-      crosshair: '#ff6900',
-      upColor: isDark ? '#00c076' : '#17734d', // Vivid green candles
-      downColor: isDark ? '#f23645' : '#dd5d3b', // Vivid red candles
-      wickUpColor: isDark ? '#00c076' : '#17734d',
-      wickDownColor: isDark ? '#f23645' : '#dd5d3b',
-      lineColor: '#ff6900',
-      areaTopColor: isDark ? 'rgba(255, 105, 0, 0.35)' : 'rgba(255, 105, 0, 0.25)',
-      areaBottomColor: 'rgba(255, 105, 0, 0.00)',
-      baselineTopLine: isDark ? '#00c076' : '#17734d',
-      baselineTopFill: isDark ? 'rgba(0, 192, 118, 0.18)' : 'rgba(23, 115, 77, 0.18)',
-      baselineBottomLine: isDark ? '#f23645' : '#dd5d3b',
-      baselineBottomFill: isDark ? 'rgba(242, 54, 69, 0.18)' : 'rgba(221, 93, 59, 0.18)',
-      lastPriceUp: isDark ? '#00c076' : '#17734d',
-      lastPriceDown: isDark ? '#f23645' : '#dd5d3b',
+      background: isDark ? '#131722' : '#ffffff',
+      grid: isDark ? 'rgba(42, 46, 57, 0.5)' : 'rgba(224, 227, 235, 0.5)',
+      axisText: isDark ? '#787b86' : '#787b86',
+      axisFontSize: 11,
+      axisLine: isDark ? '#2a2e39' : '#e0e3eb',
+      paneSeparator: isDark ? '#2a2e39' : '#e0e3eb',
+      crosshair: isDark ? '#787b86' : '#787b86',
+      upColor: '#089981',       // TradingView Official Bullish Green
+      downColor: '#f23645',     // TradingView Official Bearish Red
+      wickUpColor: '#089981',
+      wickDownColor: '#f23645',
+      lineColor: '#2962ff',     // TradingView Signature Electric Blue
+      areaTopColor: isDark ? 'rgba(41, 98, 255, 0.28)' : 'rgba(41, 98, 255, 0.20)',
+      areaBottomColor: 'rgba(41, 98, 255, 0.00)',
+      baselineTopLine: '#089981',
+      baselineTopFill: isDark ? 'rgba(8, 153, 129, 0.18)' : 'rgba(8, 153, 129, 0.15)',
+      baselineBottomLine: '#f23645',
+      baselineBottomFill: isDark ? 'rgba(242, 54, 69, 0.18)' : 'rgba(242, 54, 69, 0.15)',
+      lastPriceUp: '#089981',
+      lastPriceDown: '#f23645',
       lastPriceText: '#ffffff',
-      buy: isDark ? '#00c076' : '#17734d',
-      sell: isDark ? '#f23645' : '#dd5d3b',
-      profit: isDark ? '#00c076' : '#17734d',
-      loss: isDark ? '#f23645' : '#dd5d3b',
+      buy: '#2962ff',
+      sell: '#f23645',
+      profit: '#089981',
+      loss: '#f23645',
     };
   }
 
@@ -440,6 +440,7 @@ class ZeroChartApp {
 
     // 3. Initialize Topbar Controls & Shortcuts
     this.initTopbarEvents();
+    this.initBottomBar();
 
     // 4. Initialize Right Sidebar Tabs
     this.initRightSidebarTabs();
@@ -3464,6 +3465,144 @@ class ZeroChartApp {
     const themeBtn = document.getElementById('btn-theme-toggle');
     if (themeBtn) {
       themeBtn.onclick = () => this.toggleTheme();
+    }
+
+    // Compare or Add Symbol Button (+)
+    const compareBtn = document.getElementById('btn-compare-symbol');
+    if (compareBtn) {
+      compareBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.openSearchModal();
+      };
+    }
+
+    // Chart Settings Dialog (Gear Icon)
+    const settingsBtn = document.getElementById('btn-chart-settings');
+    if (settingsBtn) {
+      settingsBtn.onclick = () => {
+        const activeWidget = this.widget;
+        if (activeWidget?.context) {
+          mountSettingsDialog(activeWidget.context, settingsBtn);
+        }
+      };
+    }
+
+    // Publish Snapshot Button (TradingView Blue Pill)
+    const publishBtn = document.getElementById('btn-publish');
+    if (publishBtn) {
+      publishBtn.onclick = () => {
+        const inst = this.currentInstrument;
+        this.widget?.chart?.downloadScreenshot(`ZeroChart-${inst?.symbol || 'Chart'}-${this.currentInterval}.png`);
+        this.showToast('Chart snapshot published to downloads');
+      };
+    }
+  }
+
+  initBottomBar() {
+    // 1. Time Range Selector Handlers
+    const rangeMap = {
+      '1D': '5m',
+      '5D': '15m',
+      '1M': '1h',
+      '3M': '2h',
+      '6M': '4h',
+      'YTD': '1d',
+      '1Y': '1d',
+      '5Y': '1w',
+      'ALL': '1M',
+    };
+
+    const rangeBtns = document.querySelectorAll('#tv-bottom-ranges .tv-range-btn:not(.tv-range-btn--icon)');
+    rangeBtns.forEach((btn) => {
+      btn.onclick = () => {
+        rangeBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const range = btn.dataset.range;
+        const targetInterval = rangeMap[range] || '5m';
+        this.setInterval(targetInterval);
+        setTimeout(() => {
+          this.panes.forEach((p) => {
+            try { p.widget?.chart?.fitContent?.(); } catch (_) {}
+          });
+        }, 150);
+      };
+    });
+
+    const gotoDateBtn = document.getElementById('btn-goto-date');
+    if (gotoDateBtn) {
+      gotoDateBtn.onclick = () => {
+        this.panes.forEach((p) => {
+          try { p.widget?.chart?.fitContent?.(); } catch (_) {}
+        });
+        this.showToast('Reset chart view to latest bars');
+      };
+    }
+
+    // 2. Real-Time Exchange Clock & Market Session Updater (UTC+5:30)
+    const updateMarketClock = () => {
+      const now = new Date();
+      const istString = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false });
+      const clockEl = document.getElementById('tv-live-clock');
+      if (clockEl) {
+        clockEl.textContent = `${istString} (UTC+5:30)`;
+      }
+
+      // NSE / BSE Trading Hours: Mon-Fri 09:15 to 15:30 IST
+      const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const day = istDate.getDay();
+      const mins = istDate.getHours() * 60 + istDate.getMinutes();
+      const isMarketOpen = day >= 1 && day <= 5 && mins >= (9 * 60 + 15) && mins <= (15 * 60 + 30);
+
+      const sessionEl = document.getElementById('tv-market-session-status');
+      const sessionLabel = document.getElementById('tv-session-label');
+      if (sessionEl && sessionLabel) {
+        if (isMarketOpen) {
+          sessionEl.className = 'tv-session-status open';
+          sessionLabel.textContent = 'Market Open';
+        } else {
+          sessionEl.className = 'tv-session-status closed';
+          sessionLabel.textContent = 'Market Closed';
+        }
+      }
+    };
+
+    updateMarketClock();
+    setInterval(updateMarketClock, 1000);
+
+    // 3. Scale Mode Toggles (%, log, auto)
+    const pctBtn = document.getElementById('btn-scale-pct');
+    const logBtn = document.getElementById('btn-scale-log');
+    const autoBtn = document.getElementById('btn-scale-auto');
+
+    if (pctBtn) {
+      pctBtn.onclick = () => {
+        const isPct = pctBtn.classList.toggle('active');
+        if (isPct && logBtn) logBtn.classList.remove('active');
+        const mode = isPct ? 'percentage' : 'linear';
+        this.panes.forEach((p) => {
+          try { p.widget?.chart?.setPriceScaleOptions?.({ mode }); } catch (_) {}
+        });
+      };
+    }
+
+    if (logBtn) {
+      logBtn.onclick = () => {
+        const isLog = logBtn.classList.toggle('active');
+        if (isLog && pctBtn) pctBtn.classList.remove('active');
+        const mode = isLog ? 'logarithmic' : 'linear';
+        this.panes.forEach((p) => {
+          try { p.widget?.chart?.setPriceScaleOptions?.({ mode }); } catch (_) {}
+        });
+      };
+    }
+
+    if (autoBtn) {
+      autoBtn.onclick = () => {
+        this.panes.forEach((p) => {
+          try { p.widget?.chart?.fitContent?.(); } catch (_) {}
+        });
+        this.showToast('Autofitted chart scales');
+      };
     }
   }
 

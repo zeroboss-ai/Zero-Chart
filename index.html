@@ -23,11 +23,16 @@
   <div id="app">
     <!-- ─── 1. SINGLE INTEGRATED TRADINGVIEW PRO TOPBAR ─── -->
     <header class="tv-topbar" id="topbar">
-      <!-- Zero Chart Brand Logo & Name -->
-      <div class="tv-brand" id="btn-user-profile" title="Zero Chart Pro Terminal">
-        <img src="assets/zero-chart-logo.svg" alt="Zero Chart Logo" class="tv-brand-logo" />
-        <div class="tv-brand-text">
-          <span class="tv-brand-name">ZERO<span class="tv-brand-accent">CHART</span></span>
+      <!-- TradingView Menu & Brand Logo -->
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button class="tv-top-btn tv-top-btn--icon tv-brand-menu-btn" id="btn-brand-menu" title="TradingView Menu">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="tv-brand" id="btn-user-profile" title="Zero Chart Pro Terminal">
+          <img src="assets/zero-chart-logo.svg" alt="Zero Chart Logo" class="tv-brand-logo" />
+          <div class="tv-brand-text">
+            <span class="tv-brand-name">ZERO<span class="tv-brand-accent">CHART</span></span>
+          </div>
         </div>
       </div>
 
@@ -37,9 +42,12 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <button class="tv-sym-btn" id="btn-open-search" title="Search symbol (Alt+S)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <span class="tv-sym-title" id="header-active-sym">NIFTY 50</span>
           <span class="tv-sym-badge" id="header-active-exch">NSE</span>
+        </button>
+        <button class="tv-top-btn tv-top-btn--icon" id="btn-compare-symbol" title="Compare or Add Symbol (+)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
         <button class="tv-sym-nav-btn" id="btn-next-symbol" title="Next symbol in watchlist">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
@@ -75,9 +83,9 @@
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
       </button>
 
-      <!-- Indicators Dialog Trigger -->
+      <!-- Indicators Dialog Trigger (TradingView fx Icon) -->
       <button class="tv-top-btn" id="btn-open-indicators" title="Indicators, Metrics & Strategies (/)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16M4 12h8M4 5h12"/><circle cx="17" cy="12" r="3"/><circle cx="21" cy="5" r="2"/></svg>
+        <span class="tv-fx-glyph"><i>fx</i></span>
         <span>Indicators</span>
       </button>
 
@@ -149,10 +157,9 @@
           <span style="font-weight:700;">Straddle</span>
         </button>
 
-        <!-- PWA Install App Button -->
-        <button class="tv-top-btn tv-top-btn--install" id="btn-install-pwa" title="Install Zero Chart as App" style="display:none;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          <span class="tv-install-label">Install App</span>
+        <!-- Chart Settings Trigger (TradingView Gear Cog) -->
+        <button class="tv-top-btn tv-top-btn--icon" id="btn-chart-settings" title="Chart Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
 
         <!-- Fullscreen Toggle -->
@@ -164,6 +171,9 @@
         <button class="tv-top-btn tv-top-btn--icon" id="btn-take-screenshot" title="Take a snapshot">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </button>
+
+        <!-- Publish Snapshot Button (TradingView Blue Pill) -->
+        <button class="tv-publish-btn" id="btn-publish" title="Publish Snapshot / Idea">Publish</button>
       </div>
     </header>
 
@@ -274,6 +284,39 @@
         <svg class="icon-close" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </main>
+
+    <!-- ─── 2.5. BOTTOM TIME RANGE & STATUS BAR (TRADINGVIEW PRO) ─── -->
+    <footer class="tv-bottom-bar" id="tv-bottom-bar">
+      <div class="tv-bottom-ranges" id="tv-bottom-ranges">
+        <button class="tv-range-btn" data-range="1D" title="1 Day">1D</button>
+        <button class="tv-range-btn" data-range="5D" title="5 Days">5D</button>
+        <button class="tv-range-btn" data-range="1M" title="1 Month">1M</button>
+        <button class="tv-range-btn" data-range="3M" title="3 Months">3M</button>
+        <button class="tv-range-btn" data-range="6M" title="6 Months">6M</button>
+        <button class="tv-range-btn" data-range="YTD" title="Year to Date">YTD</button>
+        <button class="tv-range-btn" data-range="1Y" title="1 Year">1Y</button>
+        <button class="tv-range-btn" data-range="5Y" title="5 Years">5Y</button>
+        <button class="tv-range-btn active" data-range="ALL" title="All Data">All</button>
+        <button class="tv-range-btn tv-range-btn--icon" id="btn-goto-date" title="Go to Date (Alt+G)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </button>
+      </div>
+
+      <div class="tv-bottom-status">
+        <div class="tv-session-status open" id="tv-market-session-status" title="NSE / BSE Market Session">
+          <span class="tv-session-dot"></span>
+          <span id="tv-session-label">Market Open</span>
+        </div>
+        <div class="tv-live-clock" id="tv-live-clock" title="Exchange Time (UTC+5:30)">
+          --:--:-- (UTC+5:30)
+        </div>
+        <div class="tv-scale-toggles" id="tv-scale-toggles">
+          <button class="tv-scale-btn" id="btn-scale-pct" title="Percentage scale mode">%</button>
+          <button class="tv-scale-btn" id="btn-scale-log" title="Logarithmic scale mode">log</button>
+          <button class="tv-scale-btn active" id="btn-scale-auto" title="Auto fit scale">auto</button>
+        </div>
+      </div>
+    </footer>
 
     <!-- ─── 3. RIGHT WATCHLIST & TOOL PANELS ─── -->
     <aside class="tv-right-sidebar" id="tv-right-sidebar">
