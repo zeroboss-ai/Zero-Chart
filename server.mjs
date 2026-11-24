@@ -1028,9 +1028,13 @@ const CRYPTO_SYMBOLS_SET = new Set([
   'DOGEUSDT', 'ADAUSDT', 'LINKUSDT', 'AVAXUSDT', 'SUIUSDT', 'PAXGUSDT'
 ]);
 
+function normalizeCryptoSymbol(sym) {
+  return (sym || '').toUpperCase().replace(/[\s\/\-_]/g, '');
+}
+
 function isCryptoSymbol(sym) {
-  const s = (sym || '').toUpperCase().trim();
-  return CRYPTO_SYMBOLS_SET.has(s) || s.endsWith('USDT');
+  const s = normalizeCryptoSymbol(sym);
+  return CRYPTO_SYMBOLS_SET.has(s) || s.endsWith('USDT') || s.endsWith('BUSD');
 }
 
 function mapIntervalToBinance(interval) {
@@ -1140,7 +1144,7 @@ async function refreshBinanceQuotes(symbols = []) {
               const open = parseFloat(item.openPrice);
               const chg = parseFloat(item.priceChange);
               const chgPct = parseFloat(item.priceChangePercent);
-              quoteCache.set(item.symbol, {
+              const bqObj = {
                 ltp: last,
                 open: open,
                 high: parseFloat(item.highPrice),
@@ -1150,7 +1154,16 @@ async function refreshBinanceQuotes(symbols = []) {
                 chg: chg,
                 chgPct: chgPct,
                 time: Math.floor(now / 1000),
-              });
+                _fetchTime: now,
+                source: 'binance',
+              };
+              quoteCache.set(item.symbol, bqObj);
+              if (item.symbol.endsWith('USDT')) {
+                const base = item.symbol.replace(/USDT$/, '');
+                quoteCache.set(`${base} / USDT`, bqObj);
+                quoteCache.set(`${base}/USDT`, bqObj);
+                quoteCache.set(`${base}-USDT`, bqObj);
+              }
             }
             lastBinanceFetchTime = Date.now();
             break; // Stop after first successful endpoint
@@ -1197,18 +1210,22 @@ const TV_SYMBOLS_MAP = {
   'GIFT NIFTY': 'NSEIX:NIFTY1!',
   'GIFTNIFTY': 'NSEIX:NIFTY1!',
   'XAUUSD': 'TVC:GOLD',
+  'TVC:XAUUSD': 'TVC:GOLD',
   'GOLD (SPOT)': 'TVC:GOLD',
   'SPOT GOLD': 'TVC:GOLD',
   'TVC:GOLD': 'TVC:GOLD',
+  'GOLD': 'TVC:GOLD',
   'PAXGUSDT': 'TVC:GOLD',
   'PAXG': 'TVC:GOLD',
   'GOLD FUT': 'MCX:GOLD1!',
   'GOLD1!': 'MCX:GOLD1!',
   'MCX:GOLD': 'MCX:GOLD1!',
   'XAGUSD': 'TVC:SILVER',
+  'TVC:XAGUSD': 'TVC:SILVER',
   'SILVER (SPOT)': 'TVC:SILVER',
   'SPOT SILVER': 'TVC:SILVER',
   'TVC:SILVER': 'TVC:SILVER',
+  'SILVER': 'TVC:SILVER',
   'SILVER FUT': 'MCX:SILVER1!',
   'SILVER1!': 'MCX:SILVER1!',
   'MCX:SILVER': 'MCX:SILVER1!',
@@ -1216,6 +1233,7 @@ const TV_SYMBOLS_MAP = {
   'CRUDEOIL1!': 'MCX:CRUDEOIL1!',
   'MCX:CRUDEOIL': 'MCX:CRUDEOIL1!',
   'WTI CRUDE': 'NYMEX:CL1!',
+  'WTI': 'NYMEX:CL1!',
   'CRUDE OIL': 'NYMEX:CL1!',
   'CRUDEOIL': 'NYMEX:CL1!',
   'USOIL': 'NYMEX:CL1!',
@@ -1422,8 +1440,8 @@ async function refreshGlobalIndices() {
         { ticker: 'GC=F', symbols: ['GC', 'GC FUT', 'COMEX GOLD'] },
         { ticker: 'SI=F', symbols: ['SI', 'SI FUT', 'COMEX SILVER'] },
         { ticker: 'PL=F', symbols: ['XPTUSD', 'PL', 'PL FUT'] },
-        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'NYMEX CRUDE', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL'] },
-        { ticker: 'BZ=F', symbols: ['BZ', 'BZ FUT', 'BRENT CRUDE', 'BRENT', 'ICE:BRENT CRUDE'] },
+        { ticker: 'CL=F', symbols: ['CL', 'CL FUT', 'NYMEX CRUDE'] },
+        { ticker: 'BZ=F', symbols: ['BZ', 'BZ FUT'] },
         { ticker: 'HG=F', symbols: ['HG', 'HG FUT', 'COMEX COPPER'] },
         { ticker: 'ALI=F', symbols: ['ALI', 'ALI FUT'] },
         { ticker: 'NG=F', symbols: ['NG', 'NG FUT', 'NYMEX NG'] },
@@ -1563,10 +1581,10 @@ let lastTvScannerFetch = 0;
 let tvScannerPromise = null;
 
 const TV_SCAN_ALIASES = {
-  'TVC:GOLD': ['TVC:GOLD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'PAXGUSDT', 'PAXG'],
-  'TVC:SILVER': ['TVC:SILVER', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER'],
+  'TVC:GOLD': ['TVC:GOLD', 'TVC:XAUUSD', 'XAUUSD', 'GOLD (SPOT)', 'SPOT GOLD', 'GOLD', 'PAXGUSDT', 'PAXG'],
+  'TVC:SILVER': ['TVC:SILVER', 'TVC:XAGUSD', 'XAGUSD', 'SILVER (SPOT)', 'SPOT SILVER', 'SILVER'],
   'NSEIX:NIFTY1!': ['NSEIX:NIFTY1!', 'GIFT NIFTY', 'GIFTNIFTY'],
-  'NYMEX:CL1!': ['NYMEX:CL1!', 'WTI CRUDE', 'CRUDE OIL', 'CRUDEOIL', 'USOIL', 'TVC:USOIL', 'CL1!'],
+  'NYMEX:CL1!': ['NYMEX:CL1!', 'WTI CRUDE', 'WTI', 'CRUDE OIL', 'CRUDEOIL', 'USOIL', 'TVC:USOIL', 'CL1!'],
   'ICEEUR:BRN1!': ['ICEEUR:BRN1!', 'BRENT CRUDE', 'BRENT', 'UKOIL', 'TVC:UKOIL', 'BRN1!', 'ICE:BRENT CRUDE', 'ICE:BRENT'],
   'MCX:GOLD1!': ['MCX:GOLD1!', 'GOLD FUT', 'GOLD1!', 'MCX:GOLD'],
   'MCX:SILVER1!': ['MCX:SILVER1!', 'SILVER FUT', 'SILVER1!', 'MCX:SILVER'],
@@ -2459,10 +2477,15 @@ async function fetchLiveExchangeHistory(symbol, interval) {
           // If scannerQuote does not have prevClose, fetch true 1D daily bar from TradingView
           try {
             const dailyBars = await fetchTradingViewCandles(tvMapped, '1D', 5);
-            if (dailyBars && dailyBars.length > 1) {
-              prevClose = dailyBars[dailyBars.length - 2].close;
-            } else if (dailyBars && dailyBars.length === 1) {
-              prevClose = dailyBars[0].open;
+            if (dailyBars && dailyBars.length > 0) {
+              const nowSec = Math.floor(Date.now() / 1000);
+              const todayUtcStart = Math.floor(nowSec / 86400) * 86400;
+              const lastDaily = dailyBars[dailyBars.length - 1];
+              if (lastDaily.time >= todayUtcStart - 14400 && dailyBars.length > 1) {
+                prevClose = dailyBars[dailyBars.length - 2].close;
+              } else {
+                prevClose = lastDaily.close;
+              }
             }
           } catch (_) {}
           if (prevClose == null || !Number.isFinite(prevClose)) {
@@ -2489,6 +2512,10 @@ async function fetchLiveExchangeHistory(symbol, interval) {
         quoteCache.set(symNorm, qObj);
         quoteCache.set(unprefix, qObj);
         if (tvMapped) quoteCache.set(tvMapped, qObj);
+        const tvScanAliases = TV_SCAN_ALIASES[tvMapped] || [];
+        for (const alias of tvScanAliases) {
+          quoteCache.set(alias.toUpperCase().trim(), qObj);
+        }
         if (symNorm === 'GIFT NIFTY' || unprefix === 'GIFT NIFTY') {
           quoteCache.set('GIFTNIFTY', qObj);
         }
@@ -2716,20 +2743,29 @@ const FALLBACK_BASE_PRICES = {
   'GBPUSD': 1.298,
   'USDJPY': 154.5,
   'BTCUSDT': 91000.0,
+  'BTC / USDT': 91000.0,
   'ETHUSDT': 3300.0,
-  'XAUUSD': 4060.0,
-  'GOLD (SPOT)': 4060.0,
-  'SPOT GOLD': 4060.0,
-  'TVC:GOLD': 4060.0,
-  'XAGUSD': 54.40,
-  'SILVER (SPOT)': 54.40,
-  'SPOT SILVER': 54.40,
-  'TVC:SILVER': 54.40,
-  'BRENT CRUDE': 98.20,
-  'ICE:BRENT CRUDE': 98.20,
-  'ICEEUR:BRN1!': 98.20,
-  'WTI CRUDE': 90.30,
-  'NYMEX:CL1!': 90.30,
+  'ETH / USDT': 3300.0,
+  'XAUUSD': 3624.0,
+  'TVC:XAUUSD': 3624.0,
+  'GOLD (SPOT)': 3624.0,
+  'SPOT GOLD': 3624.0,
+  'TVC:GOLD': 3624.0,
+  'XAGUSD': 42.40,
+  'TVC:XAGUSD': 42.40,
+  'SILVER (SPOT)': 42.40,
+  'SPOT SILVER': 42.40,
+  'TVC:SILVER': 42.40,
+  'BRENT CRUDE': 86.50,
+  'BRENT': 86.50,
+  'ICE:BRENT CRUDE': 86.50,
+  'ICEEUR:BRN1!': 86.50,
+  'WTI CRUDE': 80.00,
+  'WTI': 80.00,
+  'CRUDE OIL': 80.00,
+  'CRUDEOIL': 80.00,
+  'USOIL': 80.00,
+  'NYMEX:CL1!': 80.00,
 };
 
 function generateCalibratedFallbackBars(symbol, interval) {
