@@ -1661,10 +1661,9 @@ async function refreshTradingViewScannerQuotes() {
               }
             }
           }
+          lastTvScannerFetch = now;
         }
       }
-
-      lastTvScannerFetch = now;
     } catch (_) {}
     finally {
       tvScannerPromise = null;
@@ -1674,8 +1673,143 @@ async function refreshTradingViewScannerQuotes() {
   return tvScannerPromise;
 }
 
-// Pre-warm TradingView scanner quotes on boot
+// ─── 4.6. REAL-TIME TRADINGVIEW WEBSOCKET QUOTE STREAM (NEVER STUCK) ───
+const tvWsQuoteState = new Map(); // tvSymbol -> { lp, ch, chp, prevClose, open, high, low }
+let tvQuoteWs = null;
+let tvQuoteReconnectTimer = null;
+
+function startTradingViewQuoteStream() {
+  if (tvQuoteWs && (tvQuoteWs.readyState === WebSocket.OPEN || tvQuoteWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+  try {
+    const ws = new WebSocket('wss://data.tradingview.com/socket.io/websocket', {
+      headers: {
+        'Origin': 'https://www.tradingview.com',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    tvQuoteWs = ws;
+
+    const fmt = (m, p) => {
+      const payload = JSON.stringify({ m, p });
+      return `~m~${payload.length}~m~${payload}`;
+    };
+
+    ws.onopen = () => {
+      const qs = 'qs_' + Math.random().toString(36).substring(2, 10);
+      ws.send(fmt('set_auth_token', ['unauthorized_user_token']));
+      ws.send(fmt('quote_create_session', [qs]));
+      ws.send(fmt('quote_set_fields', [qs, 'lp', 'ch', 'chp', 'prev_close_price', 'open_price', 'high_price', 'low_price']));
+      ws.send(fmt('quote_add_symbols', [qs, ...Object.keys(TV_SCAN_ALIASES)]));
+    };
+
+    ws.onmessage = (event) => {
+      const str = event.data.toString();
+      if (str.startsWith('~h~')) {
+        try { ws.send('~h~' + str.slice(3)); } catch (_) {}
+        return;
+      }
+      if (!str.includes('"qsd"')) return;
+
+      const msgs = str.split(/~m~\d+~m~/).filter(Boolean);
+      const now = Date.now();
+      for (const m of msgs) {
+        try {
+          if (m.startsWith('~h~')) {
+            ws.send(m);
+            continue;
+          }
+          const j = JSON.parse(m);
+          if (j.m !== 'qsd' || !Array.isArray(j.p) || !j.p[1]) continue;
+          const item = j.p[1];
+          const tvSym = item.n;
+          const v = item.v;
+          if (!tvSym || !v || item.s === 'error') continue;
+
+          const state = tvWsQuoteState.get(tvSym) || {};
+          if (Number.isFinite(v.lp) && v.lp > 0) state.lp = v.lp;
+          if (Number.isFinite(v.prev_close_price) && v.prev_close_price > 0) state.prevClose = v.prev_close_price;
+          if (Number.isFinite(v.open_price) && v.open_price > 0) state.open = v.open_price;
+          if (Number.isFinite(v.high_price) && v.high_price > 0) state.high = v.high_price;
+          if (Number.isFinite(v.low_price) && v.low_price > 0) state.low = v.low_price;
+          if (Number.isFinite(v.ch)) state.ch = v.ch;
+          if (Number.isFinite(v.chp)) state.chp = v.chp;
+          tvWsQuoteState.set(tvSym, state);
+
+          if (!Number.isFinite(state.lp) || state.lp <= 0) continue;
+
+          const dec = state.lp < 2 ? 4 : (tvSym.includes('SILVER') || tvSym.includes('JPY') ? 3 : 2);
+          const ltp = +Number(state.lp).toFixed(dec);
+          let prevClose = state.prevClose;
+          let chg = state.ch;
+          let chgPct = state.chp;
+
+          if (prevClose && prevClose > 0) {
+            if (!Number.isFinite(chg)) chg = +(ltp - prevClose).toFixed(dec);
+            if (!Number.isFinite(chgPct)) chgPct = +(((ltp - prevClose) / prevClose) * 100).toFixed(2);
+          } else if (Number.isFinite(chg)) {
+            prevClose = +(ltp - chg).toFixed(dec);
+            if (!Number.isFinite(chgPct) && prevClose > 0) chgPct = +((chg / prevClose) * 100).toFixed(2);
+          } else {
+            const existing = quoteCache.get(tvSym);
+            if (existing?.prevClose > 0) {
+              prevClose = existing.prevClose;
+              chg = +(ltp - prevClose).toFixed(dec);
+              chgPct = +((chg / prevClose) * 100).toFixed(2);
+            } else {
+              prevClose = ltp;
+              chg = 0;
+              chgPct = 0;
+            }
+          }
+
+          const qObj = {
+            ltp,
+            open: +(state.open || ltp).toFixed(dec),
+            high: +(state.high || ltp).toFixed(dec),
+            low: +(state.low || ltp).toFixed(dec),
+            close: ltp,
+            prevClose: +Number(prevClose).toFixed(dec),
+            chg: +Number(chg).toFixed(dec),
+            chgPct: +Number(chgPct || 0).toFixed(2),
+            time: Math.floor(now / 1000),
+            _fetchTime: now,
+            source: 'tv_ws',
+          };
+
+          const aliases = TV_SCAN_ALIASES[tvSym] || [tvSym];
+          for (const alias of aliases) {
+            const key = alias.toUpperCase().trim();
+            const prev = quoteCache.get(key);
+            quoteCache.set(key, qObj);
+            if (!prev || prev.ltp !== qObj.ltp) {
+              broadcastLiveTick(key, qObj);
+            }
+          }
+        } catch (_) {}
+      }
+    };
+
+    const scheduleReconnect = () => {
+      if (tvQuoteWs === ws) tvQuoteWs = null;
+      if (tvQuoteReconnectTimer) return;
+      tvQuoteReconnectTimer = setTimeout(() => {
+        tvQuoteReconnectTimer = null;
+        startTradingViewQuoteStream();
+      }, 3000);
+    };
+
+    ws.onerror = scheduleReconnect;
+    ws.onclose = scheduleReconnect;
+  } catch (_) {
+    setTimeout(startTradingViewQuoteStream, 5000);
+  }
+}
+
+// Pre-warm TradingView scanner quotes & start real-time TradingView WebSocket stream on boot
 refreshTradingViewScannerQuotes().catch(() => {});
+startTradingViewQuoteStream();
 
 // Pre-warm all core watchlist instruments so all scripts display live prices immediately upon app load
 async function prewarmAllWatchlistQuotes() {
@@ -2433,9 +2567,9 @@ async function fetchLiveExchangeHistory(symbol, interval) {
       const intervalSec = mapIntervalToSeconds(interval);
       const nowSec = Math.floor(Date.now() / 1000);
       const bucketTime = Math.floor(nowSec / intervalSec) * intervalSec;
-      if (last.time === bucketTime) {
+      if (last.time === bucketTime && Date.now() - (ltpData._fetchTime || 0) < 30000) {
         const isIndex = symNorm.includes('NIFTY') || symNorm.includes('SENSEX') || symNorm.includes('CNX');
-        const maxThreshold = isIndex ? 0.04 : 0.10;
+        const maxThreshold = isIndex ? 0.04 : 0.025;
         if (Math.abs(ltpData.ltp - last.close) / last.close <= maxThreshold) {
           last.close = +ltpData.ltp;
           last.high = Math.max(last.high, last.close);
@@ -2497,16 +2631,24 @@ async function fetchLiveExchangeHistory(symbol, interval) {
           chgPct = prevClose !== 0 ? +((diff / prevClose) * 100).toFixed(2) : 0;
         }
 
+        const isScannerFresh = scannerQuote && Number.isFinite(scannerQuote.ltp) && scannerQuote.ltp > 0
+          && (Date.now() - (scannerQuote._fetchTime || 0) < 15000)
+          && (lastBar.close > 0 ? Math.abs(scannerQuote.ltp - lastBar.close) / lastBar.close <= 0.015 : true);
+        const finalLtp = isScannerFresh ? scannerQuote.ltp : lastBar.close;
+        const dec = finalLtp < 2 ? 4 : (finalLtp < 200 && (symNorm.includes('JPY') || symNorm.includes('SILVER')) ? 3 : 2);
+        const finalChg = (isScannerFresh && Number.isFinite(chg)) ? chg : +(finalLtp - prevClose).toFixed(dec);
+        const finalChgPct = (isScannerFresh && Number.isFinite(chgPct)) ? chgPct : (prevClose > 0 ? +(((finalLtp - prevClose) / prevClose) * 100).toFixed(2) : 0);
+
         const qObj = {
-          ltp: scannerQuote?.ltp || lastBar.close,
+          ltp: finalLtp,
           open: scannerQuote?.open || tvBars[0].open,
           high: scannerQuote?.high || Math.max(...tvBars.slice(-20).map(b => b.high)),
           low: scannerQuote?.low || Math.min(...tvBars.slice(-20).map(b => b.low)),
-          close: scannerQuote?.ltp || lastBar.close,
+          close: finalLtp,
           prevClose: prevClose,
-          chg: chg,
-          chgPct: chgPct,
-          time: lastBar.time,
+          chg: finalChg,
+          chgPct: finalChgPct,
+          time: Math.floor(Date.now() / 1000),
           _fetchTime: Date.now(),
         };
         quoteCache.set(symNorm, qObj);

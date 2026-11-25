@@ -124,8 +124,8 @@ export class CommodityFeed {
 
             let bar = this._lastBars.get(subKey);
             if (bar && !isStale) {
-              // Spike protection: reject anomalous ticks that deviate > 3.5% from current candle
-              if (bar.close > 0 && Math.abs(q.ltp - bar.close) / bar.close > 0.035) {
+              // Spike protection: reject anomalous ticks that deviate > 1.5% in a single tick
+              if (bar.close > 0 && Math.abs(q.ltp - bar.close) / bar.close > 0.015) {
                 return;
               }
               const bucketTime = Math.floor(quoteTime / intervalSecs) * intervalSecs;
@@ -135,8 +135,8 @@ export class CommodityFeed {
                 bar.close = q.ltp;
                 onTick({ ...bar });
               } else if (bucketTime > bar.time) {
-                // Only mint new bar if price is consistent with previous bar close (<= 3.5%)
-                if (Math.abs(q.ltp - bar.close) / bar.close <= 0.035) {
+                // Only mint new bar if price is consistent with previous bar close (<= 1.5%)
+                if (Math.abs(q.ltp - bar.close) / bar.close <= 0.015) {
                   const openPrice = bar.close;
                   bar = {
                     time: bucketTime,
